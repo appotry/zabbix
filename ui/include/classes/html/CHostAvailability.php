@@ -1,21 +1,16 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -39,7 +34,9 @@ class CHostAvailability extends CTag {
 		INTERFACE_AVAILABLE_MIXED => ZBX_STYLE_STATUS_YELLOW
 	];
 
-	protected $type_interfaces = [];
+	protected array $type_interfaces = [];
+
+	protected bool $has_passive_checks = true;
 
 	public function __construct() {
 		parent::__construct('div', true);
@@ -81,6 +78,8 @@ class CHostAvailability extends CTag {
 			INTERFACE_AVAILABLE_FALSE => _('Not available')
 		];
 
+		CArrayHelper::sort($interfaces, ['interface']);
+
 		foreach ($interfaces as $interface) {
 			$interface_tag = new CDiv($interface['interface']);
 
@@ -100,9 +99,19 @@ class CHostAvailability extends CTag {
 		return $hint_table;
 	}
 
+	/**
+	 * @param bool $value
+	 *
+	 * @return CHostAvailability
+	 */
+	public function enablePassiveChecks(bool $value = true): CHostAvailability {
+		$this->has_passive_checks = $value;
+
+		return $this;
+	}
+
 	public function toString($destroy = true) {
 		foreach ($this->type_interfaces as $type => $interfaces) {
-			// Add active checks to agent interfaces.
 			if ($type == INTERFACE_TYPE_AGENT) {
 				$interfaces = array_merge($interfaces, $this->type_interfaces[INTERFACE_TYPE_AGENT_ACTIVE]);
 			}
@@ -111,22 +120,15 @@ class CHostAvailability extends CTag {
 				continue;
 			}
 
-			CArrayHelper::sort($interfaces, ['interface']);
-			$available = array_column($interfaces, 'available');
-			$status = in_array(INTERFACE_AVAILABLE_UNKNOWN, $available)
-				? INTERFACE_AVAILABLE_UNKNOWN
-				: INTERFACE_AVAILABLE_TRUE;
+			$status = $type == INTERFACE_TYPE_AGENT && !$this->has_passive_checks
+					&& $this->type_interfaces[INTERFACE_TYPE_AGENT_ACTIVE]
+				? getInterfaceAvailabilityStatus($this->type_interfaces[INTERFACE_TYPE_AGENT_ACTIVE])
+				: getInterfaceAvailabilityStatus($interfaces);
 
-			if (in_array(INTERFACE_AVAILABLE_FALSE, $available)) {
-				$status = (in_array(INTERFACE_AVAILABLE_UNKNOWN, $available)
-						|| in_array(INTERFACE_AVAILABLE_TRUE, $available))
-					? INTERFACE_AVAILABLE_MIXED
-					: INTERFACE_AVAILABLE_FALSE;
-			}
-
-			$this->addItem((new CSpan(static::LABELS[$type]))
-				->addClass(static::COLORS[$status])
-				->setHint($this->getInterfaceHint($interfaces))
+			$this->addItem(
+				(new CSpan(static::LABELS[$type]))
+					->addClass(static::COLORS[$status])
+					->setHint($this->getInterfaceHint($interfaces))
 			);
 		}
 

@@ -16,14 +16,28 @@ class ComposerStaticInit3e832710df7ec8c92736d5724fad7cab
         array (
             'Symfony\\Polyfill\\Ctype\\' => 23,
             'Symfony\\Component\\Yaml\\' => 23,
+            'SCIM\\' => 5,
         ),
         'R' => 
         array (
             'RobRichards\\XMLSecLibs\\' => 23,
         ),
+        'P' => 
+        array (
+            'PragmaRX\\Google2FA\\' => 19,
+            'ParagonIE\\ConstantTime\\' => 23,
+        ),
         'O' => 
         array (
             'OneLogin\\' => 9,
+        ),
+        'F' => 
+        array (
+            'Firebase\\JWT\\' => 13,
+        ),
+        'D' => 
+        array (
+            'Duo\\DuoUniversal\\' => 17,
         ),
     );
 
@@ -36,14 +50,38 @@ class ComposerStaticInit3e832710df7ec8c92736d5724fad7cab
         array (
             0 => __DIR__ . '/..' . '/symfony/yaml',
         ),
+        'SCIM\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/include/classes/scim',
+        ),
         'RobRichards\\XMLSecLibs\\' => 
         array (
             0 => __DIR__ . '/..' . '/robrichards/xmlseclibs/src',
+        ),
+        'PragmaRX\\Google2FA\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/pragmarx/google2fa/src',
+        ),
+        'ParagonIE\\ConstantTime\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/paragonie/constant_time_encoding/src',
         ),
         'OneLogin\\' => 
         array (
             0 => __DIR__ . '/..' . '/onelogin/php-saml/src',
         ),
+        'Firebase\\JWT\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/firebase/php-jwt/src',
+        ),
+        'Duo\\DuoUniversal\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/duosecurity/duo_universal_php/src',
+        ),
+    );
+
+    public static $classMap = array (
+        'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
     );
 
     public static function getInitializer(ClassLoader $loader)
@@ -51,6 +89,7 @@ class ComposerStaticInit3e832710df7ec8c92736d5724fad7cab
         return \Closure::bind(function () use ($loader) {
             $loader->prefixLengthsPsr4 = ComposerStaticInit3e832710df7ec8c92736d5724fad7cab::$prefixLengthsPsr4;
             $loader->prefixDirsPsr4 = ComposerStaticInit3e832710df7ec8c92736d5724fad7cab::$prefixDirsPsr4;
+            $loader->classMap = ComposerStaticInit3e832710df7ec8c92736d5724fad7cab::$classMap;
 
         }, null, ClassLoader::class);
     }

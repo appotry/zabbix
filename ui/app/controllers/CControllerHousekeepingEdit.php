@@ -1,28 +1,23 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
 class CControllerHousekeepingEdit extends CController {
 
 	protected function init(): void {
-		$this->disableSIDValidation();
+		$this->disableCsrfValidation();
 	}
 
 	protected function checkInput(): bool {
@@ -57,7 +52,7 @@ class CControllerHousekeepingEdit extends CController {
 	}
 
 	protected function checkPermissions(): bool {
-		return $this->checkAccess(CRoleHelper::UI_ADMINISTRATION_GENERAL);
+		return $this->checkAccess(CRoleHelper::UI_ADMINISTRATION_HOUSEKEEPING);
 	}
 
 	protected function doAction(): void {
@@ -102,6 +97,8 @@ class CControllerHousekeepingEdit extends CController {
 				CHousekeepingHelper::HK_TRENDS_GLOBAL
 			)),
 			'hk_trends' => $this->getInput('hk_trends', CHousekeepingHelper::get(CHousekeepingHelper::HK_TRENDS)),
+			'extension_err_code' => ZBX_EXT_ERR_UNDEFINED,
+			'compression_availability' => false,
 			'compression_status' => $this->getInput('compression_status', CHousekeepingHelper::get(
 				CHousekeepingHelper::COMPRESSION_STATUS
 			)),
@@ -110,6 +107,32 @@ class CControllerHousekeepingEdit extends CController {
 			)),
 			'db_extension' => CHousekeepingHelper::get(CHousekeepingHelper::DB_EXTENSION)
 		];
+
+		if ($data['db_extension'] === ZBX_DB_EXTENSION_TIMESCALEDB) {
+			// Temporary state to show checkbox checked and disabled before the real state is detected.
+			$data['compression_not_detected'] = true;
+
+			foreach (CSettingsHelper::getDbVersionStatus() as $dbversion) {
+				if ($dbversion['database'] === ZBX_DB_EXTENSION_TIMESCALEDB) {
+					$data['timescaledb_min_version'] = $dbversion['min_version'];
+					$data['timescaledb_max_version'] = $dbversion['max_version'];
+					$data['timescaledb_min_supported_version'] = $dbversion['min_supported_version'];
+					$data['extension_err_code'] = $dbversion['extension_err_code'];
+					$data['compression_availability'] = array_key_exists('compression_availability', $dbversion)
+						&& $dbversion['compression_availability'];
+
+					if (array_key_exists('compression_availability', $dbversion)) {
+						$data['compression_not_detected'] = false;
+					}
+
+					if ($data['compression_availability']) {
+						$data += CHousekeepingHelper::getWarnings();
+					}
+
+					break;
+				}
+			}
+		}
 
 		$response = new CControllerResponseData($data);
 		$response->setTitle(_('Configuration of housekeeping'));

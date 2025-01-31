@@ -1,21 +1,16 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -133,7 +128,9 @@ class CMathFunctionValidatorTest extends TestCase {
 
 			['count()', ['rc' => false, 'error' => 'invalid number of parameters in function "count"']],
 			['count(1)', ['rc' => true, 'error' => null]],
-			['count(1, 1)', ['rc' => false, 'error' => 'invalid number of parameters in function "count"']],
+			['count(1, 1)', ['rc' => true, 'error' => null]],
+			['count(1, 1, 1)', ['rc' => true, 'error' => null]],
+			['count(1, 1, 1, 1)', ['rc' => false, 'error' => 'invalid number of parameters in function "count"']],
 
 			['date()', ['rc' => true, 'error' => null]],
 			['date(1)', ['rc' => false, 'error' => 'invalid number of parameters in function "date"']],
@@ -185,6 +182,17 @@ class CMathFunctionValidatorTest extends TestCase {
 			['insert("a", 1, 1, "a")', ['rc' => true, 'error' => null]],
 			['insert("a", 1, 1, "a", 1)', ['rc' => false, 'error' => 'invalid number of parameters in function "insert"']],
 
+			['jsonpath()', ['rc' => false, 'error' => 'invalid number of parameters in function "jsonpath"']],
+			['jsonpath("a")', ['rc' => false, 'error' => 'invalid number of parameters in function "jsonpath"']],
+			['jsonpath("a", "a")', ['rc' => true, 'error' => null]],
+			['jsonpath("a", "a", "a")', ['rc' => true, 'error' => null]],
+			['jsonpath("a", "a", "a", "a")', ['rc' => false, 'error' => 'invalid number of parameters in function "jsonpath"']],
+
+			['kurtosis()', ['rc' => false, 'error' => 'invalid number of parameters in function "kurtosis"']],
+			['kurtosis(1)', ['rc' => true, 'error' => null]],
+			['kurtosis(1, 1)', ['rc' => true, 'error' => null]],
+			['kurtosis(1, 1, 1)', ['rc' => false, 'error' => 'invalid number of parameters in function "kurtosis"']],
+
 			['left()', ['rc' => false, 'error' => 'invalid number of parameters in function "left"']],
 			['left("a")', ['rc' => false, 'error' => 'invalid number of parameters in function "left"']],
 			['left("a", 1)', ['rc' => true, 'error' => null]],
@@ -206,6 +214,11 @@ class CMathFunctionValidatorTest extends TestCase {
 			['ltrim("a")', ['rc' => true, 'error' => null]],
 			['ltrim("a", "a")', ['rc' => true, 'error' => null]],
 			['ltrim("a", "a", "a")', ['rc' => false, 'error' => 'invalid number of parameters in function "ltrim"']],
+
+			['mad()', ['rc' => false, 'error' => 'invalid number of parameters in function "mad"']],
+			['mad(1)', ['rc' => true, 'error' => null]],
+			['mad(1, 1)', ['rc' => true, 'error' => null]],
+			['mad(1, 1, 1)', ['rc' => false, 'error' => 'invalid number of parameters in function "mad"']],
 
 			['max()', ['rc' => false, 'error' => 'invalid number of parameters in function "max"']],
 			['max(1)', ['rc' => true, 'error' => null]],
@@ -284,14 +297,34 @@ class CMathFunctionValidatorTest extends TestCase {
 			['sinh(1)', ['rc' => true, 'error' => null]],
 			['sinh(1, 1)', ['rc' => false, 'error' => 'invalid number of parameters in function "sinh"']],
 
+			['skewness()', ['rc' => false, 'error' => 'invalid number of parameters in function "skewness"']],
+			['skewness(1)', ['rc' => true, 'error' => null]],
+			['skewness(1, 1)', ['rc' => true, 'error' => null]],
+			['skewness(1, 1, 1)', ['rc' => false, 'error' => 'invalid number of parameters in function "skewness"']],
+
 			['sqrt()', ['rc' => false, 'error' => 'invalid number of parameters in function "sqrt"']],
 			['sqrt(1)', ['rc' => true, 'error' => null]],
 			['sqrt(1, 1)', ['rc' => false, 'error' => 'invalid number of parameters in function "sqrt"']],
+
+			['stddevpop()', ['rc' => false, 'error' => 'invalid number of parameters in function "stddevpop"']],
+			['stddevpop(1)', ['rc' => true, 'error' => null]],
+			['stddevpop(1, 1)', ['rc' => true, 'error' => null]],
+			['stddevpop(1, 1, 1)', ['rc' => false, 'error' => 'invalid number of parameters in function "stddevpop"']],
+
+			['stddevsamp()', ['rc' => false, 'error' => 'invalid number of parameters in function "stddevsamp"']],
+			['stddevsamp(1)', ['rc' => true, 'error' => null]],
+			['stddevsamp(1, 1)', ['rc' => true, 'error' => null]],
+			['stddevsamp(1, 1, 1)', ['rc' => false, 'error' => 'invalid number of parameters in function "stddevsamp"']],
 
 			['sum()', ['rc' => false, 'error' => 'invalid number of parameters in function "sum"']],
 			['sum(1)', ['rc' => true, 'error' => null]],
 			['sum(1, 1)', ['rc' => true, 'error' => null]],
 			['sum(1, 1, 1)', ['rc' => true, 'error' => null]],
+
+			['sumofsquares()', ['rc' => false, 'error' => 'invalid number of parameters in function "sumofsquares"']],
+			['sumofsquares(1)', ['rc' => true, 'error' => null]],
+			['sumofsquares(1, 1)', ['rc' => true, 'error' => null]],
+			['sumofsquares(1, 1, 1)', ['rc' => false, 'error' => 'invalid number of parameters in function "sumofsquares"']],
 
 			['tan()', ['rc' => false, 'error' => 'invalid number of parameters in function "tan"']],
 			['tan(1)', ['rc' => true, 'error' => null]],
@@ -308,7 +341,23 @@ class CMathFunctionValidatorTest extends TestCase {
 			['truncate()', ['rc' => false, 'error' => 'invalid number of parameters in function "truncate"']],
 			['truncate(1)', ['rc' => false, 'error' => 'invalid number of parameters in function "truncate"']],
 			['truncate(1, 1)', ['rc' => true, 'error' => null]],
-			['truncate(1, 1, 1)', ['rc' => false, 'error' => 'invalid number of parameters in function "truncate"']]
+			['truncate(1, 1, 1)', ['rc' => false, 'error' => 'invalid number of parameters in function "truncate"']],
+
+			['varpop()', ['rc' => false, 'error' => 'invalid number of parameters in function "varpop"']],
+			['varpop(1)', ['rc' => true, 'error' => null]],
+			['varpop(1, 1)', ['rc' => true, 'error' => null]],
+			['varpop(1, 1, 1)', ['rc' => false, 'error' => 'invalid number of parameters in function "varpop"']],
+
+			['varsamp()', ['rc' => false, 'error' => 'invalid number of parameters in function "varsamp"']],
+			['varsamp(1)', ['rc' => true, 'error' => null]],
+			['varsamp(1, 1)', ['rc' => true, 'error' => null]],
+			['varsamp(1, 1, 1)', ['rc' => false, 'error' => 'invalid number of parameters in function "varsamp"']],
+
+			['xmlxpath()', ['rc' => false, 'error' => 'invalid number of parameters in function "xmlxpath"']],
+			['xmlxpath("a")', ['rc' => false, 'error' => 'invalid number of parameters in function "xmlxpath"']],
+			['xmlxpath("a", "a")', ['rc' => true, 'error' => null]],
+			['xmlxpath("a", "a", "a")', ['rc' => true, 'error' => null]],
+			['xmlxpath("a", "a", "a", "a")', ['rc' => false, 'error' => 'invalid number of parameters in function "xmlxpath"']]
 		];
 	}
 

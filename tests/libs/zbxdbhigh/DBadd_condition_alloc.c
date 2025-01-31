@@ -1,20 +1,15 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 #include "zbxmocktest.h"
@@ -22,7 +17,7 @@
 #include "zbxmockutil.h"
 
 #include "config.h"
-#include "common.h"
+#include "zbxcommon.h"
 #include "zbxalgo.h"
 #include "zbxregexp.h"
 #include "zbxdbhigh.h"
@@ -32,11 +27,7 @@ void	zbx_mock_test_entry(void **state)
 #if defined(HAVE_SQLITE3)
 #	define RESULT	"out.sqlite_regex"
 #else
-#if defined(HAVE_ORACLE)
-#	define RESULT	"out.sqlora_regex"
-#else
 #	define RESULT	"out.sql_regex"
-#endif
 #endif
 	const char		*sql_where, *sql_rgx, *field_name;
 	zbx_vector_uint64_t	in_ids;
@@ -79,12 +70,12 @@ void	zbx_mock_test_entry(void **state)
 	while (repeat--);
 
 	zbx_strcpy_alloc(&sql, &sql_alloc, &sql_offset, sql_where);
-	DBadd_condition_alloc(&sql, &sql_alloc, &sql_offset, field_name, in_ids.values, in_ids.values_num);
+	zbx_db_add_condition_alloc(&sql, &sql_alloc, &sql_offset, field_name, in_ids.values, in_ids.values_num);
 	zbx_vector_uint64_destroy(&in_ids);
 
 	if (NULL == zbx_regexp_match(sql, sql_rgx, NULL))
 	{
-		unsigned int len;
+		int	len;
 
 		if (sql_offset > (len = 4 * ZBX_KIBIBYTE) * 2)
 		{

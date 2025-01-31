@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -27,13 +22,11 @@ $page['title'] = _('Configuration of network maps');
 $page['file'] = 'sysmaps.php';
 $page['type'] = detect_page_type(PAGE_TYPE_HTML);
 
-require_once dirname(__FILE__).'/include/page_header.php';
-
 // VAR	TYPE	OPTIONAL	FLAGS	VALIDATION	EXCEPTION
 $fields = [
-	'maps' =>					[T_ZBX_INT, O_OPT, P_SYS,	DB_ID,			null],
+	'maps' =>					[T_ZBX_INT, O_OPT, P_SYS|P_ONLY_ARRAY,	DB_ID,	null],
 	'sysmapid' =>				[T_ZBX_INT, O_OPT, P_SYS,	DB_ID,
-		'isset({form}) && ({form} === "update" || {form} === "full_clone")'
+		'isset({form}) && ({form} === "update" || {form} === "clone")'
 	],
 	'name' =>					[T_ZBX_STR, O_OPT, null,	NOT_EMPTY, 'isset({add}) || isset({update})', _('Name')],
 	'width' =>					[T_ZBX_INT, O_OPT, null,	BETWEEN(0, 65535), 'isset({add}) || isset({update})', _('Width')],
@@ -59,13 +52,13 @@ $fields = [
 	'label_string_image' =>		[T_ZBX_STR, O_OPT, null,	null,			'isset({add}) || isset({update})'],
 	'label_type' =>				[T_ZBX_INT, O_OPT, null,	BETWEEN(MAP_LABEL_TYPE_LABEL,MAP_LABEL_TYPE_CUSTOM), 'isset({add}) || isset({update})'],
 	'label_location' =>			[T_ZBX_INT, O_OPT, null,	BETWEEN(0, 3),	'isset({add}) || isset({update})'],
-	'urls' =>					[T_ZBX_STR, O_OPT, null,	null,			null],
+	'urls' =>					[T_ZBX_STR, O_OPT, P_ONLY_TD_ARRAY,	null,	null],
 	'severity_min' =>			[T_ZBX_INT, O_OPT, null,	IN('0,1,2,3,4,5'), null],
 	'show_suppressed' =>		[T_ZBX_INT, O_OPT, null,	BETWEEN(0, 1),	null],
 	'userid' =>					[T_ZBX_INT, O_OPT, P_SYS,	DB_ID,			null],
 	'private' =>				[T_ZBX_INT, O_OPT, null,	BETWEEN(0, 1),	null],
-	'users' =>					[T_ZBX_INT, O_OPT, null,	null,			null],
-	'userGroups' =>				[T_ZBX_INT, O_OPT, null,	null,			null],
+	'users' =>					[T_ZBX_INT, O_OPT, P_ONLY_TD_ARRAY,	null,	null],
+	'userGroups' =>				[T_ZBX_INT, O_OPT, P_ONLY_TD_ARRAY,	null,	null],
 	// actions
 	'action' =>					[T_ZBX_STR, O_OPT, P_SYS|P_ACT, IN('"map.export","map.massdelete"'),		null],
 	'add' =>					[T_ZBX_STR, O_OPT, P_SYS|P_ACT, null,		null],
@@ -74,11 +67,11 @@ $fields = [
 	'cancel' =>					[T_ZBX_STR, O_OPT, P_SYS,	null,			null],
 	// form
 	'form' =>					[T_ZBX_STR, O_OPT, P_SYS,	null,			null],
-	'form_refresh' =>			[T_ZBX_INT, O_OPT, null,	null,			null],
+	'form_refresh' =>			[T_ZBX_INT, O_OPT, P_SYS,	null,			null],
 	// filter
 	'filter_set' =>				[T_ZBX_STR, O_OPT, P_SYS,	null,			null],
 	'filter_rst' =>				[T_ZBX_STR, O_OPT, P_SYS,	null,			null],
-	'filter_name' =>			[T_ZBX_STR, O_OPT, null,	null,			null],
+	'filter_name' =>			[T_ZBX_STR, O_OPT, P_NO_TRIM,	null,		null],
 	// sort and sortorder
 	'sort' =>					[T_ZBX_STR, O_OPT, P_SYS, IN('"height","name","width"'),				null],
 	'sortorder' =>				[T_ZBX_STR, O_OPT, P_SYS, IN('"'.ZBX_SORT_DOWN.'","'.ZBX_SORT_UP.'"'),	null]
@@ -110,14 +103,21 @@ else {
 
 $allowed_edit = CWebUser::checkAccess(CRoleHelper::ACTIONS_EDIT_MAPS);
 
+if (!$allowed_edit && array_filter([
+		hasRequest('add') || hasRequest('update'),
+		hasRequest('delete') && hasRequest('sysmapid'),
+		hasRequest('action') && getRequest('action') == 'map.massdelete',
+		hasRequest('form')
+])) {
+	access_deny(ACCESS_DENY_PAGE);
+}
+
+require_once dirname(__FILE__).'/include/page_header.php';
+
 /*
  * Actions
  */
 if (hasRequest('add') || hasRequest('update')) {
-	if (!$allowed_edit) {
-		access_deny(ACCESS_DENY_PAGE);
-	}
-
 	$map = [
 		'name' => getRequest('name'),
 		'width' => getRequest('width'),
@@ -184,7 +184,7 @@ if (hasRequest('add') || hasRequest('update')) {
 		$messageFailed = _('Cannot update network map');
 	}
 	else {
-		if (getRequest('form') === 'full_clone') {
+		if (getRequest('form') === 'clone') {
 			$maps = API::Map()->get([
 				'output' => [],
 				'selectSelements' => ['selementid', 'elements', 'elementtype', 'iconid_off', 'iconid_on', 'label',
@@ -227,15 +227,13 @@ if (hasRequest('add') || hasRequest('update')) {
 }
 elseif ((hasRequest('delete') && hasRequest('sysmapid'))
 		|| (hasRequest('action') && getRequest('action') == 'map.massdelete')) {
-	if (!$allowed_edit) {
-		access_deny(ACCESS_DENY_PAGE);
-	}
-
 	$sysmapIds = getRequest('maps', []);
 
 	if (hasRequest('sysmapid')) {
 		$sysmapIds[] = getRequest('sysmapid');
 	}
+
+	$sysmap_count = count($sysmapIds);
 
 	DBstart();
 
@@ -258,17 +256,17 @@ elseif ((hasRequest('delete') && hasRequest('sysmapid'))
 	else {
 		uncheckTableRows(null, zbx_objectValues($maps, 'sysmapid'));
 	}
-	show_messages($result, _('Network map deleted'), _('Cannot delete network map'));
+
+	$messageSuccess = _n('Network map deleted', 'Network maps deleted', $sysmap_count);
+	$messageFailed = _n('Cannot delete network map', 'Cannot delete network maps', $sysmap_count);
+
+	show_messages($result, $messageSuccess, $messageFailed);
 }
 
 /*
  * Display
  */
 if (hasRequest('form')) {
-	if (!$allowed_edit) {
-		access_deny(ACCESS_DENY_PAGE);
-	}
-
 	$current_userid = CWebUser::$data['userid'];
 	$userids[$current_userid] = $current_userid;
 	$user_groupids = [];
@@ -350,7 +348,7 @@ if (hasRequest('form')) {
 	}
 
 	$data['current_user_userid'] = $current_userid;
-	$data['form_refresh'] = getRequest('form_refresh');
+	$data['form_refresh'] = getRequest('form_refresh', 0);
 
 	// advanced labels
 	$data['labelTypes'] = sysmapElementLabel();

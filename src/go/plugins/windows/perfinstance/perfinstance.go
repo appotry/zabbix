@@ -1,6 +1,20 @@
 //go:build windows
 // +build windows
 
+/*
+** Copyright (C) 2001-2025 Zabbix SIA
+**
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
+**
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
+**
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
+**/
+
 package perfinstance
 
 import (
@@ -9,21 +23,34 @@ import (
 	"fmt"
 	"time"
 
-	"git.zabbix.com/ap/plugin-support/plugin"
-	"zabbix.com/pkg/pdh"
-	"zabbix.com/pkg/win32"
+	"golang.zabbix.com/agent2/pkg/pdh"
+	"golang.zabbix.com/agent2/pkg/win32"
+	"golang.zabbix.com/sdk/errs"
+	"golang.zabbix.com/sdk/plugin"
 )
 
-//Plugin -
+var impl Plugin
+
+// Plugin -
 type Plugin struct {
 	plugin.Base
 	nextObjectRefresh  time.Time
 	nextEngNameRefresh time.Time
 }
 
-var impl Plugin
+func init() {
+	err := plugin.RegisterMetrics(&impl, "WindowsPerfInstance",
+		"perf_instance.discovery", "Get Windows performance instance object list.",
+		"perf_instance_en.discovery", "Get Windows performance instance object English list.",
+	)
+	if err != nil {
+		panic(errs.Wrap(err, "failed to register metrics"))
+	}
 
-//Export -
+	impl.SetMaxCapacity(1)
+}
+
+// Export -
 func (p *Plugin) Export(key string, params []string, ctx plugin.ContextProvider) (response interface{}, err error) {
 	if len(params) > 1 {
 		return nil, errors.New("Too many parameters.")
@@ -69,14 +96,6 @@ func (p *Plugin) Export(key string, params []string, ctx plugin.ContextProvider)
 	}
 
 	return string(respJSON), nil
-}
-
-func init() {
-	plugin.RegisterMetrics(&impl, "WindowsPerfInstance",
-		"perf_instance.discovery", "Get Windows performance instance object list.",
-		"perf_instance_en.discovery", "Get Windows performance instance object English list.",
-	)
-	impl.SetCapacity(1)
 }
 
 func (p *Plugin) refreshObjects() (err error) {

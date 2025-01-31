@@ -1,22 +1,16 @@
 <?php
-
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 require_once 'vendor/autoload.php';
@@ -226,8 +220,11 @@ class CDataHelper extends CAPIHelper {
 					if (array_key_exists($host, $interfaces['default_interfaces'])) {
 						$interface_type = null;
 						switch (CTestArrayHelper::get($item, 'type')) {
-							case ITEM_TYPE_ZABBIX:
 							case ITEM_TYPE_ZABBIX_ACTIVE:
+								$interface_type = 0;
+								break;
+
+							case ITEM_TYPE_ZABBIX:
 								$interface_type = 1;
 								break;
 
@@ -366,7 +363,7 @@ class CDataHelper extends CAPIHelper {
 	}
 
 	/**
-	 *  Add data to item.
+	 * Add data to item.
 	 *
 	 * @param string $itemid		item id
 	 * @param array $values			value that should be sent to item
@@ -378,7 +375,16 @@ class CDataHelper extends CAPIHelper {
 		}
 
 		if ($time === null) {
-			$time = time();
+			if (is_array($values)) {
+				$offset = time();
+				$time = [];
+				for ($i = count($values); $i > 0; $i--) {
+					$time[] = $offset - $i;
+				}
+			}
+			else {
+				$time = time();
+			}
 		}
 		elseif (is_array($time)) {
 			if (count($time) !== count($values)) {
@@ -388,7 +394,59 @@ class CDataHelper extends CAPIHelper {
 			$time = array_values($time);
 		}
 
-		// Check item value type to set correct history table where to insert data.
+		// Set correct history table where to insert data.
+		$suffix = static::getItemDataTableSuffix($itemid);
+
+		foreach (array_values($values) as $key => $value) {
+			$clock = is_array($time) ? $time[$key] : $time;
+
+			// If value is an array, it means that we are dealing with trend data, which is inserted in differently.
+			if (is_array($value)) {
+				DBexecute('INSERT INTO trends'.$suffix.' (itemid, clock, num, value_min, value_avg,'.
+						' value_max) VALUES ('.zbx_dbstr($itemid).', '.zbx_dbstr($clock).', '.zbx_dbstr($value['num']).
+						', '.zbx_dbstr($value['min']).', '.zbx_dbstr($value['avg']).', '.zbx_dbstr($value['max']).')'
+				);
+			}
+			else {
+				DBexecute('INSERT INTO history'.$suffix.' (itemid, clock, value) VALUES ('.zbx_dbstr($itemid).
+						', '.zbx_dbstr($clock).', '.zbx_dbstr($value).')'
+				);
+			}
+		}
+	}
+
+	/**
+	 * Remove item data from history and trends tables.
+	 *
+	 * @param string|array $itemids		item id(s)
+	 */
+	public static function removeItemData($itemids) {
+		$groups = [];
+
+		if (!is_array($itemids)) {
+			$itemids = [$itemids];
+		}
+
+		foreach ($itemids as $itemid) {
+			$groups[self::getItemDataTableSuffix($itemid)][] = zbx_dbstr($itemid);
+		}
+
+		foreach (array_keys($groups) as $suffix) {
+			DBexecute('DELETE FROM history'.$suffix.' WHERE itemid IN ('.implode(',', $groups[$suffix]).')');
+
+			if ($suffix === '_uint' || $suffix === '') {
+				DBexecute('DELETE FROM trends'.$suffix.' WHERE itemid IN ('.implode(',', $groups[$suffix]).')');
+			}
+		}
+	}
+
+	/**
+	 * Get history data table.
+	 *
+	 * @param string $itemid		item id
+	 */
+	public static function getItemDataTableSuffix($itemid) {
+		// Check item value type to set correct history table.
 		$value_type = CDBHelper::getValue('SELECT value_type FROM items where itemid='.zbx_dbstr($itemid));
 		$suffixes = ['', '_str', '_log', '_uint', '_text'];
 
@@ -396,12 +454,6 @@ class CDataHelper extends CAPIHelper {
 			throw new Exception('Unsupported item value type: '.$value_type);
 		}
 
-		$history_table = 'history'.$suffixes[$value_type];
-
-		foreach (array_values($values) as $key => $value) {
-			$clock = is_array($time) ? $time[$key] : $time;
-			DBexecute('INSERT INTO '.$history_table.' (itemid, clock, value) VALUES ('.zbx_dbstr($itemid).', '
-					.zbx_dbstr($clock).', '.zbx_dbstr($value).')');
-		}
+		return $suffixes[$value_type];
 	}
 }

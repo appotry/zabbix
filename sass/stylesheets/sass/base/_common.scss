@@ -84,11 +84,11 @@ pre {
 }
 
 a {
+	color: $link-color;
+	text-decoration: none;
 
-	&:link {
-		color: $link-color;
-		text-decoration: none;
-		transition: color .2s ease-out;
+	@if $ui-transitions {
+		transition: color $ui-controls-transition-duration ease-out;
 	}
 
 	&:visited {
@@ -118,6 +118,17 @@ a {
 		border: 0;
 		vertical-align: top;
 	}
+
+	&.disabled {
+		&:active,
+		&:focus,
+		&:hover {
+			cursor: default !important;
+			border-bottom: 0;
+			outline: 0;
+			opacity: .35;
+		}
+	}
 }
 
 svg a {
@@ -138,6 +149,10 @@ svg a {
 		fill: $link-active-color;
 		text-decoration: underline;
 	}
+}
+
+.monospace-font {
+	font-family: $font-stack-mono;
 }
 
 .float-left {

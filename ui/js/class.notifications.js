@@ -1,27 +1,22 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
 /**
  * Default value in seconds, for poller interval.
  */
-ZBX_Notifications.POLL_INTERVAL = 30;
+ZBX_Notifications.POLL_INTERVAL = 5;
 
 ZBX_Notifications.ALARM_SEVERITY_RESOLVED = -1;
 ZBX_Notifications.ALARM_INFINITE_SERVER = -1;
@@ -381,13 +376,13 @@ ZBX_Notifications.prototype.handlePushedActiveTabid = function(tabid) {
 /**
  * When active tab is unloaded, any sibling tab is set to become active. If single session, then we drop LS (privacy).
  * We cannot know if this unload will happen because of navigation, scripted reload or a tab was just closed.
- * Latter is always assumed, so when navigating active tab, focus is deligated onto to any tab if possible,
- * then this tab might reclaim focus again at construction if during during that time document has focus.
+ * Latter is always assumed, so when navigating active tab, focus is delegated onto to any tab if possible,
+ * then this tab might reclaim focus again at construction if during that time document has focus.
  * At slow connection during page navigation there will be another active tab polling for notifications (if multitab).
  * Here `tab` is referred as ZBX_Notifications instance and `focus` - whether instance is `active` (not focused).
  *
  * @param {ZBX_BrowseTab} removed_tab  Current tab instance.
- * @param {array} other_tabids  List of alive tab ids (wuthout current tabid).
+ * @param {array} other_tabids  List of alive tab ids (without current tabid).
  */
 ZBX_Notifications.prototype.handleTabBeforeUnload = function(removed_tab, other_tabids) {
 	if (this.active && other_tabids.length) {
@@ -396,7 +391,7 @@ ZBX_Notifications.prototype.handleTabBeforeUnload = function(removed_tab, other_
 
 		/*
 		 * Solves problem happening in case when navigating to another top level domain. Chrome dispatches 'focusin'
-		 * event right after beforeunload event. It is crucial to not to respond to that, otherwise nonexisting tab
+		 * event right after beforeunload event. It is crucial not to respond to that, otherwise nonexisting tab
 		 * becomes active.
 		 */
 		this.becomeActive = function() {};
@@ -415,11 +410,15 @@ ZBX_Notifications.prototype.handleTabFocusIn = function() {
 };
 
 /**
- * @param {MouseEvent} e
+ * Close the notification box.
  */
-ZBX_Notifications.prototype.handleCloseClicked = function(e) {
+ZBX_Notifications.prototype.handleCloseClicked = function() {
+	const data = {ids: this.getEventIds()};
+
+	data[CSRF_TOKEN_NAME] = this._csrf_token;
+
 	this
-		.fetch('notifications.read', {ids: this.getEventIds()})
+		.fetch('notifications.read', data)
 		.then((resp) => {
 			if ('error' in resp) {
 				throw {error: resp.error};
@@ -448,29 +447,64 @@ ZBX_Notifications.prototype.handleCloseClicked = function(e) {
 };
 
 /**
- * @param {MouseEvent} e
+ * Handles snooze button click event.
  */
-ZBX_Notifications.prototype.handleSnoozeClicked = function(e) {
+ZBX_Notifications.prototype.handleSnoozeClicked = function() {
 	if (this.alarm.isSnoozed(this._cached_list)) {
 		return;
 	}
 
-	this.collection.map(function(notif) {
-		notif.updateRaw({snoozed: true});
-	});
+	const latest_event = Math.max(...this.collection.getRawList().map(event => parseInt(event.eventid, 10)));
+	const data = {eventid: latest_event};
 
-	this.consumeList(this.collection.getRawList());
+	data[CSRF_TOKEN_NAME] = this._csrf_token;
 
-	this.pushUpdates();
-	this.render();
+	this
+		.fetch('notifications.snooze', data)
+		.then((response) => {
+			if ('error' in response) {
+				throw {error: response.error};
+			}
+
+			this._cached_user_settings.snoozed_eventid = response.snoozed_eventid;
+
+			this.collection.map(function(notification) {
+				notification.updateRaw({snoozed: notification._raw.eventid <= latest_event});
+			});
+
+			this.consumeList(this.collection.getRawList());
+			this.pushUpdates();
+			this.render();
+		})
+		.catch((exception) => {
+			clearMessages();
+
+			let title, messages;
+
+			if (typeof exception === 'object' && 'error' in exception) {
+				title = exception.error.title;
+				messages = exception.error.messages;
+			}
+			else {
+				messages = [t('Unexpected server error.')];
+			}
+
+			const message_box = makeMessageBox('bad', messages, title);
+
+			addMessage(message_box);
+		});
 };
 
 /**
- * @param {MouseEvent} e
+ * Mute messages in the notification box.
  */
-ZBX_Notifications.prototype.handleMuteClicked = function(e) {
+ZBX_Notifications.prototype.handleMuteClicked = function() {
+	const data = {muted: this.alarm.muted ? 0 : 1};
+
+	data[CSRF_TOKEN_NAME] = this._csrf_token;
+
 	this
-		.fetch('notifications.mute', {muted: this.alarm.muted ? 0 : 1})
+		.fetch('notifications.mute', data)
 		.then((resp) => {
 			if ('error' in resp) {
 				throw {error: resp.error};
@@ -514,8 +548,13 @@ ZBX_Notifications.prototype.handleMainLoopResp = function(resp) {
 		return;
 	}
 
+	this.collection.map(function(notification) {
+		notification.updateRaw({snoozed: notification._raw.eventid <= resp.settings.snoozed_eventid});
+	});
+
 	this.consumeUserSettings(resp.settings);
 	this.consumeList(resp.notifications);
+	this._csrf_token = resp[CSRF_TOKEN_NAME];
 	this.render();
 
 	this.pushUpdates();
@@ -534,7 +573,9 @@ ZBX_Notifications.prototype.handleAlarmStateChanged = function(alarm_state) {
  * user configuration, the list state to be rendered, has been consumed by collection before.
  */
 ZBX_Notifications.prototype.renderCollection = function() {
-	this.collection.render(this._cached_user_settings.severity_styles, this.alarm);
+	this.collection.render(this._cached_user_settings.severity_styles, this.alarm, this._cached_user_settings.username,
+		this._cached_user_settings.muted
+	);
 };
 
 /**
@@ -824,10 +865,10 @@ ZBX_NotificationsAlarm.prototype.isPlayed = function() {
 /**
  * @param {array} list  List of raw notifications.
  *
- * @return {bool}
+ * @return {boolean}
  */
 ZBX_NotificationsAlarm.prototype.isSnoozed = function(list) {
-	for (var i = 0; i < list.length; i++) {
+	for (let i = 0; i < list.length; i++) {
 		if (!list[i].snoozed) {
 			return false;
 		}
@@ -993,7 +1034,9 @@ $(function() {
 		pos_side = 10,
 		side = 'right';
 
-	main.appendChild(ntf_node);
+	if (main !== null) {
+		main.appendChild(ntf_node);
+	}
 
 	if (ntf_pos !== null && 'top' in ntf_pos) {
 		side = ('right' in ntf_pos ? 'right' : ('left' in ntf_pos ? 'left' : null));
@@ -1006,7 +1049,7 @@ $(function() {
 	ntf_node.style.top = pos_top + 'px';
 	ntf_node.style[side] = pos_side + 'px';
 
-	$(ntf_node).draggable({handle: '>.dashboard-widget-head',
+	$(ntf_node).draggable({handle: '>.overlay-dialogue-header',
 		start: function(event, ui) {
 			ui.helper.data('containment', {
 				min_top: -main.offsetTop,

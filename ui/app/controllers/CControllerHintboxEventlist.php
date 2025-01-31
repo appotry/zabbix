@@ -1,21 +1,16 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -27,14 +22,14 @@ class CControllerHintboxEventlist extends CController {
 	protected $trigger;
 
 	protected function init(): void {
-		$this->disableSIDvalidation();
+		$this->disableCsrfValidation();
 	}
 
 	protected function checkInput(): bool {
 		$fields = [
 			'triggerid' =>			'required|db triggers.triggerid',
 			'eventid_till' =>		'required|db events.eventid',
-			'show_timeline' =>		'required|in 0,1',
+			'show_timeline' =>		'required|in '.implode(',', [ZBX_TIMELINE_OFF, ZBX_TIMELINE_ON]),
 			'show_tags' =>			'required|in '.implode(',', [SHOW_TAGS_NONE, SHOW_TAGS_1, SHOW_TAGS_2, SHOW_TAGS_3]),
 			'filter_tags' =>		'array',
 			'tag_name_format' =>	'required|in '.implode(',', [TAG_NAME_FULL, TAG_NAME_SHORTENED, TAG_NAME_NONE]),
@@ -109,12 +104,12 @@ class CControllerHintboxEventlist extends CController {
 		) ? $url : '';
 
 		$options = [
-			'output' => ['eventid', 'r_eventid', 'clock', 'ns', 'acknowledged'],
-			'select_acknowledges' => ['action'],
+			'output' => ['eventid', 'r_eventid', 'clock', 'ns', 'acknowledged', 'cause_eventid'],
+			'selectAcknowledges' => ['action', 'taskid'],
 			'source' => EVENT_SOURCE_TRIGGERS,
 			'object' => EVENT_OBJECT_TRIGGER,
-			'eventid_till' => $this->getInput('eventid_till'),
 			'objectids' => $trigger['triggerid'],
+			'eventid_till' => $this->getInput('eventid_till'),
 			'value' => TRIGGER_VALUE_TRUE,
 			'sortfield' => ['eventid'],
 			'sortorder' => ZBX_SORT_DOWN,
@@ -184,7 +179,8 @@ class CControllerHintboxEventlist extends CController {
 			'allowed_acknowledge' => $this->checkAccess(CRoleHelper::ACTIONS_ACKNOWLEDGE_PROBLEMS),
 			'allowed_close' => ($trigger['manual_close'] == ZBX_TRIGGER_MANUAL_CLOSE_ALLOWED
 				&& $this->checkAccess(CRoleHelper::ACTIONS_CLOSE_PROBLEMS)
-			)
+			),
+			'allowed_suppress' => $this->checkAccess(CRoleHelper::ACTIONS_SUPPRESS_PROBLEMS)
 		]));
 	}
 }

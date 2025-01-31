@@ -1,43 +1,43 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
+
 require_once dirname(__FILE__).'/../../include/CWebTest.php';
-require_once dirname(__FILE__).'/../behaviors/CMessageBehavior.php';
 require_once dirname(__FILE__).'/../../include/helpers/CDataHelper.php';
-require_once dirname(__FILE__).'/../traits/TableTrait.php';
+require_once dirname(__FILE__).'/../behaviors/CMessageBehavior.php';
+require_once dirname(__FILE__).'/../behaviors/CTableBehavior.php';
 
 /**
+ * @dataSource ExecuteNowAction, LoginUsers, ScheduledReports, UserPermissions
+ *
  * @backup role
+ *
  * @onBefore prepareRoleData
  */
 class testPageUserRoles extends CWebTest {
 
-	use TableTrait;
-
 	/**
-	 * Attach MessageBehavior to the test.
+	 * Attach MessageBehavior and TableBehavior to the test.
 	 *
 	 * @return array
 	 */
 	public function getBehaviors() {
-		return [CMessageBehavior::class];
+		return [
+			CMessageBehavior::class,
+			CTableBehavior::class
+		];
 	}
 
 	/**
@@ -91,10 +91,10 @@ class testPageUserRoles extends CWebTest {
 		}
 
 		// Check roles list sort order.
-		$before_listing = $this->getTableResult('Name');
+		$before_listing = $this->getTableColumnData('Name');
 		$name_header = $this->query('xpath://a[text()="Name"]')->one();
 		$name_header->click();
-		$after_listing = $this->getTableResult('Name');
+		$after_listing = $this->getTableColumnData('Name');
 		$this->assertEquals($after_listing, array_reverse($before_listing));
 		$name_header->click();
 
@@ -142,8 +142,8 @@ class testPageUserRoles extends CWebTest {
 			],
 			[
 				'Name' => 'Admin role',
-				'#' => 'Users 2',
-				'Users' => 'admin-zabbix, http-auth-admin'
+				'#' => 'Users 4',
+				'Users' => 'admin-zabbix, admin user for testFormScheduledReport, http-auth-admin, user-recipient of the report'
 			],
 			[
 				'Name' => 'Guest role',
@@ -172,8 +172,8 @@ class testPageUserRoles extends CWebTest {
 			],
 			[
 				'Name' => 'Super admin role',
-				'#' => 'Users 5',
-				'Users' => 'Admin (Zabbix Administrator), filter-create, filter-delete, filter-update, test-timezone'
+				'#' => 'Users 6',
+				'Users' => 'Admin (Zabbix Administrator), filter-create, filter-delete, filter-update, LDAP user, test-timezone'
 			],
 			[
 				'Name' => 'UR1-executenow-on',
@@ -360,7 +360,7 @@ class testPageUserRoles extends CWebTest {
 
 		$this->page->login()->open('zabbix.php?action=userrole.list');
 		$this->query('button:Reset')->one()->click();
-		$before_delete = $this->getTableResult('Name');
+		$before_delete = $this->getTableColumnData('Name');
 		$table = $this->query('class:list-table')->asTable()->one();
 
 		foreach ($data['roles'] as $role) {

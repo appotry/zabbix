@@ -1,20 +1,15 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 package netif
@@ -27,8 +22,9 @@ import (
 	"strconv"
 	"strings"
 
-	"git.zabbix.com/ap/plugin-support/plugin"
-	"git.zabbix.com/ap/plugin-support/std"
+	"golang.zabbix.com/sdk/errs"
+	"golang.zabbix.com/sdk/plugin"
+	"golang.zabbix.com/sdk/std"
 )
 
 const (
@@ -60,6 +56,22 @@ var mapNetStatOut = map[string]uint{
 	"compressed": 15,
 }
 
+func init() {
+	stdOs = std.NewOs()
+
+	err := plugin.RegisterMetrics(
+		&impl, "NetIf",
+		"net.if.collisions", "Returns number of out-of-window collisions.",
+		"net.if.in", "Returns incoming traffic statistics on network interface.",
+		"net.if.out", "Returns outgoing traffic statistics on network interface.",
+		"net.if.total", "Returns sum of incoming and outgoing traffic statistics on network interface.",
+		"net.if.discovery", "Returns list of network interfaces. Used for low-level discovery.",
+	)
+	if err != nil {
+		panic(errs.Wrap(err, "failed to register metrics"))
+	}
+}
+
 func (p *Plugin) addStatNum(statName string, mapNetStat map[string]uint, statNums *[]uint) error {
 	if statNum, ok := mapNetStat[statName]; ok {
 		*statNums = append(*statNums, statNum)
@@ -69,7 +81,7 @@ func (p *Plugin) addStatNum(statName string, mapNetStat map[string]uint, statNum
 	return nil
 }
 
-func (p *Plugin) getNetStats(networkIf string, statName string, dir dirFlag) (result uint64, err error) {
+func (p *Plugin) getNetStats(networkIf, statName string, dir dirFlag) (result uint64, err error) {
 	var statNums []uint
 
 	if dir&dirIn != 0 {
@@ -188,16 +200,4 @@ func (p *Plugin) Export(key string, params []string, ctx plugin.ContextProvider)
 	}
 
 	return p.getNetStats(params[0], mode, direction)
-}
-
-func init() {
-	stdOs = std.NewOs()
-
-	plugin.RegisterMetrics(&impl, "NetIf",
-		"net.if.collisions", "Returns number of out-of-window collisions.",
-		"net.if.in", "Returns incoming traffic statistics on network interface.",
-		"net.if.out", "Returns outgoing traffic statistics on network interface.",
-		"net.if.total", "Returns sum of incoming and outgoing traffic statistics on network interface.",
-		"net.if.discovery", "Returns list of network interfaces. Used for low-level discovery.")
-
 }

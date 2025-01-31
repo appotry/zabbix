@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -32,7 +27,8 @@ foreach ($data['macros'] as $i => $macro) {
 	$macro_input = (new CTextAreaFlexible('macros['.$i.'][macro]', $macro['macro']))
 		->addClass('macro')
 		->setAdaptiveWidth(ZBX_TEXTAREA_MACRO_WIDTH)
-		->setAttribute('placeholder', '{$MACRO}');
+		->setAttribute('placeholder', '{$MACRO}')
+		->disableSpellcheck();
 
 	if ($i == 0) {
 		$macro_input->setAttribute('autofocus', 'autofocus');
@@ -116,7 +112,7 @@ $checkbox_remove_all = (new CDiv(
 
 $form_list = (new CFormList('macros-form-list'))
 	->addRow(
-		(new CVisibilityBox('visible[macros]', 'macros-div', _('Original')))
+		(new CVisibilityBox('visible[macros]', 'macros-field', _('Original')))
 			->setLabel(_('Macros'))
 			->setChecked(array_key_exists('macros', $data['visible'])),
 		(new CDiv([
@@ -132,7 +128,7 @@ $form_list = (new CFormList('macros-form-list'))
 			$checkbox_update,
 			$checkbox_remove,
 			$checkbox_remove_all
-		]))->setId('macros-div')
+		]))->setId('macros-field')
 	);
 
 $form_list->show();

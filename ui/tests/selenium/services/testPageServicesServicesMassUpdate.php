@@ -1,151 +1,43 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2021 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
+
 require_once dirname(__FILE__).'/../../include/CWebTest.php';
-require_once dirname(__FILE__).'/../../include/helpers/CDataHelper.php';
-require_once dirname(__FILE__).'/../traits/TableTrait.php';
 require_once dirname(__FILE__).'/../behaviors/CMessageBehavior.php';
+require_once dirname(__FILE__).'/../behaviors/CTableBehavior.php';
 
 /**
  * @backup services
  *
- * @onBefore prepareServicesTagsData
+ * @dataSource Services
  */
 class testPageServicesServicesMassUpdate extends CWebTest {
 
-	use TableTrait;
-
-	private static $service_sql = 'SELECT * FROM services ORDER BY serviceid';
-
 	/**
-	 * Attach MessageBehavior to the test.
+	 * Attach MessageBehavior and TableBehavior to the test.
 	 *
 	 * @return array
 	 */
 	public function getBehaviors() {
-		return [CMessageBehavior::class];
+		return [
+			CMessageBehavior::class,
+			CTableBehavior::class
+		];
 	}
 
-	public static function prepareServicesTagsData() {
-		CDataHelper::call('service.create', [
-			[
-				'name' => '1_Service_Tags_Preprocessing',
-				'algorithm' => 1,
-				'sortorder' => 1,
-				'tags' => [
-					[
-						'tag' => 'old_tag_1',
-						'value' => 'old_value_1'
-					]
-				]
-			],
-			[
-				'name' => '2_Service_Tags_Preprocessing',
-				'algorithm' => 1,
-				'sortorder' => 2,
-				'tags' => [
-					[
-						'tag' => 'old_tag_2',
-						'value' => 'old_value_2'
-					],
-					[
-						'tag' => 'old_tag_3',
-						'value' => 'old_value_3'
-					]
-				]
-			],
-			[
-				'name' => '1_Service_No_Tags_Preprocessing',
-				'algorithm' => 1,
-				'sortorder' => 3
-			],
-			[
-				'name' => '2_Service_No_Tags_Preprocessing',
-				'algorithm' => 1,
-				'sortorder' => 4
-			],
-			[
-				'name' => '1_Service_Tags_replace',
-				'algorithm' => 1,
-				'sortorder' => 5,
-				'tags' => [
-					[
-						'tag' => 'Replace_tag_1',
-						'value' => 'replace_value_1'
-					],
-					[
-						'tag' => 'Replace_tag_2',
-						'value' => 'Replace_value_2'
-					]
-				]
-			],
-			[
-				'name' => '2_Service_Tags_replace',
-				'algorithm' => 1,
-				'sortorder' => 6,
-				'tags' => [
-					[
-						'tag' => 'Replace_tag_3',
-						'value' => 'Replace_value_3'
-					]
-				]
-			],
-			[
-				'name' => '1_Service_Tags_remove',
-				'algorithm' => 1,
-				'sortorder' => 7,
-				'tags' => [
-					[
-						'tag' => 'remove_tag_1',
-						'value' => 'remove_value_1'
-					],
-					[
-						'tag' => 'remove_tag_2',
-						'value' => 'remove_value_2'
-					]
-				]
-			],
-			[
-				'name' => '2_Service_Tags_remove',
-				'algorithm' => 1,
-				'sortorder' => 8,
-				'tags' => [
-					[
-						'tag' => 'remove_tag_2',
-						'value' => 'remove_value_2'
-					]
-				]
-			],
-			[
-				'name' => '3_Service_Tags_remove',
-				'algorithm' => 1,
-				'sortorder' => 9,
-				'tags' => [
-					[
-						'tag' => 'remove_tag_3',
-						'value' => 'remove_value_3'
-					]
-				]
-			]
-		]);
-	}
+	private static $service_sql = 'SELECT * FROM services ORDER BY serviceid';
 
 	public function getTagsData() {
 		return [
@@ -154,8 +46,8 @@ class testPageServicesServicesMassUpdate extends CWebTest {
 				[
 					'expected' => TEST_BAD,
 					'names' => [
-						'1_Service_Tags_Preprocessing',
-						'1_Service_No_Tags_Preprocessing'
+						'Service with problem',
+						'Service with problem tags'
 					],
 					'Tags' => [
 						'action' => 'Add',
@@ -167,7 +59,7 @@ class testPageServicesServicesMassUpdate extends CWebTest {
 							]
 						]
 					],
-					'details' => 'Invalid parameter "/1/tags/2/tag": cannot be empty.'
+					'details' => 'Invalid parameter "/1/tags/1/tag": cannot be empty.'
 				]
 			],
 			// TODO: Uncomment this case when ZBX-19263 is fixed.
@@ -177,8 +69,8 @@ class testPageServicesServicesMassUpdate extends CWebTest {
 				[
 					'expected' => TEST_BAD,
 					'names' => [
-						'2_Service_Tags_Preprocessing',
-						'2_Service_No_Tags_Preprocessing'
+						'Service with multiple service tags',
+						'Service for duplicate check'
 					],
 					'Tags' => [
 						'action' => 'Add',
@@ -202,28 +94,28 @@ class testPageServicesServicesMassUpdate extends CWebTest {
 			[
 				[
 					'names' => [
-						'1_Service_Tags_Preprocessing',
-						'2_Service_Tags_Preprocessing'
+						'Service with problem',
+						'Service with multiple service tags'
 					],
 					'Tags' => [
 						'action' => 'Add',
 						'tags' => []
 					],
 					'expected_tags' => [
-						'1_Service_Tags_Preprocessing' => [
+						'Service with problem' => [
 							[
 								'tag' => 'old_tag_1',
 								'value' => 'old_value_1'
 							]
 						],
-						'2_Service_Tags_Preprocessing' => [
+						'Service with multiple service tags' => [
 							[
-								'tag' => 'old_tag_2',
-								'value' => 'old_value_2'
+								'tag' => 'problem',
+								'value' => 'true'
 							],
 							[
-								'tag' => 'old_tag_3',
-								'value' => 'old_value_3'
+								'tag' => 'test',
+								'value' => 'test456'
 							]
 						]
 					]
@@ -232,8 +124,8 @@ class testPageServicesServicesMassUpdate extends CWebTest {
 			[
 				[
 					'names' => [
-						'1_Service_Tags_Preprocessing',
-						'2_Service_Tags_Preprocessing'
+						'Service with problem',
+						'Service with multiple service tags'
 					],
 					'Tags' => [
 						'action' => 'Add',
@@ -247,7 +139,7 @@ class testPageServicesServicesMassUpdate extends CWebTest {
 						]
 					],
 					'expected_tags' => [
-						'1_Service_Tags_Preprocessing' => [
+						'Service with problem' => [
 							[
 								'tag' => 'added_tag_1',
 								'value' => 'added_value_1'
@@ -257,18 +149,18 @@ class testPageServicesServicesMassUpdate extends CWebTest {
 								'value' => 'old_value_1'
 							]
 						],
-						'2_Service_Tags_Preprocessing' => [
+						'Service with multiple service tags' => [
 							[
 								'tag' => 'added_tag_1',
 								'value' => 'added_value_1'
 							],
 							[
-								'tag' => 'old_tag_2',
-								'value' => 'old_value_2'
+								'tag' => 'problem',
+								'value' => 'true'
 							],
 							[
-								'tag' => 'old_tag_3',
-								'value' => 'old_value_3'
+								'tag' => 'test',
+								'value' => 'test456'
 							]
 						]
 					]
@@ -277,21 +169,21 @@ class testPageServicesServicesMassUpdate extends CWebTest {
 			[
 				[
 					'names' => [
-						'1_Service_Tags_replace',
-						'2_Service_Tags_replace'
+						'Service for mass update',
+						'Update service'
 					],
 					'Tags' => [
 						'action' => 'Replace',
 						'tags' => []
 					],
 					'expected_tags' => [
-						'1_Service_Tags_replace' => [
+						'Service for mass update' => [
 							[
 								'tag' => '',
 								'value' => ''
 							]
 						],
-						'2_Service_Tags_replace' => [
+						'Update service' => [
 							[
 								'tag' => '',
 								'value' => ''
@@ -303,8 +195,8 @@ class testPageServicesServicesMassUpdate extends CWebTest {
 			[
 				[
 					'names' => [
-						'1_Service_Tags_replace',
-						'2_Service_Tags_replace'
+						'Service for mass update',
+						'Update service'
 					],
 					'Tags' => [
 						'action' => 'Replace',
@@ -318,13 +210,13 @@ class testPageServicesServicesMassUpdate extends CWebTest {
 						]
 					],
 					'expected_tags' => [
-						'1_Service_Tags_replace' => [
+						'Service for mass update' => [
 							[
 								'tag' => 'replaced_tag',
 								'value' => 'replaced_value'
 							]
 						],
-						'2_Service_Tags_replace' => [
+						'Update service' => [
 							[
 								'tag' => 'replaced_tag',
 								'value' => 'replaced_value'
@@ -336,8 +228,8 @@ class testPageServicesServicesMassUpdate extends CWebTest {
 			[
 				[
 					'names' => [
-						'1_Service_Tags_remove',
-						'2_Service_Tags_remove'
+						'Service for delete 2',
+						'Service for delete'
 					],
 					'Tags' => [
 						'action' => 'Remove',
@@ -349,7 +241,15 @@ class testPageServicesServicesMassUpdate extends CWebTest {
 						]
 					],
 					'expected_tags' => [
-						'1_Service_Tags_remove' => [
+						'Service for delete 2' => [
+							[
+								'tag' => '3rd_tag',
+								'value' => '3rd_value'
+							],
+							[
+								'tag' => '4th_tag',
+								'value' => '4th_value'
+							],
 							[
 								'tag' => 'remove_tag_1',
 								'value' => 'remove_value_1'
@@ -359,7 +259,7 @@ class testPageServicesServicesMassUpdate extends CWebTest {
 								'value' => 'remove_value_2'
 							]
 						],
-						'2_Service_Tags_remove' => [
+						'Service for delete' => [
 							[
 								'tag' => 'remove_tag_2',
 								'value' => 'remove_value_2'
@@ -371,9 +271,9 @@ class testPageServicesServicesMassUpdate extends CWebTest {
 			[
 				[
 					'names' => [
-						'1_Service_Tags_remove',
-						'2_Service_Tags_remove',
-						'3_Service_Tags_remove'
+						'Service for delete 2',
+						'Service for delete',
+						'Parent for child creation'
 					],
 					'Tags' => [
 						'action' => 'Remove',
@@ -387,19 +287,27 @@ class testPageServicesServicesMassUpdate extends CWebTest {
 						]
 					],
 					'expected_tags' => [
-						'1_Service_Tags_remove' => [
+						'Service for delete 2' => [
+							[
+								'tag' => '3rd_tag',
+								'value' => '3rd_value'
+							],
+							[
+								'tag' => '4th_tag',
+								'value' => '4th_value'
+							],
 							[
 								'tag' => 'remove_tag_1',
 								'value' => 'remove_value_1'
 							]
 						],
-						'2_Service_Tags_remove' => [
+						'Service for delete' => [
 							[
 								'tag' => '',
 								'value' => ''
 							]
 						],
-						'3_Service_Tags_remove' => [
+						'Parent for child creation' => [
 							[
 								'tag' => 'remove_tag_3',
 								'value' => 'remove_value_3'
@@ -412,8 +320,8 @@ class testPageServicesServicesMassUpdate extends CWebTest {
 			[
 				[
 					'names' => [
-						'1_Service_No_Tags_Preprocessing',
-						'2_Service_No_Tags_Preprocessing'
+						'Service with problem tags',
+						'Service for duplicate check'
 					],
 					'Tags' => [
 						'action' => 'Add',
@@ -451,8 +359,8 @@ class testPageServicesServicesMassUpdate extends CWebTest {
 			[
 				[
 					'names' => [
-						'1_Service_No_Tags_Preprocessing',
-						'2_Service_No_Tags_Preprocessing'
+						'Service with problem tags',
+						'Service for duplicate check'
 					],
 					'Tags' => [
 						'action' => 'Replace',
@@ -475,8 +383,8 @@ class testPageServicesServicesMassUpdate extends CWebTest {
 			[
 				[
 					'names' => [
-						'1_Service_No_Tags_Preprocessing',
-						'2_Service_No_Tags_Preprocessing'
+						'Service with problem tags',
+						'Service for duplicate check'
 					],
 					'Tags' => [
 						'action' => 'Replace',
@@ -499,8 +407,8 @@ class testPageServicesServicesMassUpdate extends CWebTest {
 			[
 				[
 					'names' => [
-						'1_Service_No_Tags_Preprocessing',
-						'2_Service_No_Tags_Preprocessing'
+						'Service with problem tags',
+						'Service for duplicate check'
 					],
 					'Tags' => [
 						'action' => 'Replace',
@@ -520,8 +428,8 @@ class testPageServicesServicesMassUpdate extends CWebTest {
 			[
 				[
 					'names' => [
-						'1_Service_No_Tags_Preprocessing',
-						'2_Service_No_Tags_Preprocessing'
+						'Service with problem tags',
+						'Service for duplicate check'
 					],
 					'Tags' => [
 						'action' => 'Replace',
@@ -560,7 +468,7 @@ class testPageServicesServicesMassUpdate extends CWebTest {
 		$dialog->query('id:mass_update_tags')->asSegmentedRadio()->one()->fill($data['Tags']['action']);
 
 		if ($data['Tags']['tags'] !== []) {
-			$this->query('id:tags-table')->asMultifieldTable()->one()->fill($data['Tags']['tags']);
+			$this->query('class:tags-table')->asMultifieldTable()->one()->fill($data['Tags']['tags']);
 		}
 
 		$dialog->submit();
@@ -606,7 +514,7 @@ class testPageServicesServicesMassUpdate extends CWebTest {
 				}
 
 				$expected_tags = array_key_exists('expected_tags', $data) ? $data['expected_tags'][$name] : $expected;
-				$this->query('id:tags-table')->asMultifieldTable()->one()->checkValue($expected_tags);
+				$this->query('class:tags-table')->asMultifieldTable()->one()->checkValue($expected_tags);
 
 				$service_dialog->close();
 			}
@@ -622,10 +530,10 @@ class testPageServicesServicesMassUpdate extends CWebTest {
 		$this->page->login()->open('zabbix.php?action=service.list.edit');
 
 		$services  = [
-			'1_Service_Tags_Preprocessing',
-			'2_Service_Tags_Preprocessing',
-			'1_Service_No_Tags_Preprocessing',
-			'2_Service_No_Tags_Preprocessing'
+			'Service with problem',
+			'Service with multiple service tags',
+			'Service with problem tags',
+			'Service for duplicate check'
 		];
 
 		$new_tags = [
@@ -646,7 +554,7 @@ class testPageServicesServicesMassUpdate extends CWebTest {
 
 		$dialog = COverlayDialogElement::find()->one()->waitUntilReady();
 		$dialog->asForm()->getLabel('Tags')->click();
-		$this->query('id:tags-table')->asMultifieldTable()->one()->fill($new_tags);
+		$this->query('class:tags-table')->asMultifieldTable()->one()->fill($new_tags);
 
 		$dialog->query('button:Cancel')->waitUntilClickable()->one()->click();
 		COverlayDialogElement::ensureNotPresent();

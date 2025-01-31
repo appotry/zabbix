@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -26,9 +21,9 @@
 
 <script type="text/javascript">
 	$(document).ready(function() {
-		var $form = $('form#housekeeping');
+		const $form = jQuery('#housekeeping-form');
 
-		$form.on('submit', function() {
+		$form.on('submit', () => {
 			$form.trimValues(['#hk_events_trigger', '#hk_events_service', '#hk_events_internal', '#hk_events_discovery',
 				'#hk_events_autoreg', '#hk_services', '#hk_sessions', '#hk_history', '#hk_trends'
 			]);
@@ -61,6 +56,22 @@
 		$('#compression_status').change(function() {
 			$('#compress_older').prop('disabled', !this.checked);
 		});
+
+		$('#hk_history_mode, #hk_history_global')
+			.change(function() {
+				$('.js-hk-history-warning').toggle(document.getElementById('hk_history_mode').checked
+					&& !document.getElementById('hk_history_global').checked
+				)
+			})
+			.trigger('change');
+
+		$('#hk_trends_mode, #hk_trends_global')
+			.change(function() {
+				$('.js-hk-trends-warning').toggle(document.getElementById('hk_trends_mode').checked
+					&& !document.getElementById('hk_trends_global').checked
+				)
+			})
+			.trigger('change');
 
 		$("#resetDefaults").click(function() {
 			overlayDialogue({

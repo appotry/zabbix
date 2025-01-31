@@ -1,20 +1,15 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 #include "zbxmocktest.h"
@@ -22,37 +17,31 @@
 #include "zbxmockassert.h"
 #include "zbxmockutil.h"
 
-#include "common.h"
+#include "zbxcommon.h"
 #include "zbxtrends.h"
-#include "log.h"
+#include "zbxlog.h"
 #include "zbxdbhigh.h"
 
-int	__wrap_DBis_null(const char *field);
-DB_ROW	__wrap_DBfetch(DB_RESULT result);
-DB_RESULT	__wrap_DBselect(const char *fmt, ...);
+int	__wrap_zbx_db_is_null(const char *field);
+void	__wrap_zbx_recalc_time_period(time_t *tm_start, int table_group);
 
-int	__wrap_DBis_null(const char *field)
+int	__wrap_zbx_db_is_null(const char *field)
 {
 	ZBX_UNUSED(field);
 	return SUCCEED;
 }
 
-DB_ROW	__wrap_DBfetch(DB_RESULT result)
+void	__wrap_zbx_recalc_time_period(time_t *tm_start, int table_group)
 {
-	ZBX_UNUSED(result);
-	return NULL;
-}
-
-DB_RESULT	__wrap_DBselect(const char *fmt, ...)
-{
-	ZBX_UNUSED(fmt);
-	return NULL;
+	ZBX_UNUSED(tm_start);
+	ZBX_UNUSED(table_group);
 }
 
 void	zbx_mock_test_entry(void **state)
 {
+	time_t		start, end;
 	const char	*param;
-	int		expected_ret, returned_ret, start, end;
+	int		expected_ret, returned_ret;
 	char		*error = NULL;
 	zbx_timespec_t	ts_from, ts_start, ts_end, ts;
 

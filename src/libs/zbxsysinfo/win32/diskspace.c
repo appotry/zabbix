@@ -1,27 +1,24 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-#include "common.h"
-#include "sysinfo.h"
+#include "zbxsysinfo.h"
+#include "../sysinfo.h"
+
+#include "zbxstr.h"
 #include "zbxjson.h"
 #include "zbxalgo.h"
-#include "log.h"
+#include "zbxlog.h"
 
 typedef struct
 {
@@ -37,16 +34,14 @@ typedef struct
 }
 zbx_wmpoint_t;
 
-#define zbx_wcsdup(old, str)		zbx_wcsdup2(__FILE__, __LINE__, old, str)
 
 static wchar_t	*zbx_wcsdup2(const char *filename, int line, wchar_t *old, const wchar_t *str)
 {
-	int	retry;
 	wchar_t	*ptr = NULL;
 
 	zbx_free(old);
 
-	for (retry = 10; 0 < retry && NULL == ptr; ptr = wcsdup(str), retry--)
+	for (int retry = 10; 0 < retry && NULL == ptr; ptr = wcsdup(str), retry--)
 		;
 
 	if (NULL != ptr)
@@ -69,7 +64,7 @@ static int	wmpoint_compare_func(const void *d1, const void *d2)
 static int	get_fs_size_stat(const char *fs, zbx_uint64_t *total, zbx_uint64_t *not_used,
 		zbx_uint64_t *used, double *pfree, double *pused, char **error)
 {
-	wchar_t 	*wpath;
+	wchar_t		*wpath;
 	ULARGE_INTEGER	freeBytes, totalBytes;
 
 	wpath = zbx_utf8_to_unicode(fs);
@@ -77,7 +72,7 @@ static int	get_fs_size_stat(const char *fs, zbx_uint64_t *total, zbx_uint64_t *n
 	{
 		zbx_free(wpath);
 		*error = zbx_dsprintf(NULL, "Cannot obtain filesystem information: %s",
-				strerror_from_system(GetLastError()));
+				zbx_strerror_from_system(GetLastError()));
 		zabbix_log(LOG_LEVEL_DEBUG,"%s failed with error: %s",__func__, *error);
 		return SYSINFO_RET_FAIL;
 	}
@@ -85,21 +80,30 @@ static int	get_fs_size_stat(const char *fs, zbx_uint64_t *total, zbx_uint64_t *n
 
 	*total = totalBytes.QuadPart;
 	*not_used = freeBytes.QuadPart;
-	*used = totalBytes.QuadPart - freeBytes.QuadPart;
-	*pfree = (double)(__int64)freeBytes.QuadPart * 100. / (double)(__int64)totalBytes.QuadPart;
-	*pused = (double)((__int64)totalBytes.QuadPart - (__int64)freeBytes.QuadPart) * 100. /
-			(double)(__int64)totalBytes.QuadPart;
+
+	if (0 != totalBytes.QuadPart)
+	{
+		*used = totalBytes.QuadPart - freeBytes.QuadPart;
+		*pfree = (double)(__int64)freeBytes.QuadPart * 100. / (double)(__int64)totalBytes.QuadPart;
+		*pused = (double)((__int64)totalBytes.QuadPart - (__int64)freeBytes.QuadPart) * 100. /
+				(double)(__int64)totalBytes.QuadPart;
+	}
+	else
+	{
+		*used = 0;
+		*pfree = 0;
+		*pused = 0;
+	}
 
 	return SYSINFO_RET_OK;
 
 }
 
-static int	vfs_fs_size(AGENT_REQUEST *request, AGENT_RESULT *result, HANDLE timeout_event)
+static int	vfs_fs_size_local(AGENT_REQUEST *request, AGENT_RESULT *result, HANDLE timeout_event)
 {
-	char		*path, *mode;
-	char		*error;
+	char		*path, *mode, *error;
 	zbx_uint64_t	total, used, free;
-	double		pused,pfree;
+	double		pused, pfree;
 
 	/* 'timeout_event' argument is here to make the vfs_fs_size() prototype as required by */
 	/* zbx_execute_threaded_metric() on MS Windows */
@@ -145,9 +149,9 @@ static int	vfs_fs_size(AGENT_REQUEST *request, AGENT_RESULT *result, HANDLE time
 	return SYSINFO_RET_OK;
 }
 
-int	VFS_FS_SIZE(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	vfs_fs_size(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
-	return zbx_execute_threaded_metric(vfs_fs_size, request, result);
+	return zbx_execute_threaded_metric(vfs_fs_size_local, request, result);
 }
 
 static const char	*get_drive_type_string(UINT type)
@@ -220,7 +224,7 @@ static int	add_fs_to_vector(zbx_vector_ptr_t *mntpoints, wchar_t *path, char **e
 	zbx_wmpoint_t	*mntpoint;
 	zbx_uint64_t	total, not_used, used;
 	double		pfree, pused;
-	char 		*fsname = NULL, *fstype = NULL, *fslabel = NULL, *fsdrivetype = NULL;
+	char		*fsname = NULL, *fstype = NULL, *fslabel = NULL, *fsdrivetype = NULL;
 
 	get_fs_data(path, &fsname, &fstype, &fslabel, &fsdrivetype);
 
@@ -258,6 +262,7 @@ static void	zbx_wmpoints_free(zbx_wmpoint_t *mpoint)
 
 static int	get_mount_paths(zbx_vector_ptr_t *mount_paths, char **error)
 {
+#define zbx_wcsdup(old, str)		zbx_wcsdup2(__FILE__, __LINE__, old, str)
 	wchar_t	*buffer = NULL, volume_name[MAX_PATH + 1], *p;
 	DWORD	size_dw, last_error;
 	HANDLE	volume = INVALID_HANDLE_VALUE;
@@ -297,8 +302,11 @@ static int	get_mount_paths(zbx_vector_ptr_t *mount_paths, char **error)
 		{
 			if (ERROR_MORE_DATA != (last_error = GetLastError()))
 			{
-				*error = zbx_dsprintf(*error, "Cannot obtain a list of filesystems: %s",
-						strerror_from_system(last_error));
+				char	*volume = zbx_unicode_to_utf8(volume_name);
+
+				*error = zbx_dsprintf(*error, "Cannot obtain a list of filesystems. Volume: %s Error: %s",
+						volume, zbx_strerror_from_system(last_error));
+				zbx_free(volume);
 				goto out;
 			}
 
@@ -317,7 +325,7 @@ static int	get_mount_paths(zbx_vector_ptr_t *mount_paths, char **error)
 	if (ERROR_NO_MORE_FILES != (last_error = GetLastError()))
 	{
 		*error = zbx_dsprintf(*error, "Cannot obtain complete list of filesystems.",
-				strerror_from_system(last_error));
+				zbx_strerror_from_system(last_error));
 		goto out;
 	}
 
@@ -327,13 +335,15 @@ out:
 		FindVolumeClose(volume);
 
 	zbx_free(buffer);
+
 	return ret;
+#undef zbx_wcsdup
 }
 
-int	VFS_FS_DISCOVERY(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	vfs_fs_discovery(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	struct zbx_json		j;
-	int 			i, ret = SYSINFO_RET_FAIL;
+	int			ret = SYSINFO_RET_FAIL;
 	zbx_vector_ptr_t	mount_paths;
 	char			*error = NULL, *fsname, *fstype, *fslabel, *fsdrivetype;
 
@@ -346,7 +356,7 @@ int	VFS_FS_DISCOVERY(AGENT_REQUEST *request, AGENT_RESULT *result)
 		goto out;
 	}
 
-	for (i = 0; i < mount_paths.values_num; i++)
+	for (int i = 0; i < mount_paths.values_num; i++)
 	{
 		get_fs_data(mount_paths.values[i], &fsname, &fstype, &fslabel, &fsdrivetype);
 
@@ -375,17 +385,18 @@ out:
 	return ret;
 }
 
-static int	vfs_fs_get(AGENT_REQUEST *request, AGENT_RESULT *result,  HANDLE timeout_event)
+static int	vfs_fs_get_local(AGENT_REQUEST *request, AGENT_RESULT *result, HANDLE timeout_event)
 {
 	size_t			sz;
 	struct zbx_json		j;
 	zbx_vector_ptr_t	mntpoints;
 	zbx_wmpoint_t		*mpoint;
-	int			i, ret = SYSINFO_RET_FAIL;
-	char 			*error = NULL;
+	int			ret = SYSINFO_RET_FAIL;
+	char			*error = NULL;
 	zbx_vector_ptr_t	mount_paths;
 
 	zbx_vector_ptr_create(&mount_paths);
+	zbx_vector_ptr_create(&mntpoints);
 	zbx_json_initarray(&j, ZBX_JSON_STAT_BUF_LEN);
 
 	if (FAIL == get_mount_paths(&mount_paths, &error))
@@ -397,9 +408,8 @@ static int	vfs_fs_get(AGENT_REQUEST *request, AGENT_RESULT *result,  HANDLE time
 	/* 'timeout_event' argument is here to make the vfs_fs_size() prototype as required by */
 	/* zbx_execute_threaded_metric() on MS Windows */
 	ZBX_UNUSED(timeout_event);
-	zbx_vector_ptr_create(&mntpoints);
 
-	for (i = 0; i < mount_paths.values_num; i++)
+	for (int i = 0; i < mount_paths.values_num; i++)
 	{
 		if (FAIL == add_fs_to_vector(&mntpoints, mount_paths.values[i], &error))
 		{
@@ -416,7 +426,7 @@ static int	vfs_fs_get(AGENT_REQUEST *request, AGENT_RESULT *result,  HANDLE time
 		goto out;
 	}
 
-	for (i = 0; i < mount_paths.values_num; i++)
+	for (int i = 0; i < mount_paths.values_num; i++)
 	{
 		zbx_wmpoint_t	mpoint_local;
 		int		idx;
@@ -452,15 +462,14 @@ static int	vfs_fs_get(AGENT_REQUEST *request, AGENT_RESULT *result,  HANDLE time
 out:
 	zbx_vector_ptr_clear_ext(&mount_paths, (zbx_clean_func_t)zbx_ptr_free);
 	zbx_vector_ptr_destroy(&mount_paths);
-
-	zbx_json_free(&j);
 	zbx_vector_ptr_clear_ext(&mntpoints, (zbx_clean_func_t)zbx_wmpoints_free);
 	zbx_vector_ptr_destroy(&mntpoints);
+	zbx_json_free(&j);
 
 	return ret;
 }
 
-int	VFS_FS_GET(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	vfs_fs_get(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
-	return zbx_execute_threaded_metric(vfs_fs_get, request, result);
+	return zbx_execute_threaded_metric(vfs_fs_get_local, request, result);
 }

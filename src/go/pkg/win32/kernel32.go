@@ -2,22 +2,17 @@
 // +build windows
 
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 package win32
@@ -40,6 +35,8 @@ var (
 	getActiveProcessorGroupCount     uintptr
 	getDiskFreeSpaceW                uintptr
 	getVolumePathNameW               uintptr
+	getNativeSystemInfo              uintptr
+	getComputerNameExA               uintptr
 )
 
 const (
@@ -51,7 +48,23 @@ const (
 	RelationAll = 0xfff
 )
 
+type SystemInfo struct {
+	WProcessorArchitecture      uint16
+	WReserved                   uint16
+	DWPageSize                  uint32
+	LPMinimumApplicationAddress *uint64
+	LPMaximumApplicationAddress *uint64
+	DWActiveProcessorMask       *uint32
+	DWNumberOfProcessors        uint32
+	DWProcessorType             uint32
+	DWAllocationGranularity     uint32
+	WProcessorLevel             uint16
+	WProcessorRevision          uint16
+}
+
 func init() {
+	var err error
+
 	hKernel32 = mustLoadLibrary("kernel32.dll")
 
 	globalMemoryStatusEx = hKernel32.mustGetProcAddress("GlobalMemoryStatusEx")
@@ -61,6 +74,12 @@ func init() {
 	getDiskFreeSpaceW = hKernel32.mustGetProcAddress("GetDiskFreeSpaceW")
 	getVolumePathNameW = hKernel32.mustGetProcAddress("GetVolumePathNameW")
 	getProcessHandleCount = hKernel32.mustGetProcAddress("GetProcessHandleCount")
+	getComputerNameExA = hKernel32.mustGetProcAddress("GetComputerNameExA")
+
+	getNativeSystemInfo, err = hKernel32.getProcAddress("GetNativeSystemInfo")
+	if err != nil {
+		getNativeSystemInfo = hKernel32.mustGetProcAddress("GetSystemInfo")
+	}
 }
 
 func GlobalMemoryStatusEx() (m *MEMORYSTATUSEX, err error) {
@@ -177,4 +196,25 @@ func GetDiskFreeSpace(path string) (c CLUSTER, err error) {
 	}
 
 	return c, nil
+}
+
+func GetNativeSystemInfo() (sysInfo SystemInfo) {
+	syscall.Syscall(getNativeSystemInfo, 1, uintptr(unsafe.Pointer(&sysInfo)), 0, 0)
+
+	return sysInfo
+}
+
+func GetComputerNameExA(name_type int) (name string, err error) {
+	var ret uintptr
+	size := uint32(0)
+
+	syscall.Syscall(getComputerNameExA, 3, uintptr(name_type), 0, uintptr(unsafe.Pointer(&size)))
+
+	buffer := make([]byte, size)
+	ret, _, err = syscall.Syscall(getComputerNameExA, 3, uintptr(name_type), uintptr(unsafe.Pointer(&buffer[0])), uintptr(unsafe.Pointer(&size)))
+	if ret == 0 && err != nil {
+		return "", err
+	}
+
+	return string(buffer[:size]), nil
 }

@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -49,7 +44,7 @@ class testDiscoveryRule extends CAPITest {
 					'interfaceid' => '1',
 					'delay' => '30s'
 				],
-				'expected_error' => 'Item uses host interface from non-parent host.'
+				'expected_error' => 'Invalid parameter "/1/interfaceid": cannot be the host interface ID from another host.'
 			],
 			'Test if LLD rule name and key already exists' => [
 				'discoveryrule' => [
@@ -60,7 +55,7 @@ class testDiscoveryRule extends CAPITest {
 					'interfaceid' => '50022',
 					'delay' => '30s'
 				],
-				'expected_error' => 'Item with key "apilldrule4" already exists on "API Host".'
+				'expected_error' => 'An LLD rule with key "apilldrule4" already exists on the host "API Host".'
 			],
 			'Test without update interval for mqtt.get key of Agent type' => [
 				'discoveryrule' => [
@@ -70,7 +65,7 @@ class testDiscoveryRule extends CAPITest {
 					'type' => ITEM_TYPE_ZABBIX,
 					'interfaceid' => '50022'
 				],
-				'expected_error' => 'Incorrect arguments passed to function.'
+				'expected_error' => 'Invalid parameter "/1": the parameter "delay" is missing.'
 			],
 			'Test 0 update interval for mqtt.get key of Agent type' => [
 				'discoveryrule' => [
@@ -81,7 +76,7 @@ class testDiscoveryRule extends CAPITest {
 					'interfaceid' => '50022',
 					'delay' => '0'
 				],
-				'expected_error' => 'Item will not be refreshed. Specified update interval requires having at least one either flexible or scheduling interval.'
+				'expected_error' => 'Invalid parameter "/1/delay": cannot be equal to zero without custom intervals.'
 			],
 			'Test 0 update interval for wrong mqtt key of Active agent type' => [
 				'discoveryrule' => [
@@ -91,9 +86,9 @@ class testDiscoveryRule extends CAPITest {
 					'type' => ITEM_TYPE_ZABBIX_ACTIVE,
 					'delay' => '0'
 				],
-				'expected_error' => 'Item will not be refreshed. Specified update interval requires having at least one either flexible or scheduling interval.'
+				'expected_error' => 'Invalid parameter "/1/delay": cannot be equal to zero without custom intervals.'
 			],
-			'Test  LLD rule with unsupported item type' => [
+			'Test LLD rule with unsupported item type' => [
 				'discoveryrule' => [
 					'name' => 'API LLD rule with unsupported item type',
 					'key_' => 'api_lld_rule_with_unsupported_item_type',
@@ -105,8 +100,131 @@ class testDiscoveryRule extends CAPITest {
 				'expected_error' => 'Invalid parameter "/1/type": value must be one of '.implode(', ', [
 					ITEM_TYPE_ZABBIX, ITEM_TYPE_TRAPPER, ITEM_TYPE_SIMPLE, ITEM_TYPE_INTERNAL, ITEM_TYPE_ZABBIX_ACTIVE,
 					ITEM_TYPE_EXTERNAL, ITEM_TYPE_DB_MONITOR, ITEM_TYPE_IPMI, ITEM_TYPE_SSH, ITEM_TYPE_TELNET,
-					ITEM_TYPE_JMX, ITEM_TYPE_DEPENDENT, ITEM_TYPE_HTTPAGENT, ITEM_TYPE_SNMP, ITEM_TYPE_SCRIPT
+					ITEM_TYPE_JMX, ITEM_TYPE_DEPENDENT, ITEM_TYPE_HTTPAGENT, ITEM_TYPE_SNMP, ITEM_TYPE_SCRIPT,
+					ITEM_TYPE_BROWSER
 				]).'.'
+			],
+			'Test invalid lifetime_type value' => [
+				'discoveryrule' => [
+					'name' => 'API LLD rule delete immediately',
+					'key_' => 'apillddelete',
+					'hostid' => '50009',
+					'type' => ITEM_TYPE_ZABBIX,
+					'interfaceid' => '50022',
+					'lifetime_type' => '4'
+				],
+				'expected_error' => 'Invalid parameter "/1/lifetime_type": value must be one of '.implode(', ', [ZBX_LLD_DELETE_AFTER, ZBX_LLD_DELETE_NEVER, ZBX_LLD_DELETE_IMMEDIATELY]).'.'
+			],
+			'Test invalid lifetime value when deletin immediately' => [
+				'discoveryrule' => [
+					'name' => 'API LLD rule delete immediately',
+					'key_' => 'apillddeletenow',
+					'hostid' => '50009',
+					'type' => ITEM_TYPE_ZABBIX,
+					'interfaceid' => '50022',
+					'lifetime_type' => ZBX_LLD_DELETE_IMMEDIATELY,
+					'lifetime' => '14d'
+				],
+				'expected_error' => 'Invalid parameter "/1/lifetime": value must be 0.'
+			],
+			'Test invalid lifetime value' => [
+				'discoveryrule' => [
+					'name' => 'API LLD rule delete after',
+					'key_' => 'apillddeleteafter',
+					'hostid' => '50009',
+					'type' => ITEM_TYPE_ZABBIX,
+					'interfaceid' => '50022',
+					'lifetime_type' => ZBX_LLD_DELETE_AFTER,
+					'lifetime' => 'aaaaaaa'
+				],
+				'expected_error' => 'Invalid parameter "/1/lifetime": a time unit is expected.'
+			],
+			'Test invalid lifetime value (array)' => [
+				'discoveryrule' => [
+					'name' => 'API LLD rule delete after',
+					'key_' => 'apillddeleteafter',
+					'hostid' => '50009',
+					'type' => ITEM_TYPE_ZABBIX,
+					'interfaceid' => '50022',
+					'lifetime_type' => ZBX_LLD_DELETE_AFTER,
+					'lifetime' => []
+				],
+				'expected_error' => 'Invalid parameter "/1/lifetime": a character string is expected.'
+			],
+			'Test invalid enabled_lifetime_type value' => [
+				'discoveryrule' => [
+					'name' => 'API LLD rule disable',
+					'key_' => 'apillddisable',
+					'hostid' => '50009',
+					'type' => ITEM_TYPE_ZABBIX,
+					'interfaceid' => '50022',
+					'enabled_lifetime_type' => '4'
+				],
+				'expected_error' => 'Invalid parameter "/1/enabled_lifetime_type": value must be one of '.implode(', ', [ZBX_LLD_DISABLE_AFTER, ZBX_LLD_DISABLE_NEVER, ZBX_LLD_DISABLE_IMMEDIATELY]).'.'
+			],
+			'Test invalid enabled_lifetime value' => [
+				'discoveryrule' => [
+					'name' => 'API LLD rule delete after',
+					'key_' => 'apillddelete',
+					'hostid' => '50009',
+					'type' => ITEM_TYPE_ZABBIX,
+					'interfaceid' => '50022',
+					'enabled_lifetime_type' => ZBX_LLD_DISABLE_AFTER,
+					'enabled_lifetime' => 'aaaaaaa'
+				],
+				'expected_error' => 'Invalid parameter "/1/enabled_lifetime": a time unit is expected.'
+			],
+			'Test invalid enabled_lifetime value (array)' => [
+				'discoveryrule' => [
+					'name' => 'API LLD rule delete default and disable after',
+					'key_' => 'apillddisable',
+					'hostid' => '50009',
+					'type' => ITEM_TYPE_ZABBIX,
+					'interfaceid' => '50022',
+					'enabled_lifetime_type' => ZBX_LLD_DISABLE_AFTER,
+					'enabled_lifetime' => []
+				],
+				'expected_error' => 'Invalid parameter "/1/enabled_lifetime": a character string is expected.'
+			],
+			'Test invalid enabled_lifetime parameter with disable never' => [
+				'discoveryrule' => [
+					'name' => 'API LLD rule delete default and disable never',
+					'key_' => 'apillddisablenever',
+					'hostid' => '50009',
+					'type' => ITEM_TYPE_ZABBIX,
+					'interfaceid' => '50022',
+					'delay' => '30s',
+					'enabled_lifetime_type' => ZBX_LLD_DISABLE_NEVER,
+					'enabled_lifetime' => '24h'
+				],
+				'expected_error' => 'Invalid parameter "/1/enabled_lifetime": value must be 0.'
+			],
+			'Test invalid enabled_lifetime parameter with disable immediately' => [
+				'discoveryrule' => [
+					'name' => 'API LLD rule disable immediately',
+					'key_' => 'apillddisablenever',
+					'hostid' => '50009',
+					'type' => ITEM_TYPE_ZABBIX,
+					'interfaceid' => '50022',
+					'enabled_lifetime_type' => ZBX_LLD_DISABLE_IMMEDIATELY,
+					'enabled_lifetime' => '24h'
+				],
+				'expected_error' => 'Invalid parameter "/1/enabled_lifetime": value must be 0.'
+			],
+			'Test invalid lifetime and enabled_lifetime values' => [
+				'discoveryrule' => [
+					'name' => 'API LLD rule disable after deletion',
+					'key_' => 'apillddisableafterdelete',
+					'hostid' => '50009',
+					'type' => ITEM_TYPE_ZABBIX,
+					'interfaceid' => '50022',
+					'lifetime_type' => ZBX_LLD_DELETE_AFTER,
+					'lifetime' => '7h',
+					'enabled_lifetime_type' => ZBX_LLD_DISABLE_AFTER,
+					'enabled_lifetime' => '77h',
+					'delay' => '30s'
+				],
+				'expected_error' => 'Invalid parameter "/1/enabled_lifetime": cannot be greater than or equal to the value of parameter "/1/lifetime".'
 			]
 		];
 
@@ -128,15 +246,22 @@ class testDiscoveryRule extends CAPITest {
 			ITEM_TYPE_JMX => '50030',
 			ITEM_TYPE_DEPENDENT => null,
 			ITEM_TYPE_HTTPAGENT => '50022',
-			ITEM_TYPE_SNMP => '50029'
+			ITEM_TYPE_SNMP => '50029',
+			ITEM_TYPE_SCRIPT => null,
+			ITEM_TYPE_BROWSER => null
 		];
 
 		$item_type_tests = [];
+
 		foreach ($valid_item_types as $type => $interfaceid) {
 			switch ($type) {
-				case ITEM_TYPE_IPMI:
+				case ITEM_TYPE_ZABBIX:
+				case ITEM_TYPE_SIMPLE:
+				case ITEM_TYPE_INTERNAL:
+				case ITEM_TYPE_ZABBIX_ACTIVE:
+				case ITEM_TYPE_EXTERNAL:
 					$params = [
-						'ipmi_sensor' => '1.2.3'
+						'delay' => '30s'
 					];
 					break;
 
@@ -146,11 +271,42 @@ class testDiscoveryRule extends CAPITest {
 					];
 					break;
 
-				case ITEM_TYPE_TELNET:
+				case ITEM_TYPE_DB_MONITOR:
+					$params = [
+						'params' => 'SELECT * FROM table',
+						'delay' => '30s'
+					];
+					break;
+
+				case ITEM_TYPE_IPMI:
+					$params = [
+						'ipmi_sensor' => '1.2.3',
+						'delay' => '30s'
+					];
+					break;
+
 				case ITEM_TYPE_SSH:
 					$params = [
 						'username' => 'username',
-						'authtype' => ITEM_AUTHTYPE_PASSWORD
+						'authtype' => ITEM_AUTHTYPE_PASSWORD,
+						'params' => 'return true;',
+						'delay' => '30s'
+					];
+					break;
+
+				case ITEM_TYPE_TELNET:
+					$params = [
+						'username' => 'username',
+						'params' => 'return true;',
+						'delay' => '30s'
+					];
+					break;
+
+				case ITEM_TYPE_JMX:
+					$params = [
+						'username' => 'username',
+						'password' => 'password',
+						'delay' => '30s'
 					];
 					break;
 
@@ -161,22 +317,33 @@ class testDiscoveryRule extends CAPITest {
 					];
 					break;
 
-				case ITEM_TYPE_JMX:
-					$params = [
-						'username' => 'username',
-						'password' => 'password'
-					];
-					break;
-
 				case ITEM_TYPE_HTTPAGENT:
 					$params = [
-						'url' => 'http://0.0.0.0'
+						'url' => 'http://0.0.0.0',
+						'delay' => '30s'
 					];
 					break;
 
 				case ITEM_TYPE_SNMP:
 					$params = [
-						'snmp_oid' => '1.2.3'
+						'snmp_oid' => '1.2.3',
+						'delay' => '30s'
+					];
+					break;
+
+				case ITEM_TYPE_SCRIPT:
+					$params = [
+						'params' => 'return JSON.encode({});',
+						'timeout' => '30s',
+						'delay' => '30s'
+					];
+					break;
+
+				case ITEM_TYPE_BROWSER:
+					$params = [
+						'params' => 'return JSON.encode({});',
+						'timeout' => '30s',
+						'delay' => '30s'
 					];
 					break;
 
@@ -191,11 +358,10 @@ class testDiscoveryRule extends CAPITest {
 
 			$item_type_tests['Test valid LLD rule with item type '.$type] = [
 				'discoveryrule' => $params + [
-					'name' => 'API LLD rule of type '.$type,
-					'key_' => 'api_lld_rule_of_type_'.$type,
+					'name' => 'LLD rule of type '.$type,
+					'key_' => 'lld_rule_of_type_'.$type,
 					'hostid' => '50009',
-					'type' => (string) $type,
-					'delay' => '30s'
+					'type' => (string) $type
 				],
 				'expected_error' => null
 			];
@@ -220,6 +386,43 @@ class testDiscoveryRule extends CAPITest {
 					'type' => ITEM_TYPE_ZABBIX_ACTIVE
 				],
 				'expected_error' => null
+			],
+			'Test with lifetime and enabled_lifetime values' => [
+				'discoveryrule' => [
+					'name' => 'API LLD rule disable before deletion',
+					'key_' => 'api_disable_before_deletion',
+					'hostid' => '50009',
+					'type' => ITEM_TYPE_INTERNAL,
+					'delay' => '1h',
+					'lifetime_type' => ZBX_LLD_DELETE_AFTER,
+					'lifetime' => '14d',
+					'enabled_lifetime_type' => ZBX_LLD_DISABLE_AFTER,
+					'enabled_lifetime' => '24h'
+				],
+				'expected_error' => null
+			],
+			'Test with immediate deletion' => [
+				'discoveryrule' => [
+					'name' => 'API LLD rule delete immediately',
+					'key_' => 'api_delete_immediately',
+					'hostid' => '50009',
+					'type' => ITEM_TYPE_INTERNAL,
+					'delay' => '1h',
+					'lifetime_type' => ZBX_LLD_DELETE_IMMEDIATELY
+				],
+				'expected_error' => null
+			],
+			'Test with no deletion and no disabling' => [
+				'discoveryrule' => [
+					'name' => 'API LLD rule delete never disable never',
+					'key_' => 'api_disable_never_delete_never',
+					'hostid' => '50009',
+					'type' => ITEM_TYPE_INTERNAL,
+					'delay' => '1h',
+					'lifetime_type' => ZBX_LLD_DELETE_NEVER,
+					'enabled_lifetime_type' => ZBX_LLD_DISABLE_NEVER
+				],
+				'expected_error' => null
 			]
 		] + $item_type_tests;
 
@@ -232,6 +435,10 @@ class testDiscoveryRule extends CAPITest {
 	 */
 	public function testDiscoveryRule_Create(array $discoveryrules, $expected_error) {
 		$result = $this->call('discoveryrule.create', $discoveryrules, $expected_error);
+
+		// if ($expected_error !== null) {
+		// 	return;
+		// }
 
 		// Accept single and multiple LLD rules just like API method. Work with multi-dimensional array in result.
 		if (!array_key_exists(0, $discoveryrules)) {
@@ -447,7 +654,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Invalid parameter "/1/lld_macro_paths/3/lld_macro": value "{#B}" already exists.'
+				'expected_error' => 'Invalid parameter "/1/lld_macro_paths/3": value (lld_macro)=({#B}) already exists.'
 			],
 			'Test unexpected parameters lld_macro_paths' => [
 				'discoveryrule' => [
@@ -503,12 +710,6 @@ class testDiscoveryRule extends CAPITest {
 				],
 				'expected_error' => 'Invalid parameter "/2/lld_macro_paths": an array is expected.'
 			],
-			'Test empty lld_macro_paths' => [
-				'discoveryrule' => $default_options + [
-					'lld_macro_paths' => []
-				],
-				'expected_error' => 'Invalid parameter "/1/lld_macro_paths": cannot be empty.'
-			],
 			'Test no parameters in lld_macro_paths (create)' => [
 				'discoveryrule' => $default_options + [
 					'lld_macro_paths' => [[]]
@@ -545,9 +746,9 @@ class testDiscoveryRule extends CAPITest {
 				'discoveryrule' => $default_options + [
 					'lld_macro_paths' => [[]]
 				],
-				'expected_error' => 'Invalid parameter "/1/lld_macro_paths/1": cannot be empty.'
+				'expected_error' => 'Invalid parameter "/1/lld_macro_paths/1": the parameter "lld_macro" is missing.'
 			],
-			'Test incorrect lld_macro_pathid' => [
+			'Test unexpected parameter lld_macro_pathid' => [
 				'discoveryrule' => $default_options + [
 					'lld_macro_paths' => [
 						[
@@ -555,28 +756,29 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'No permissions to referred object or it does not exist!'
+				'expected_error' => 'Invalid parameter "/1/lld_macro_paths/1": unexpected parameter "lld_macro_pathid".'
 			],
-			'Test duplicate LLD macro paths entries by giving lld_macro_pathid and existing lld_macro' => [
+			'Test duplicate LLD macro paths entries by giving existing lld_macro' => [
 				'discoveryrule' => $default_options + [
 					'lld_macro_paths' => [
 						[
-							'lld_macro_pathid' => '992'
+							'lld_macro' => '{#B}',
+							'path' => '$.list[:2].type'
 						],
 						[
 							'lld_macro' => '{#B}',
-							'path' => '$.list[:2].type'
+							'path' => '$.list[:3].type'
 						]
 					]
 				],
-				'expected_error' => 'Invalid parameter "/1/lld_macro_paths/2/lld_macro": value "{#B}" already exists.'
+				'expected_error' => 'Invalid parameter "/1/lld_macro_paths/2": value (lld_macro)=({#B}) already exists.'
 			],
 			'Test removal of LLD macro paths on templated discovery rule' => [
 				'discoveryrule' => [
 					'itemid' => '110011',
 					'lld_macro_paths' => []
 				],
-				'expected_error' => 'Invalid parameter "/1/lld_macro_paths": cannot update property for templated discovery rule.'
+				'expected_error' => 'Invalid parameter "/1": cannot update readonly parameter "lld_macro_paths" of inherited object.'
 			]
 		];
 	}
@@ -634,6 +836,18 @@ class testDiscoveryRule extends CAPITest {
 					]
 				],
 				'expected_error' => null
+			],
+			'Test empty lld_macro_paths' => [
+				'discoveryrule' => [
+					'name' => 'LLD rule with empty LLD macro paths',
+					'key_' => 'lld.rule.with.empty.lld.macro.paths',
+					'hostid' => '50009',
+					'type' => '0',
+					'interfaceid' => '50022',
+					'delay' => '30s',
+					'lld_macro_paths' => []
+				],
+				'expected_error' => null
 			]
 		];
 	}
@@ -681,7 +895,7 @@ class testDiscoveryRule extends CAPITest {
 				'discoveryrule' => [
 					'preprocessing' => ''
 				],
-				'expected_error' => 'Incorrect arguments passed to function.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing": an array is expected.'
 			],
 			'Test no preprocessing fields' => [
 				'discoveryrule' => [
@@ -689,59 +903,59 @@ class testDiscoveryRule extends CAPITest {
 						[]
 					]
 				],
-				'expected_error' => 'Item pre-processing is missing parameters: type, params, error_handler, error_handler_params'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1": the parameter "type" is missing.'
 			],
 			'Test empty preprocessing fields (null)' => [
 				'discoveryrule' => [
 					'preprocessing' => [
 						[
 							'type' => null,
-							'params' => null,
+							'params' => '',
 							'error_handler' => null,
 							'error_handler_params' => null
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "type": cannot be empty.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/type": an integer is expected.'
 			],
 			'Test empty preprocessing fields (bool)' => [
 				'discoveryrule' => [
 					'preprocessing' => [
 						[
 							'type' => false,
-							'params' => null,
+							'params' => '',
 							'error_handler' => null,
 							'error_handler_params' => null
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "type": cannot be empty.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/type": an integer is expected.'
 			],
 			'Test empty preprocessing fields (string)' => [
 				'discoveryrule' => [
 					'preprocessing' => [
 						[
 							'type' => '',
-							'params' => null,
+							'params' => '',
 							'error_handler' => null,
 							'error_handler_params' => null
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "type": cannot be empty.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/type": an integer is expected.'
 			],
 			'Test invalid preprocessing type (array)' => [
 				'discoveryrule' => [
 					'preprocessing' => [
 						[
 							'type' => [],
-							'params' => null,
+							'params' => '',
 							'error_handler' => null,
 							'error_handler_params' => null
 						]
 					]
 				],
-				'expected_error' => 'Incorrect arguments passed to function.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/type": an integer is expected.'
 			],
 			'Test invalid preprocessing type (string)' => [
 				'discoveryrule' => [
@@ -754,7 +968,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "type": unexpected value "abc".'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/type": an integer is expected.'
 			],
 			'Test invalid preprocessing type (integer)' => [
 				'discoveryrule' => [
@@ -767,7 +981,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "type": unexpected value "666".'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/type": value must be one of 5, 11, 12, 14, 15, 16, 17, 20, 21, 23, 24, 25, 27, 28, 29, 30.'
 			],
 			'Test unallowed preprocessing type (integer)' => [
 				'discoveryrule' => [
@@ -780,20 +994,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "type": unexpected value "'.ZBX_PREPROC_OCT2DEC.'".'
-			],
-			'Test valid type but empty preprocessing params (null)' => [
-				'discoveryrule' => [
-					'preprocessing' => [
-						[
-							'type' => ZBX_PREPROC_REGSUB,
-							'params' => null,
-							'error_handler' => '',
-							'error_handler_params' => ''
-						]
-					]
-				],
-				'expected_error' => 'Incorrect value for field "params": cannot be empty.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/type": value must be one of 5, 11, 12, 14, 15, 16, 17, 20, 21, 23, 24, 25, 27, 28, 29, 30.'
 			],
 			'Test valid type but empty preprocessing params (bool)' => [
 				'discoveryrule' => [
@@ -806,7 +1007,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "params": cannot be empty.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/params": a character string is expected.'
 			],
 			'Test valid type but empty preprocessing params (string)' => [
 				'discoveryrule' => [
@@ -819,7 +1020,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "params": cannot be empty.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/params/1": cannot be empty.'
 			],
 			'Test valid type but incorrect preprocessing params (array)' => [
 				'discoveryrule' => [
@@ -832,7 +1033,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect arguments passed to function.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/params": a character string is expected.'
 			],
 			'Test preprocessing params second parameter' => [
 				'discoveryrule' => [
@@ -845,7 +1046,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "params": second parameter is expected.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/params": the parameter "2" is missing.'
 			],
 			'Test empty preprocessing error handler (null)' => [
 				'discoveryrule' => [
@@ -858,7 +1059,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "error_handler": unexpected value "".'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/error_handler": an integer is expected.'
 			],
 			'Test empty preprocessing error handler (bool)' => [
 				'discoveryrule' => [
@@ -871,7 +1072,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "error_handler": unexpected value "".'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/error_handler": an integer is expected.'
 			],
 			'Test empty preprocessing error handler (string)' => [
 				'discoveryrule' => [
@@ -884,7 +1085,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "error_handler": unexpected value "".'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/error_handler": an integer is expected.'
 			],
 			'Test incorrect preprocessing error handler (array)' => [
 				'discoveryrule' => [
@@ -897,7 +1098,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect arguments passed to function.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/error_handler": an integer is expected.'
 			],
 			'Test incorrect preprocessing error handler (string)' => [
 				'discoveryrule' => [
@@ -910,7 +1111,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "error_handler": unexpected value "abc".'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/error_handler": an integer is expected.'
 			],
 			'Test incorrect preprocessing error handler (integer)' => [
 				'discoveryrule' => [
@@ -923,7 +1124,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "error_handler": unexpected value "666".'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/error_handler": value must be one of 0, 1, 2, 3.'
 			],
 			'Test empty preprocessing error handler params (null)' => [
 				'discoveryrule' => [
@@ -936,7 +1137,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "error_handler_params": cannot be empty.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/error_handler_params": a character string is expected.'
 			],
 			'Test empty preprocessing error handler params (bool)' => [
 				'discoveryrule' => [
@@ -949,7 +1150,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "error_handler_params": cannot be empty.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/error_handler_params": a character string is expected.'
 			],
 			'Test empty preprocessing error handler params (string)' => [
 				'discoveryrule' => [
@@ -962,7 +1163,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "error_handler_params": cannot be empty.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/error_handler_params": cannot be empty.'
 			],
 			'Test incorrect preprocessing error handler params (array)' => [
 				'discoveryrule' => [
@@ -975,7 +1176,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect arguments passed to function.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/error_handler_params": a character string is expected.'
 			],
 			'Test filled preprocessing error handler params (ZBX_PREPROC_REGSUB + ZBX_PREPROC_FAIL_DEFAULT)' => [
 				'discoveryrule' => [
@@ -988,7 +1189,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "error_handler_params": should be empty.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/error_handler_params": value must be empty.'
 			],
 			'Test filled preprocessing error handler params (ZBX_PREPROC_REGSUB + ZBX_PREPROC_FAIL_DISCARD_VALUE)' => [
 				'discoveryrule' => [
@@ -1001,7 +1202,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "error_handler_params": should be empty.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/error_handler_params": value must be empty.'
 			],
 			'Test filled preprocessing error handler params (ZBX_PREPROC_JSONPATH + ZBX_PREPROC_FAIL_DEFAULT)' => [
 				'discoveryrule' => [
@@ -1014,7 +1215,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "error_handler_params": should be empty.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/error_handler_params": value must be empty.'
 			],
 			'Test filled preprocessing error handler params (ZBX_PREPROC_JSONPATH + ZBX_PREPROC_FAIL_DISCARD_VALUE)' => [
 				'discoveryrule' => [
@@ -1027,7 +1228,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "error_handler_params": should be empty.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/error_handler_params": value must be empty.'
 			],
 			'Test empty preprocessing error handler params (ZBX_PREPROC_VALIDATE_NOT_REGEX + ZBX_PREPROC_FAIL_SET_ERROR)' => [
 				'discoveryrule' => [
@@ -1040,7 +1241,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "error_handler_params": cannot be empty.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/error_handler_params": cannot be empty.'
 			],
 			'Test filled preprocessing error handler params (ZBX_PREPROC_VALIDATE_NOT_REGEX + ZBX_PREPROC_FAIL_DEFAULT)' => [
 				'discoveryrule' => [
@@ -1053,7 +1254,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "error_handler_params": should be empty.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/error_handler_params": value must be empty.'
 			],
 			'Test filled preprocessing error handler params (ZBX_PREPROC_VALIDATE_NOT_REGEX + ZBX_PREPROC_FAIL_DISCARD_VALUE)' => [
 				'discoveryrule' => [
@@ -1066,7 +1267,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "error_handler_params": should be empty.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/error_handler_params": value must be empty.'
 			],
 			'Test filled preprocessing error handler params (ZBX_PREPROC_ERROR_FIELD_JSON + ZBX_PREPROC_FAIL_DEFAULT)' => [
 				'discoveryrule' => [
@@ -1079,7 +1280,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "error_handler_params": should be empty.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/error_handler_params": value must be empty.'
 			],
 			'Test incorrect preprocessing params for type ZBX_PREPROC_THROTTLE_TIMED_VALUE' => [
 				'discoveryrule' => [
@@ -1092,7 +1293,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Invalid parameter "params": a time unit is expected.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/params/1": a time unit is expected.'
 			],
 			'Test unallowed preprocessing error handler (ZBX_PREPROC_THROTTLE_TIMED_VALUE + ZBX_PREPROC_FAIL_DISCARD_VALUE)' => [
 				'discoveryrule' => [
@@ -1105,7 +1306,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "error_handler": unexpected value "'.ZBX_PREPROC_FAIL_DISCARD_VALUE.'".'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/params/1": a time unit is expected.'
 			],
 			'Test unallowed preprocessing error handler (ZBX_PREPROC_THROTTLE_TIMED_VALUE + ZBX_PREPROC_FAIL_SET_VALUE)' => [
 				'discoveryrule' => [
@@ -1118,7 +1319,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "error_handler": unexpected value "'.ZBX_PREPROC_FAIL_SET_VALUE.'".'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/params/1": a time unit is expected.'
 			],
 			'Test unallowed preprocessing error handler (ZBX_PREPROC_THROTTLE_TIMED_VALUE + ZBX_PREPROC_FAIL_SET_ERROR)' => [
 				'discoveryrule' => [
@@ -1131,7 +1332,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "error_handler": unexpected value "'.ZBX_PREPROC_FAIL_SET_ERROR.'".'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/error_handler": value must be 0.'
 			],
 			'Test two preprocessing steps for type ZBX_PREPROC_THROTTLE_TIMED_VALUE' => [
 				'discoveryrule' => [
@@ -1150,7 +1351,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Only one throttling step is allowed.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/2": only one object can exist within the combinations of (type)=((19, 20)).'
 			],
 			'Test filled preprocessing error handler params (ZBX_PREPROC_PROMETHEUS_TO_JSON + ZBX_PREPROC_FAIL_DEFAULT)' => [
 				'discoveryrule' => [
@@ -1163,7 +1364,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "error_handler_params": should be empty.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/error_handler_params": value must be empty.'
 			],
 			'Test filled preprocessing error handler params (ZBX_PREPROC_PROMETHEUS_TO_JSON + ZBX_PREPROC_FAIL_DISCARD_VALUE)' => [
 				'discoveryrule' => [
@@ -1176,7 +1377,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "error_handler_params": should be empty.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/error_handler_params": value must be empty.'
 			],
 			'Test two preprocessing steps for type ZBX_PREPROC_PROMETHEUS_TO_JSON' => [
 				'discoveryrule' => [
@@ -1195,7 +1396,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Only one Prometheus step is allowed.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/2": only one object can exist within the combinations of (type)=((22, 23)).'
 			],
 			'Test empty preprocessing parameters for ZBX_PREPROC_CSV_TO_JSON type' => [
 				'discoveryrule' => [
@@ -1208,20 +1409,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "params": cannot be empty.'
-			],
-			'Test invalid (null) preprocessing parameters for ZBX_PREPROC_CSV_TO_JSON type' => [
-				'discoveryrule' => [
-					'preprocessing' => [
-						[
-							'type' => ZBX_PREPROC_CSV_TO_JSON,
-							'params' => null,
-							'error_handler' => ZBX_PREPROC_FAIL_DEFAULT,
-							'error_handler_params' => ''
-						]
-					]
-				],
-				'expected_error' => 'Incorrect value for field "params": cannot be empty.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/params": the parameter "2" is missing.'
 			],
 			'Test invalid (false) preprocessing parameters for ZBX_PREPROC_CSV_TO_JSON type' => [
 				'discoveryrule' => [
@@ -1234,7 +1422,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "params": cannot be empty.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/params": a character string is expected.'
 			],
 			'Test invalid (array) preprocessing parameters for ZBX_PREPROC_CSV_TO_JSON type' => [
 				'discoveryrule' => [
@@ -1247,7 +1435,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect arguments passed to function.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/params": a character string is expected.'
 			],
 			'Test invalid (too many) preprocessing parameters for ZBX_PREPROC_CSV_TO_JSON type' => [
 				'discoveryrule' => [
@@ -1260,7 +1448,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect arguments passed to function.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/params": unexpected parameter "4".'
 			],
 			'Test missing third preprocessing parameter for ZBX_PREPROC_CSV_TO_JSON type' => [
 				'discoveryrule' => [
@@ -1273,7 +1461,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "params": third parameter is expected.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/params": the parameter "3" is missing.'
 			],
 			'Test first preprocessing parameter (too long) for ZBX_PREPROC_CSV_TO_JSON type' => [
 				'discoveryrule' => [
@@ -1286,7 +1474,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "params": value of first parameter is too long.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/params/1": value is too long.'
 			],
 			'Test second preprocessing parameter (too long) for ZBX_PREPROC_CSV_TO_JSON type' => [
 				'discoveryrule' => [
@@ -1299,9 +1487,9 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "params": value of second parameter is too long.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/params/2": value is too long.'
 			],
-			'Test third preprocessing parameter (incorrect value) for ZBX_PREPROC_CSV_TO_JSON type' => [
+			'Test third preprocessing parameter (non-integer) for ZBX_PREPROC_CSV_TO_JSON type' => [
 				'discoveryrule' => [
 					'preprocessing' => [
 						[
@@ -1312,7 +1500,20 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "params": value of third parameter must be one of '.ZBX_PREPROC_CSV_NO_HEADER.', '.ZBX_PREPROC_CSV_HEADER.'.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/params/3": an integer is expected.'
+			],
+			'Test third preprocessing parameter (incorrect value) for ZBX_PREPROC_CSV_TO_JSON type' => [
+				'discoveryrule' => [
+					'preprocessing' => [
+						[
+							'type' => ZBX_PREPROC_CSV_TO_JSON,
+							'params' => "\n\n2",
+							'error_handler' => ZBX_PREPROC_FAIL_DEFAULT,
+							'error_handler_params' => ''
+						]
+					]
+				],
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/params/3": value must be one of '.implode(', ', [ZBX_PREPROC_CSV_NO_HEADER, ZBX_PREPROC_CSV_HEADER]).'.'
 			],
 			'Test non-empty preprocessing parameters for ZBX_PREPROC_XML_TO_JSON type' => [
 				'discoveryrule' => [
@@ -1325,7 +1526,85 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Incorrect value for field "params": should be empty.'
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/params": value must be empty.'
+			],
+			'Test empty preprocessing parameters for ZBX_PREPROC_SNMP_GET_VALUE type' => [
+				'discoveryrule' => [
+					'preprocessing' => [
+						[
+							'type' => ZBX_PREPROC_SNMP_GET_VALUE,
+							'params' => '',
+							'error_handler' => ZBX_PREPROC_FAIL_DEFAULT,
+							'error_handler_params' => ''
+						]
+					]
+				],
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/params/1": an integer is expected.'
+			],
+			'Test invalid (boolean) preprocessing parameters for ZBX_PREPROC_SNMP_GET_VALUE type' => [
+				'discoveryrule' => [
+					'preprocessing' => [
+						[
+							'type' => ZBX_PREPROC_SNMP_GET_VALUE,
+							'params' => false,
+							'error_handler' => ZBX_PREPROC_FAIL_DEFAULT,
+							'error_handler_params' => ''
+						]
+					]
+				],
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/params": a character string is expected.'
+			],
+			'Test invalid (array) preprocessing parameters for ZBX_PREPROC_SNMP_GET_VALUE type' => [
+				'discoveryrule' => [
+					'preprocessing' => [
+						[
+							'type' => ZBX_PREPROC_SNMP_GET_VALUE,
+							'params' => [],
+							'error_handler' => ZBX_PREPROC_FAIL_DEFAULT,
+							'error_handler_params' => ''
+						]
+					]
+				],
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/params": a character string is expected.'
+			],
+			'Test invalid (too many) preprocessing parameters for ZBX_PREPROC_SNMP_GET_VALUE type' => [
+				'discoveryrule' => [
+					'preprocessing' => [
+						[
+							'type' => ZBX_PREPROC_SNMP_GET_VALUE,
+							'params' => "\n",
+							'error_handler' => ZBX_PREPROC_FAIL_DEFAULT,
+							'error_handler_params' => ''
+						]
+					]
+				],
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/params": unexpected parameter "2".'
+			],
+			'Test invalid (unsupported - value is too low) preprocessing parameters for ZBX_PREPROC_SNMP_GET_VALUE type' => [
+				'discoveryrule' => [
+					'preprocessing' => [
+						[
+							'type' => ZBX_PREPROC_SNMP_GET_VALUE,
+							'params' => '0',
+							'error_handler' => ZBX_PREPROC_FAIL_DEFAULT,
+							'error_handler_params' => ''
+						]
+					]
+				],
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/params/1": value must be one of 1, 2, 3.'
+			],
+			'Test invalid (unsupported - value is too high) preprocessing parameters for ZBX_PREPROC_SNMP_GET_VALUE type' => [
+				'discoveryrule' => [
+					'preprocessing' => [
+						[
+							'type' => ZBX_PREPROC_SNMP_GET_VALUE,
+							'params' => '999999',
+							'error_handler' => ZBX_PREPROC_FAIL_DEFAULT,
+							'error_handler_params' => ''
+						]
+					]
+				],
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1/params/1": value must be one of 1, 2, 3.'
 			]
 		];
 	}
@@ -1505,7 +1784,7 @@ class testDiscoveryRule extends CAPITest {
 					'preprocessing' => [
 						[
 							'type' => ZBX_PREPROC_THROTTLE_TIMED_VALUE,
-							'params' => '{#MACRO}',
+							'params' => '{$MACRO}',
 							'error_handler' => ZBX_PREPROC_FAIL_DEFAULT,
 							'error_handler_params' => ''
 						]
@@ -1609,6 +1888,45 @@ class testDiscoveryRule extends CAPITest {
 					]
 				],
 				'expected_error' => null
+			],
+			'Test valid preprocessing with type ZBX_PREPROC_SNMP_GET_VALUE having ZBX_PREPROC_SNMP_UTF8_FROM_HEX' => [
+				'discoveryrule' => [
+					'preprocessing' => [
+						[
+							'type' => ZBX_PREPROC_SNMP_GET_VALUE,
+							'params' => '1',
+							'error_handler' => ZBX_PREPROC_FAIL_DEFAULT,
+							'error_handler_params' => ''
+						]
+					]
+				],
+				'expected_error' => null
+			],
+			'Test valid preprocessing with type ZBX_PREPROC_SNMP_GET_VALUE having ZBX_PREPROC_SNMP_MAC_FROM_HEX' => [
+				'discoveryrule' => [
+					'preprocessing' => [
+						[
+							'type' => ZBX_PREPROC_SNMP_GET_VALUE,
+							'params' => '2',
+							'error_handler' => ZBX_PREPROC_FAIL_DEFAULT,
+							'error_handler_params' => ''
+						]
+					]
+				],
+				'expected_error' => null
+			],
+			'Test valid preprocessing with type ZBX_PREPROC_SNMP_GET_VALUE having ZBX_PREPROC_SNMP_INT_FROM_BITS' => [
+				'discoveryrule' => [
+					'preprocessing' => [
+						[
+							'type' => ZBX_PREPROC_SNMP_GET_VALUE,
+							'params' => '3',
+							'error_handler' => ZBX_PREPROC_FAIL_DEFAULT,
+							'error_handler_params' => ''
+						]
+					]
+				],
+				'expected_error' => null
 			]
 		];
 	}
@@ -1632,34 +1950,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Item pre-processing is missing parameters: type, error_handler, error_handler_params'
-			]
-		];
-	}
-
-	public static function discoveryrule_preprocessing_update_data_valid() {
-		$test_data = self::discoveryrule_preprocessing_data_valid();
-		$default_options = ['itemid' => '110006'];
-
-		foreach ($test_data as &$test) {
-			$test['discoveryrule'] += $default_options;
-		}
-		unset($test);
-
-		return $test_data + [
-			'Test replacing preprocessing steps by ID' => [
-				'discoveryrule' => $default_options + [
-					'preprocessing' => [
-						[
-							'item_preprocid' => '5536',
-							'type' => ZBX_PREPROC_REGSUB,
-							'params' => "^abc\n123$",
-							'error_handler' => ZBX_PREPROC_FAIL_SET_ERROR,
-							'error_handler_params' => 'Error param'
-						]
-					]
-				],
-				'expected_error' => null
+				'expected_error' => 'Invalid parameter "/1/preprocessing/1": unexpected parameter "item_preprocid".'
 			],
 			'Test templated discovery rule preprocessing step update' => [
 				'discoveryrule' => [
@@ -1673,9 +1964,53 @@ class testDiscoveryRule extends CAPITest {
 						]
 					]
 				],
-				// After ZBX-3783 (112) is fixed, this will fail with error.
+				'expected_error' => 'Invalid parameter "/1": cannot update readonly parameter "preprocessing" of inherited object.'
+			]
+		];
+	}
+
+	public static function discoveryrule_preprocessing_update_data_valid() {
+		$test_data = self::discoveryrule_preprocessing_data_valid();
+		$default_options = ['itemid' => '110006'];
+
+		foreach ($test_data as &$test) {
+			$test['discoveryrule'] += $default_options;
+		}
+		unset($test);
+
+		return [
+			'Test replacing preprocessing steps' => [
+				'discoveryrule' => $default_options + [
+					'preprocessing' => [
+						[
+							'type' => ZBX_PREPROC_REGSUB,
+							'params' => "^jkl$\n123",
+							'error_handler' => ZBX_PREPROC_FAIL_SET_ERROR,
+							'error_handler_params' => 'error'
+						],
+						[
+							'type' => ZBX_PREPROC_REGSUB,
+							'params' => "^def$\n123",
+							'error_handler' => ZBX_PREPROC_FAIL_DISCARD_VALUE,
+							'error_handler_params' => ''
+						],
+						[
+							'type' => ZBX_PREPROC_REGSUB,
+							'params' => "^ghi$\n123",
+							'error_handler' => ZBX_PREPROC_FAIL_SET_VALUE,
+							'error_handler_params' => 'xxx'
+						],
+						[
+							'type' => ZBX_PREPROC_REGSUB,
+							'params' => "^abc\n123$",
+							'error_handler' => ZBX_PREPROC_FAIL_DEFAULT,
+							'error_handler_params' => ''
+						]
+					]
+				],
 				'expected_error' => null
-			],
+			]
+		] + $test_data + [
 			'Test valid update by adding new preprocessing steps' => [
 				'discoveryrule' => [
 					'itemid' => '110009',
@@ -1841,79 +2176,39 @@ class testDiscoveryRule extends CAPITest {
 				],
 				'expected_error' => null
 			],
-			'Test successful update by not changing existing records by giving lld_macro_pathid' => [
+			'Test successful update by not changing existing records' => [
 				'discoveryrule' => [
 					'itemid' => '110007',
 					'lld_macro_paths' => [
 						[
-							'lld_macro_pathid' => '996'
+							'lld_macro' => '{#A}',
+							'path' => '$.list[:1].type'
 						],
 						[
-							'lld_macro_pathid' => '997'
+							'lld_macro' => '{#B}',
+							'path' => '$.list[:2].type'
 						],
 						[
-							'lld_macro_pathid' => '998'
+							'lld_macro' => '{#C}',
+							'path' => '$.list[:3].type'
 						]
 					]
 				],
 				'expected_error' => null
 			],
-			'Test successful update by not changing existing records by giving lld_macro_pathid and same lld_macro' => [
+			'Test successful update of lld_macro and path for existing records' => [
 				'discoveryrule' => [
 					'itemid' => '110007',
 					'lld_macro_paths' => [
 						[
-							'lld_macro_pathid' => '996',
-							'lld_macro' => '{#A}'
-						],
-						[
-							'lld_macro_pathid' => '997',
-							'lld_macro' => '{#B}'
-						],
-						[
-							'lld_macro_pathid' => '998',
-							'lld_macro' => '{#C}'
-						]
-					]
-				],
-				'expected_error' => null
-			],
-			'Test successful update of path for existing records by giving lld_macro_pathid' => [
-				'discoveryrule' => [
-					'itemid' => '110007',
-					'lld_macro_paths' => [
-						[
-							'lld_macro_pathid' => '996',
-							'path' => '$.list[:6].type'
-						],
-						[
-							'lld_macro_pathid' => '997',
-							'path' => '$.list[:7].type'
-						],
-						[
-							'lld_macro_pathid' => '998',
-							'path' => '$.list[:8].type'
-						]
-					]
-				],
-				'expected_error' => null
-			],
-			'Test successful update of lld_macro and path for existing records by giving lld_macro_pathid' => [
-				'discoveryrule' => [
-					'itemid' => '110007',
-					'lld_macro_paths' => [
-						[
-							'lld_macro_pathid' => '996',
 							'lld_macro' => '{#X}',
 							'path' => '$.list[:9].type'
 						],
 						[
-							'lld_macro_pathid' => '997',
 							'lld_macro' => '{#Y}',
 							'path' => '$.list[:10].type'
 						],
 						[
-							'lld_macro_pathid' => '998',
 							'lld_macro' => '{#Z}',
 							'path' => '$.list[:11].type'
 						]
@@ -1926,13 +2221,16 @@ class testDiscoveryRule extends CAPITest {
 					'itemid' => '110007',
 					'lld_macro_paths' => [
 						[
-							'lld_macro_pathid' => '996'
+							'lld_macro' => '{#X}',
+							'path' => '$.list[:9].type'
 						],
 						[
-							'lld_macro_pathid' => '997'
+							'lld_macro' => '{#Y}',
+							'path' => '$.list[:10].type'
 						],
 						[
-							'lld_macro_pathid' => '998'
+							'lld_macro' => '{#Z}',
+							'path' => '$.list[:11].type'
 						],
 						[
 							'lld_macro' => '{#Q}',
@@ -1942,67 +2240,7 @@ class testDiscoveryRule extends CAPITest {
 				],
 				'expected_error' => null
 			],
-			'Test successful update of lld_macro_paths with partial replace, delete and adding new records in one request' => [
-				'discoveryrule' => [
-					'itemid' => '110006',
-					'lld_macro_paths' => [
-						[
-							'lld_macro_pathid' => '991',
-							'lld_macro' => '{#V}'
-						],
-						[
-							'lld_macro_pathid' => '992',
-							'lld_macro' => '{#E}',
-							'path' => '$.list[:6].type'
-						],
-						[
-							'lld_macro_pathid' => '993',
-							'lld_macro' => '{#G}',
-							'path' => '$.list[:7].type'
-						],
-						[
-							'lld_macro' => '{#A}',
-							'path' => '$.list[:8].type'
-						],
-						[
-							'lld_macro' => '{#N}',
-							'path' => '$.list[:9].type'
-						]
-					]
-				],
-				'expected_error' => null
-			],
-			'Test successful update of lld_macro_paths with partial replace' => [
-				'discoveryrule' => [
-					'itemid' => '110006',
-					'lld_macro_paths' => [
-						[
-							'lld_macro_pathid' => '991',
-							'lld_macro' => '{#V}'
-						],
-						[
-							'lld_macro_pathid' => '992',
-							'lld_macro' => '{#E}',
-							'path' => '$.list[:6].type'
-						],
-						[
-							'lld_macro_pathid' => '993',
-							'lld_macro' => '{#G}',
-							'path' => '$.list[:7].type'
-						],
-						[
-							'lld_macro' => '{#A}',
-							'path' => '$.list[:1].type'
-						],
-						[
-							'lld_macro' => '{#N}',
-							'path' => '$.list[:9].type'
-						]
-					]
-				],
-				'expected_error' => null
-			],
-			'Test successful update of lld_macro_paths by replaceing them with exact values' => [
+			'Test successful update of lld_macro_paths by replacing them with exact values' => [
 				'discoveryrule' => [
 					'itemid' => '110006',
 					'lld_macro_paths' => [
@@ -2118,218 +2356,82 @@ class testDiscoveryRule extends CAPITest {
 	 * @dataProvider discoveryrule_lld_macro_paths_update_data_valid
 	 */
 	public function testDiscoveryRuleLLDMacroPaths_Update($discoveryrules, $expected_error) {
-		if ($expected_error === null) {
-			// Before updating, collect old data for given discovery rules.
-			$itemids = [];
+		if ($expected_error !== null) {
+			$this->call('discoveryrule.update', $discoveryrules, $expected_error);
+			return;
+		}
 
-			if (array_key_exists(0, $discoveryrules)) {
-				foreach ($discoveryrules as $discoveryrule) {
-					$itemids[$discoveryrule['itemid']] = true;
+		// Accept single and multiple LLD rules just like API method. Work with multi-dimensional array in result.
+		if (!array_key_exists(0, $discoveryrules)) {
+			$discoveryrules = zbx_toArray($discoveryrules);
+		}
+
+		// Before updating, collect old data for given discovery rules.
+		$itemids = [];
+
+		foreach ($discoveryrules as $discoveryrule) {
+			$itemids[$discoveryrule['itemid']] = true;
+		}
+
+		$db_paths = CDBHelper::getAll(
+			'SELECT lmp.lld_macro_pathid,lmp.itemid,lmp.lld_macro,lmp.path'.
+			' FROM lld_macro_path lmp'.
+			' WHERE '.dbConditionId('lmp.itemid', array_keys($itemids)).
+			' ORDER BY lmp.lld_macro_pathid ASC'
+		);
+
+		$db_paths_old = [];
+
+		foreach ($db_paths as $db_path) {
+			$db_paths_old[$db_path['itemid']][$db_path['lld_macro']] = $db_path;
+		}
+
+		$this->call('discoveryrule.update', $discoveryrules, $expected_error);
+
+		$db_paths = CDBHelper::getAll(
+			'SELECT lmp.lld_macro_pathid,lmp.itemid,lmp.lld_macro,lmp.path'.
+			' FROM lld_macro_path lmp'.
+			' WHERE '.dbConditionId('lmp.itemid', array_keys($itemids)).
+			' ORDER BY lmp.lld_macro_pathid ASC'
+		);
+
+		$db_paths_new = [];
+
+		foreach ($db_paths as $db_path) {
+			$db_paths_new[$db_path['itemid']][$db_path['lld_macro']] = $db_path;
+		}
+
+		// Compare records from DB before and after API call.
+		foreach ($discoveryrules as $discoveryrule) {
+			foreach ($discoveryrule['lld_macro_paths'] as $lld_macro_path) {
+				$this->assertArrayHasKey($discoveryrule['itemid'], $db_paths_new);
+				$this->assertArrayHasKey($lld_macro_path['lld_macro'], $db_paths_new[$discoveryrule['itemid']]);
+
+				$db_lld_macro_path = $db_paths_new[$discoveryrule['itemid']][$lld_macro_path['lld_macro']];
+
+				if (array_key_exists($discoveryrule['itemid'], $db_paths_old)
+						&& array_key_exists($lld_macro_path['lld_macro'], $db_paths_old[$discoveryrule['itemid']])) {
+					$this->assertSame(
+						$db_paths_old[$discoveryrule['itemid']][$lld_macro_path['lld_macro']]['lld_macro_pathid'],
+						$db_lld_macro_path['lld_macro_pathid']
+					);
+
+					unset($db_paths_old[$discoveryrule['itemid']][$lld_macro_path['lld_macro']]);
+				}
+
+				$this->assertSame($lld_macro_path['path'], $db_lld_macro_path['path']);
+			}
+
+			if ($discoveryrule['lld_macro_paths']) {
+				if (array_key_exists($discoveryrule['itemid'], $db_paths_old)) {
+					foreach ($db_paths_old[$discoveryrule['itemid']] as $lld_macro => $foo) {
+						$this->assertArrayNotHasKey($lld_macro, $db_paths_new[$discoveryrule['itemid']]);
+					}
 				}
 			}
 			else {
-				$itemids[$discoveryrules['itemid']] = true;
+				$this->assertArrayNotHasKey($discoveryrule['itemid'], $db_paths_new);
 			}
-
-			$db_lld_macro_paths = CDBHelper::getAll(
-				'SELECT lmp.lld_macro_pathid,lmp.itemid,lmp.lld_macro,lmp.path'.
-				' FROM lld_macro_path lmp'.
-				' WHERE '.dbConditionId('lmp.itemid', array_keys($itemids)).
-				' ORDER BY lmp.lld_macro_pathid ASC'
-			);
-
-			$this->call('discoveryrule.update', $discoveryrules, $expected_error);
-
-			$db_upd_lld_macro_paths = CDBHelper::getAll(
-				'SELECT lmp.lld_macro_pathid,lmp.itemid,lmp.lld_macro,lmp.path'.
-				' FROM lld_macro_path lmp'.
-				' WHERE '.dbConditionId('lmp.itemid', array_keys($itemids)).
-				' ORDER BY lmp.lld_macro_pathid ASC'
-			);
-
-			// Accept single and multiple LLD rules just like API method. Work with multi-dimensional array in result.
-			if (!array_key_exists(0, $discoveryrules)) {
-				$discoveryrules = zbx_toArray($discoveryrules);
-			}
-
-			// Compare records from DB before and after API call.
-			foreach ($discoveryrules as $discoveryrule) {
-				$old_lld_macro_paths = [];
-				$new_lld_macro_paths = [];
-
-				if ($db_lld_macro_paths) {
-					foreach ($db_lld_macro_paths as $db_lld_macro_path) {
-						if (bccomp($db_lld_macro_path['itemid'], $discoveryrule['itemid']) == 0) {
-							unset($db_lld_macro_path['templateid']);
-							$old_lld_macro_paths[$db_lld_macro_path['lld_macro_pathid']] = $db_lld_macro_path;
-						}
-					}
-				}
-
-				if ($db_upd_lld_macro_paths) {
-					foreach ($db_upd_lld_macro_paths as $db_upd_lld_macro_path) {
-						if (bccomp($db_upd_lld_macro_path['itemid'], $discoveryrule['itemid']) == 0) {
-							$new_lld_macro_paths[$db_upd_lld_macro_path['lld_macro_pathid']] = $db_upd_lld_macro_path;
-						}
-					}
-				}
-
-				if (array_key_exists('lld_macro_paths', $discoveryrule)) {
-					foreach ($discoveryrule['lld_macro_paths'] as $lld_macro_path) {
-						// If only "lld_macro_pathid" is given, nothing should change for existing fields.
-						if (array_key_exists('lld_macro_pathid', $lld_macro_path)
-								&& !array_key_exists('lld_macro', $lld_macro_path)
-								&& !array_key_exists('path', $lld_macro_path)) {
-							$old_lld_macro_path = $old_lld_macro_paths[$lld_macro_path['lld_macro_pathid']];
-							$new_lld_macro_path = $new_lld_macro_paths[$lld_macro_path['lld_macro_pathid']];
-
-							$this->assertSame($old_lld_macro_path['lld_macro'], $new_lld_macro_path['lld_macro']);
-							$this->assertSame($old_lld_macro_path['path'], $new_lld_macro_path['path']);
-						}
-
-						// If "lld_macro_pathid" is given, but same "lld_macro", nothing should change for "path".
-						if (array_key_exists('lld_macro_pathid', $lld_macro_path)
-								&& array_key_exists('lld_macro', $lld_macro_path)
-								&& !array_key_exists('path', $lld_macro_path)) {
-							$old_lld_macro_path = $old_lld_macro_paths[$lld_macro_path['lld_macro_pathid']];
-							$new_lld_macro_path = $new_lld_macro_paths[$lld_macro_path['lld_macro_pathid']];
-
-							if ($old_lld_macro_path['lld_macro'] === $lld_macro_path['lld_macro']) {
-								$this->assertSame($old_lld_macro_path['lld_macro'], $new_lld_macro_path['lld_macro']);
-								$this->assertSame($old_lld_macro_path['path'], $new_lld_macro_path['path']);
-							}
-							else {
-								$this->assertNotSame($old_lld_macro_path['lld_macro'],
-									$new_lld_macro_path['lld_macro']
-								);
-								$this->assertSame($old_lld_macro_path['path'], $new_lld_macro_path['path']);
-							}
-						}
-
-						// If "lld_macro_pathid" is given, but same "path", nothing should change for "lld_macro".
-						if (array_key_exists('lld_macro_pathid', $lld_macro_path)
-								&& !array_key_exists('lld_macro', $lld_macro_path)
-								&& array_key_exists('path', $lld_macro_path)) {
-							$old_lld_macro_path = $old_lld_macro_paths[$lld_macro_path['lld_macro_pathid']];
-							$new_lld_macro_path = $new_lld_macro_paths[$lld_macro_path['lld_macro_pathid']];
-
-							if ($old_lld_macro_path['path'] === $lld_macro_path['path']) {
-								$this->assertSame($old_lld_macro_path['lld_macro'], $new_lld_macro_path['lld_macro']);
-								$this->assertSame($old_lld_macro_path['path'], $new_lld_macro_path['path']);
-							}
-							else {
-								$this->assertSame($old_lld_macro_path['lld_macro'], $new_lld_macro_path['lld_macro']);
-								$this->assertNotSame($old_lld_macro_path['path'], $new_lld_macro_path['path']);
-							}
-						}
-
-						// If "lld_macro_pathid" is not given, compare by "itemid" and "lld_macro" (unique combination).
-						if (!array_key_exists('lld_macro_pathid', $lld_macro_path)) {
-							// Keys "lld_macro" and "path" should exist at this point.
-							if ($old_lld_macro_paths) {
-								foreach ($old_lld_macro_paths as $old_lld_macro_path) {
-									if (bccomp($old_lld_macro_path['itemid'], $discoveryrule['itemid']) == 0
-											&& $old_lld_macro_path['lld_macro'] === $lld_macro_path['lld_macro']) {
-										/*
-										 * There are two situations:
-										 * 1) Previous DB record is replaced with new "lld_macro" by given "lld_macroid"
-										 * and new record with that same "lld_macro" is added as new with new ID.
-										 * 2) Previous records are replaced with same "lld_macro" and "path", leaving
-										 * records intact with same IDs.
-										 */
-										$replaced_old = false;
-
-										foreach ($discoveryrule['lld_macro_paths'] as $_lld_macro_path) {
-											if (array_key_exists('lld_macro_pathid', $_lld_macro_path)
-													&& bccomp($_lld_macro_path['lld_macro_pathid'],
-														$old_lld_macro_path['lld_macro_pathid']) == 0) {
-												$replaced_old = true;
-
-												break;
-											}
-										}
-
-										foreach ($new_lld_macro_paths as $new_lld_macro_path) {
-											if (bccomp($new_lld_macro_path['itemid'], $discoveryrule['itemid']) == 0
-													&& $new_lld_macro_path['lld_macro']
-														=== $lld_macro_path['lld_macro']) {
-												break;
-											}
-										}
-
-										if ($replaced_old) {
-											/*
-											 * There was an old record, but it was replaced by ID with new value.
-											 * The ID for that macro is different.
-											 */
-											$this->assertNotSame($old_lld_macro_path['lld_macro_pathid'],
-												$new_lld_macro_path['lld_macro_pathid']
-											);
-
-											$this->assertSame($old_lld_macro_path['lld_macro'],
-												$new_lld_macro_path['lld_macro']
-											);
-
-											if ($old_lld_macro_path['path'] === $lld_macro_path['path']) {
-												$this->assertSame($old_lld_macro_path['path'],
-													$new_lld_macro_path['path']
-												);
-											}
-											else {
-												$this->assertNotSame($old_lld_macro_path['path'],
-													$new_lld_macro_path['path']
-												);
-											}
-										}
-										else {
-											// There was an old record found, but it was replaced by same "lld_macro".
-
-											$this->assertSame($old_lld_macro_path['lld_macro_pathid'],
-												$new_lld_macro_path['lld_macro_pathid']
-											);
-
-											$this->assertSame($old_lld_macro_path['lld_macro'],
-												$new_lld_macro_path['lld_macro']
-											);
-
-											if ($old_lld_macro_path['path'] === $lld_macro_path['path']) {
-												$this->assertSame($old_lld_macro_path['path'],
-													$new_lld_macro_path['path']
-												);
-											}
-											else {
-												$this->assertNotSame($old_lld_macro_path['path'],
-													$new_lld_macro_path['path']
-												);
-											}
-										}
-									}
-								}
-
-								if (count($old_lld_macro_paths) != count($discoveryrule['lld_macro_paths'])) {
-									$this->assertNotSame($old_lld_macro_paths, $new_lld_macro_paths);
-								}
-							}
-							else {
-								/*
-								 * No old records found, so only new records are inserted. Comparing with posted records
-								 * is not advisable, since the order of records might be different. So the
-								 * $old_lld_macro_paths should be empty in comparison to $new_lld_macro_paths.
-								 */
-								$this->assertNotSame($old_lld_macro_paths, $new_lld_macro_paths);
-							}
-						}
-					}
-				}
-				else {
-					// No new LLD macro paths are set, so nothing should change at all. Arrays should be the same.
-					$this->assertSame($old_lld_macro_paths, $new_lld_macro_paths);
-				}
-			}
-		}
-		else {
-			// Call method and make sure it really returns the error.
-			$this->call('discoveryrule.update', $discoveryrules, $expected_error);
 		}
 	}
 
@@ -2421,37 +2523,32 @@ class testDiscoveryRule extends CAPITest {
 				],
 				'expected_error' => null
 			],
-			'Test getting lld_macro_pathid, lld_macro and path' => [
+			'Test getting lld_macro and path' => [
 				'discoveryrule' => [
 					'output' => ['itemid'],
 					'itemids' => [$itemid],
-					'selectLLDMacroPaths' => ['lld_macro_pathid', 'lld_macro', 'path']
+					'selectLLDMacroPaths' => ['lld_macro', 'path']
 				],
 				'expected_result' => [
 					'itemid' => $itemid,
 					'lld_macro_paths' => [
 						[
-							'lld_macro_pathid' => '1008',
 							'lld_macro' => '{#A}',
 							'path' => '$.list[:1].type'
 						],
 						[
-							'lld_macro_pathid' => '1009',
 							'lld_macro' => '{#B}',
 							'path' => '$.list[:2].type'
 						],
 						[
-							'lld_macro_pathid' => '1010',
 							'lld_macro' => '{#C}',
 							'path' => '$.list[:3].type'
 						],
 						[
-							'lld_macro_pathid' => '1011',
 							'lld_macro' => '{#D}',
 							'path' => '$.list[:4].type'
 						],
 						[
-							'lld_macro_pathid' => '1012',
 							'lld_macro' => '{#E}',
 							'path' => '$.list[:5].type'
 						]
@@ -2469,27 +2566,22 @@ class testDiscoveryRule extends CAPITest {
 					'itemid' => $itemid,
 					'lld_macro_paths' => [
 						[
-							'lld_macro_pathid' => '1008',
 							'lld_macro' => '{#A}',
 							'path' => '$.list[:1].type'
 						],
 						[
-							'lld_macro_pathid' => '1009',
 							'lld_macro' => '{#B}',
 							'path' => '$.list[:2].type'
 						],
 						[
-							'lld_macro_pathid' => '1010',
 							'lld_macro' => '{#C}',
 							'path' => '$.list[:3].type'
 						],
 						[
-							'lld_macro_pathid' => '1011',
 							'lld_macro' => '{#D}',
 							'path' => '$.list[:4].type'
 						],
 						[
-							'lld_macro_pathid' => '1012',
 							'lld_macro' => '{#E}',
 							'path' => '$.list[:5].type'
 						]
@@ -2656,317 +2748,6 @@ class testDiscoveryRule extends CAPITest {
 		}
 		else {
 			$this->assertSame($result['result'], $get_result);
-		}
-	}
-
-	public static function discoveryrule_copy_data_invalid() {
-		return [
-			'Test no discoveryids given when copying LLD rule' => [
-				'params' => [
-					'hostids' => ['50009']
-				],
-				'expected_error' => 'No discovery rule IDs given.'
-			],
-			'Test empty discoveryids when copying LLD rule' => [
-				'params' => [
-					'discoveryids' => '',
-					'hostids' => ['50009']
-				],
-				'expected_error' => 'No discovery rule IDs given.'
-			],
-			'Test incorrect discoveryids type when copying LLD rule' => [
-				'params' => [
-					'discoveryids' => [],
-					'hostids' => ['50009']
-				],
-				'expected_error' => 'No discovery rule IDs given.'
-			],
-			'Test no hostids given when copying LLD rule' => [
-				'params' => [
-					'discoveryids' => ['110006']
-				],
-				'expected_error' => 'No host IDs given.'
-			],
-			'Test empty hostids when copying LLD rule' => [
-				'params' => [
-					'discoveryids' => ['110006'],
-					'hostids' => ''
-				],
-				'expected_error' => 'No host IDs given.'
-			],
-			'Test incorrect hostids type when copying LLD rule' => [
-				'params' => [
-					'discoveryids' => ['110006'],
-					'hostids' => []
-				],
-				'expected_error' => 'No host IDs given.'
-			],
-			'Test copying on same host or when destination host already has that key' => [
-				'params' => [
-					'discoveryids' => ['110006'],
-					'hostids' => ['50009']
-				],
-				'expected_error' => 'Item with key "apilldrule1" already exists on "API Host".'
-			],
-			'Test copying on non-existing host' => [
-				'params' => [
-					'discoveryids' => ['110006'],
-					'hostids' => ['1']
-				],
-				'expected_error' => 'No permissions to referred object or it does not exist!'
-			],
-			'Test copying a non-existing LLD rule' => [
-				'params' => [
-					'discoveryids' => ['1'],
-					'hostids' => ['50012']
-				],
-				'expected_error' => 'No permissions to referred object or it does not exist!'
-			],
-			'Test copying LLD rule to a template' => [
-				'params' => [
-					'discoveryids' => ['110006'],
-					'hostids' => ['50010']
-				],
-				'expected_error' => 'Cannot find host interface on "API Template" for item key "apilldrule1".'
-			],
-			'Test duplicate hosts in request' => [
-				'params' => [
-					'discoveryids' => ['110006'],
-					'hostids' => ['50012', '50012']
-				],
-				'expected_error' => 'Item with key "apilldrule1" already exists on "API Host for read permissions".'
-			],
-			'Test duplicate LLD rules in request' => [
-				'params' => [
-					'discoveryids' => ['110006', '110006'],
-					'hostids' => ['50012']
-				],
-				'expected_error' => 'No permissions to referred object or it does not exist!'
-				// TODO: Error is very strange and API should be checked for bugs.
-			],
-			'Test LLD dependent on master which does not exists on destination host.' => [
-				'params' => [
-					// test.discovery.rule.1:dependent.lld.3
-					'discoveryids' => ['2605'],
-					// test.discovery.rule.2
-					'hostids' => ['1018']
-				],
-				'expected_error' => 'Discovery rule "dependent.lld.3" cannot be copied without its master item.'
-			],
-			'Test LLD dependent on master having max dependency levels.' => [
-				'params' => [
-					// test.discovery.rule.1:dependent.lld.1
-					'discoveryids' => ['2601'],
-					// test.discovery.rule.2
-					'hostids' => ['1018']
-				],
-				'expected_error' => 'Incorrect value for field "master_itemid": maximum number of dependency levels reached.'
-			]
-		];
-	}
-
-	public static function discoveryrule_copy_data_valid() {
-		return [
-			'Test successful LLD rule copy to two hosts' => [
-				'params' => [
-					'discoveryids' => ['110006'],
-					'hostids' => ['50012', '50013']
-				],
-				'expected_error' => null
-			],
-			'Test copy LLD dependent to host having master item with same key_' => [
-				'params' => [
-					// test.discovery.rule.1:dependent.lld.2
-					'discoveryids' => ['2603'],
-					// test.discovery.rule.2
-					'hostids' => ['1018']
-				],
-				'expected_error' => null
-			]
-		];
-	}
-
-	/**
-	 * @dataProvider discoveryrule_copy_data_invalid
-	 * @dataProvider discoveryrule_copy_data_valid
-	 */
-	public function testDiscoveryRule_Copy($params, $expected_error) {
-		$result = $this->call('discoveryrule.copy', $params, $expected_error);
-
-		if ($expected_error === null) {
-			$this->assertTrue($result['result']);
-
-			// Get all discovery rule fields.
-			$src_items = CDBHelper::getAll(
-				'SELECT i.type,i.snmp_oid,i.name,i.key_,i.delay,i.history,i.trends,'.
-						'i.status,i.value_type,i.trapper_hosts,i.units,i.logtimefmt,i.valuemapid,'.
-						'i.params,i.ipmi_sensor,i.authtype,i.username,i.password,i.publickey,i.privatekey,'.
-						'i.flags,i.description,i.inventory_link,i.lifetime,i.jmx_endpoint,i.url,i.query_fields,i.timeout,'.
-						'i.posts,i.status_codes,i.follow_redirects,i.post_type,i.http_proxy,i.headers,i.retrieve_mode,'.
-						'i.request_method,i.ssl_cert_file,i.ssl_key_file,i.ssl_key_password,i.verify_peer,'.
-						'i.verify_host,i.allow_traps'.
-				' FROM items i'.
-				' WHERE '.dbConditionId('i.itemid', $params['discoveryids'])
-			);
-			$src_items = zbx_toHash($src_items, 'key_');
-			/*
-			 * NOTE: Metadata like lastlogsize, mtime should not be copied. Fields like hostid, interfaceid, itemid
-			 * are not selected, since they will be different.
-			 */
-
-			// Find same items on destination hosts.
-			foreach ($params['discoveryids'] as $itemid) {
-				$dst_items = CDBHelper::getAll(
-					'SELECT src.type,src.snmp_oid,src.name,src.key_,'.
-						'src.delay,src.history,src.trends,src.status,src.value_type,src.trapper_hosts,src.units,'.
-						'src.logtimefmt,src.valuemapid,src.params,'.
-						'src.ipmi_sensor,src.authtype,src.username,src.password,src.publickey,src.privatekey,'.
-						'src.flags,src.description,src.inventory_link,src.lifetime,src.jmx_endpoint,'.
-						'src.url,src.query_fields,src.timeout,src.posts,src.status_codes,src.follow_redirects,'.
-						'src.post_type,src.http_proxy,src.headers,src.retrieve_mode,src.request_method,'.
-						'src.ssl_cert_file,src.ssl_key_file,src.ssl_key_password,src.verify_peer,src.verify_host,'.
-						'src.allow_traps'.
-					' FROM items src,items dest'.
-					' WHERE dest.itemid='.zbx_dbstr($itemid).
-						' AND src.key_=dest.key_'.
-						' AND '.dbConditionInt('src.hostid', $params['hostids'])
-				);
-
-				foreach ($dst_items as $dst_item) {
-					$this->assertSame($src_items[$dst_item['key_']], $dst_item);
-				}
-			}
-		}
-	}
-
-	public static function discoveryrule_lld_macro_paths_copy_data_valid() {
-		return [
-			'Test successful LLD rule with macro paths copy to two hosts' => [
-				'params' => [
-					'discoveryids' => ['110012'],
-					'hostids' => ['50012', '50013']
-				],
-				'expected_error' => null
-			]
-		];
-	}
-
-	/**
-	 * @dataProvider discoveryrule_copy_data_invalid
-	 * @dataProvider discoveryrule_lld_macro_paths_copy_data_valid
-	 */
-	public function testDiscoveryRuleLLDMacroPaths_Copy($params, $expected_error) {
-		$result = $this->call('discoveryrule.copy', $params, $expected_error);
-
-		if ($expected_error === null) {
-			$this->assertTrue($result['result']);
-
-			// Get discovery rule and LLD macro path fields.
-			$src_lld_macro_paths = CDBHelper::getAll(
-				'SELECT lmp.lld_macro,lmp.path,i.key_'.
-				' FROM lld_macro_path lmp,items i'.
-				' WHERE i.itemid=lmp.itemid'.
-					' AND '.dbConditionId('i.itemid', $params['discoveryids'])
-			);
-
-			$src = [];
-			foreach ($src_lld_macro_paths as $src_lld_macro_path) {
-				$src[$src_lld_macro_path['key_']][] = $src_lld_macro_path;
-			}
-
-			// Find same items on destination hosts.
-			foreach ($params['discoveryids'] as $itemid) {
-				$dst_lld_macro_paths = CDBHelper::getAll(
-					'SELECT lmp.lld_macro,lmp.path,src.key_,src.hostid'.
-					' FROM lld_macro_path lmp,items src,items dest'.
-					' WHERE dest.itemid='.zbx_dbstr($itemid).
-						' AND src.key_=dest.key_'.
-						' AND lmp.itemid=dest.itemid'.
-						' AND '.dbConditionInt('src.hostid', $params['hostids'])
-				);
-
-				$dst = [];
-				foreach ($dst_lld_macro_paths as $dst_lld_macro_path) {
-					$dst[$dst_lld_macro_path['hostid']][$dst_lld_macro_path['key_']][] = $dst_lld_macro_path;
-				}
-
-				foreach ($dst as $discoveryrules) {
-					foreach ($discoveryrules as $key => $lld_macro_paths) {
-						foreach ($lld_macro_paths as &$lld_macro_path) {
-							unset($lld_macro_path['hostid']);
-						}
-						unset($lld_macro_path);
-
-						$this->assertSame($src[$key], $lld_macro_paths);
-					}
-				}
-			}
-		}
-	}
-
-	public static function discoveryrule_preprocessing_copy_data_valid() {
-		return [
-			'Test successful LLD rule with preprocessing copy to two hosts' => [
-				'params' => [
-					'discoveryids' => ['110013'],
-					'hostids' => ['50012', '50013']
-				],
-				'expected_error' => null
-			]
-		];
-	}
-
-	/**
-	 * @dataProvider discoveryrule_copy_data_invalid
-	 * @dataProvider discoveryrule_preprocessing_copy_data_valid
-	 */
-	public function testDiscoveryRulePreprocessing_Copy($params, $expected_error) {
-		$result = $this->call('discoveryrule.copy', $params, $expected_error);
-
-		if ($expected_error === null) {
-			$this->assertTrue($result['result']);
-
-			// Get discovery rule and pre-processing fields.
-			$src_preprocessing = CDBHelper::getAll(
-				'SELECT ip.step,ip.type,ip.params,ip.error_handler,ip.error_handler_params,i.key_'.
-				' FROM item_preproc ip,items i'.
-				' WHERE i.itemid=ip.itemid'.
-					' AND '.dbConditionId('i.itemid', $params['discoveryids'])
-			);
-
-			$src = [];
-			foreach ($src_preprocessing as $src_preproc_step) {
-				$src[$src_preproc_step['key_']][$src_preproc_step['step']] = $src_preproc_step;
-			}
-
-			// Find same items on destination hosts.
-			foreach ($params['discoveryids'] as $itemid) {
-				$dst_preprocessing = CDBHelper::getAll(
-					'SELECT ip.step,ip.type,ip.params,ip.error_handler,ip.error_handler_params,src.key_,src.hostid'.
-					' FROM item_preproc ip,items src,items dest'.
-					' WHERE dest.itemid='.zbx_dbstr($itemid).
-						' AND src.key_=dest.key_'.
-						' AND ip.itemid=dest.itemid'.
-						' AND '.dbConditionInt('src.hostid', $params['hostids'])
-				);
-
-				$dst = [];
-				foreach ($dst_preprocessing as $dst_preproc_step) {
-					$dst[$dst_preproc_step['hostid']][$dst_preproc_step['key_']][$dst_preproc_step['step']] =
-						$dst_preproc_step;
-				}
-
-				foreach ($dst as $discoveryrules) {
-					foreach ($discoveryrules as $key => $preprocessing) {
-						foreach ($preprocessing as &$preprocessing_step) {
-							unset($preprocessing_step['hostid']);
-						}
-						unset($preprocessing_step);
-
-						$this->assertSame($src[$key], $preprocessing);
-					}
-				}
-			}
 		}
 	}
 
@@ -3279,7 +3060,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Formula missing for override "override".'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/filter": the parameter "formula" is missing.'
 			],
 			'Test /1/overrides/1/filter/formula cannot be empty.' => [
 				'discoveryrules' => [
@@ -3301,7 +3082,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Incorrect custom expression "" for override "override": expression is empty.'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/filter/formula": cannot be empty.'
 			],
 			'Test /1/overrides/1/filter/formula cannot be incorrect.' => [
 				'discoveryrules' => [
@@ -3323,7 +3104,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Incorrect custom expression "x" for override "override": check expression starting from "x".'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/filter/formula": incorrect syntax near "x".'
 			],
 			'Test /1/overrides/1/filter/formula refers to undefined condition (missing formulaid field).' => [
 				'discoveryrules' => [
@@ -3345,7 +3126,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Condition "B" used in formula "B or A" for override "override" is not defined.'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/filter/conditions/1": the parameter "formulaid" is missing.'
 			],
 			'Test /1/overrides/1/filter/formula refers to undefined condition (missing another condition).' => [
 				'discoveryrules' => [
@@ -3368,7 +3149,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Condition "A" used in formula "B or A" for override "override" is not defined.'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/filter/formula": missing filter condition "A".'
 			],
 			'Test /1/overrides/1/filter/eval_formula is read_only.' => [
 				'discoveryrules' => [
@@ -3395,7 +3176,7 @@ class testDiscoveryRule extends CAPITest {
 				'expected_error' => 'Invalid parameter "/1/overrides/1/filter": unexpected parameter "eval_formula".'
 			],
 			// LLD rule override filter conditions
-			'Test /1/overrides/1/filter/conditions field is mandatory.' => [
+			'Test /1/overrides/1/filter/formula field is mandatory.' => [
 				'discoveryrules' => [
 					$new_lld_overrides([
 						[
@@ -3407,22 +3188,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/filter": the parameter "conditions" is missing.'
-			],
-			'Test /1/overrides/1/filter/conditions object cannot be empty.' => [
-				'discoveryrules' => [
-					$new_lld_overrides([
-						[
-							'name' => 'override',
-							'step' => 1,
-							'filter' => [
-								'evaltype' => CONDITION_EVAL_TYPE_EXPRESSION,
-								'conditions' => []
-							]
-						]
-					])
-				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/filter/conditions": cannot be empty.'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/filter": the parameter "formula" is missing.'
 			],
 			'Test /1/overrides/1/filter/conditions/1/macro field is mandatory.' => [
 				'discoveryrules' => [
@@ -3431,7 +3197,7 @@ class testDiscoveryRule extends CAPITest {
 							'name' => 'override',
 							'step' => 1,
 							'filter' => [
-								'evaltype' => CONDITION_EVAL_TYPE_EXPRESSION,
+								'evaltype' => CONDITION_EVAL_TYPE_AND_OR,
 								'conditions' => [
 									[]
 								]
@@ -3462,7 +3228,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Incorrect filter condition macro for override "override".'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/filter/conditions/1/macro": a low-level discovery macro is expected.'
 			],
 			'Test /1/overrides/1/filter/conditions/1/value is mandatory.' => [
 				'discoveryrules' => [
@@ -3471,7 +3237,7 @@ class testDiscoveryRule extends CAPITest {
 							'name' => 'override',
 							'step' => 1,
 							'filter' => [
-								'evaltype' => CONDITION_EVAL_TYPE_EXPRESSION,
+								'evaltype' => CONDITION_EVAL_TYPE_AND_OR,
 								'conditions' => [
 									[
 										'macro' => '{#MACRO}',
@@ -3491,7 +3257,7 @@ class testDiscoveryRule extends CAPITest {
 							'name' => 'override',
 							'step' => 1,
 							'filter' => [
-								'evaltype' => CONDITION_EVAL_TYPE_EXPRESSION,
+								'evaltype' => CONDITION_EVAL_TYPE_AND_OR,
 								'conditions' => [
 									[
 										'macro' => '{#MACRO}',
@@ -3537,23 +3303,6 @@ class testDiscoveryRule extends CAPITest {
 					])
 				],
 				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/operator": value must be one of '.implode(', ', [CONDITION_OPERATOR_EQUAL, CONDITION_OPERATOR_NOT_EQUAL, CONDITION_OPERATOR_LIKE, CONDITION_OPERATOR_NOT_LIKE, CONDITION_OPERATOR_REGEXP, CONDITION_OPERATOR_NOT_REGEXP]).'.'
-			],
-			'Test /1/overrides/1/operations/1 at least one action is mandatory.' => [
-				'discoveryrules' => [
-					$new_lld_overrides([
-						[
-							'name' => 'override',
-							'step' => 1,
-							'operations' => [
-								[
-									'operationobject' => OPERATION_OBJECT_ITEM_PROTOTYPE,
-									'operator' => CONDITION_OPERATOR_NOT_REGEXP
-								]
-							]
-						]
-					])
-				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1": value must be one of opstatus, opdiscover, opperiod, ophistory, optrends, optag.'
 			],
 			// LLD rule override operation status
 			'Test /1/overrides/1/operations/1/opstatus/status is mandatory.' => [
@@ -3612,7 +3361,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1": unexpected parameter "opstatus".'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/opstatus": should be empty.'
 			],
 			// LLD rule override operation discover
 			'Test /1/overrides/1/operations/1/opdiscover/discover is mandatory.' => [
@@ -3690,7 +3439,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Incorrect value for field "delay": invalid delay.'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/opperiod/delay": a time unit is expected.'
 			],
 			'Test /1/overrides/1/operations/1/opperiod/delay cannot be 0.' => [
 				'discoveryrules' => [
@@ -3710,7 +3459,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Item will not be refreshed. Specified update interval requires having at least one either flexible or scheduling interval.'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/opperiod/delay": cannot be equal to zero without custom intervals.'
 			],
 			'Test /1/overrides/1/operations/1/opperiod/delay has to be correct update interval.' => [
 				'discoveryrules' => [
@@ -3730,7 +3479,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Item will not be refreshed. Update interval should be between 1s and 1d. Also Scheduled/Flexible intervals can be used.'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/opperiod/delay": value must be one of 0-86400.'
 			],
 			'Test /1/overrides/1/operations/1/opperiod/delay has to be correct flexible interval.' => [
 				'discoveryrules' => [
@@ -3750,7 +3499,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Item will not be refreshed. Please enter a correct update interval.'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/opperiod/delay": must have at least one interval greater than 0.'
 			],
 			'Test /1/overrides/1/operations/1/opperiod is not supported for trigger prototype object.' => [
 				'discoveryrules' => [
@@ -3770,7 +3519,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1": unexpected parameter "opperiod".'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/opperiod": should be empty.'
 			],
 			'Test /1/overrides/1/operations/1/opperiod is not supported for graph prototype object.' => [
 				'discoveryrules' => [
@@ -3790,7 +3539,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1": unexpected parameter "opperiod".'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/opperiod": should be empty.'
 			],
 			'Test /1/overrides/1/operations/1/opperiod is not supported for host prototype object.' => [
 				'discoveryrules' => [
@@ -3810,7 +3559,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1": unexpected parameter "opperiod".'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/opperiod": should be empty.'
 			],
 			// LLD rule override operation history
 			'Test /1/overrides/1/operations/1/ophistory/history is mandatory.' => [
@@ -3909,7 +3658,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1": unexpected parameter "ophistory".'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/ophistory": should be empty.'
 			],
 			'Test /1/overrides/1/operations/1/ophistory is not supported for graph prototype object.' => [
 				'discoveryrules' => [
@@ -3929,7 +3678,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1": unexpected parameter "ophistory".'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/ophistory": should be empty.'
 			],
 			'Test /1/overrides/1/operations/1/ophistory is not supported for host prototype object.' => [
 				'discoveryrules' => [
@@ -3949,7 +3698,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1": unexpected parameter "ophistory".'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/ophistory": should be empty.'
 			],
 			// LLD rule override operation trends
 			'Test /1/overrides/1/operations/1/optrends/trends is mandatory.' => [
@@ -4008,7 +3757,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/optrends/trends": value must be one of 0, '.SEC_PER_HOUR.'-'.(25 * SEC_PER_YEAR).'.'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/optrends/trends": value must be one of 0, '.SEC_PER_DAY.'-'.(25 * SEC_PER_YEAR).'.'
 			],
 			'Test /1/overrides/1/operations/1/optrends/trends min value is validated.' => [
 				'discoveryrules' => [
@@ -4021,14 +3770,14 @@ class testDiscoveryRule extends CAPITest {
 									'operationobject' => OPERATION_OBJECT_ITEM_PROTOTYPE,
 									'operator' => CONDITION_OPERATOR_NOT_REGEXP,
 									'optrends' => [
-										'trends' => SEC_PER_HOUR - 1
+										'trends' => SEC_PER_DAY - 1
 									]
 								]
 							]
 						]
 					])
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/optrends/trends": value must be one of 0, '.SEC_PER_HOUR.'-'.(25 * SEC_PER_YEAR).'.'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/optrends/trends": value must be one of 0, '.SEC_PER_DAY.'-'.(25 * SEC_PER_YEAR).'.'
 			],
 			'Test /1/overrides/1/operations/1/optrends is not supported for trigger prototype object.' => [
 				'discoveryrules' => [
@@ -4048,7 +3797,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1": unexpected parameter "optrends".'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/optrends": should be empty.'
 			],
 			'Test /1/overrides/1/operations/1/optrends is not supported for graph prototype object.' => [
 				'discoveryrules' => [
@@ -4068,7 +3817,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1": unexpected parameter "optrends".'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/optrends": should be empty.'
 			],
 			'Test /1/overrides/1/operations/1/optrends is not supported for host prototype object.' => [
 				'discoveryrules' => [
@@ -4088,27 +3837,9 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1": unexpected parameter "optrends".'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/optrends": should be empty.'
 			],
 			// LLD rule override operation severity
-			'Test /1/overrides/1/operations/1/opseverity/severity is mandatory.' => [
-				'discoveryrules' => [
-					$new_lld_overrides([
-						[
-							'name' => 'override',
-							'step' => 1,
-							'operations' => [
-								[
-									'operationobject' => OPERATION_OBJECT_ITEM_PROTOTYPE,
-									'operator' => CONDITION_OPERATOR_NOT_REGEXP,
-									'opseverity' => []
-								]
-							]
-						]
-					])
-				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/opseverity": the parameter "severity" is missing.'
-			],
 			'Test /1/overrides/1/operations/1/opseverity/severity is validated.' => [
 				'discoveryrules' => [
 					$new_lld_overrides([
@@ -4127,7 +3858,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/opseverity/severity": value must be one of '.implode(', ', range(TRIGGER_SEVERITY_NOT_CLASSIFIED, TRIGGER_SEVERITY_COUNT - 1)).'.'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/opseverity": should be empty.'
 			],
 			'Test /1/overrides/1/operations/1/opseverity is not supported for item prototype object.' => [
 				'discoveryrules' => [
@@ -4147,7 +3878,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1": unexpected parameter "opseverity".'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/opseverity": should be empty.'
 			],
 			'Test /1/overrides/1/operations/1/opseverity is not supported for graph prototype object.' => [
 				'discoveryrules' => [
@@ -4167,7 +3898,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1": unexpected parameter "opseverity".'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/opseverity": should be empty.'
 			],
 			'Test /1/overrides/1/operations/1/opseverity is not supported for host prototype object.' => [
 				'discoveryrules' => [
@@ -4187,27 +3918,9 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1": unexpected parameter "opseverity".'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/opseverity": should be empty.'
 			],
 			// LLD rule override operation tag
-			'Test /1/overrides/1/operations/1/optag cannot be empty.' => [
-				'discoveryrules' => [
-					$new_lld_overrides([
-						[
-							'name' => 'override',
-							'step' => 1,
-							'operations' => [
-								[
-									'operationobject' => OPERATION_OBJECT_ITEM_PROTOTYPE,
-									'operator' => CONDITION_OPERATOR_NOT_REGEXP,
-									'optag' => []
-								]
-							]
-						]
-					])
-				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/optag": cannot be empty.'
-			],
 			'Test /1/overrides/1/operations/1/optag/1/tag is mandatory.' => [
 				'discoveryrules' => [
 					$new_lld_overrides([
@@ -4268,27 +3981,9 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1": unexpected parameter "optag".'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/optag": should be empty.'
 			],
 			// LLD rule override operation template
-			'Test /1/overrides/1/operations/1/optemplate cannot be empty.' => [
-				'discoveryrules' => [
-					$new_lld_overrides([
-						[
-							'name' => 'override',
-							'step' => 1,
-							'operations' => [
-								[
-									'operationobject' => OPERATION_OBJECT_HOST_PROTOTYPE,
-									'operator' => CONDITION_OPERATOR_NOT_REGEXP,
-									'optemplate' => []
-								]
-							]
-						]
-					])
-				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/optemplate": cannot be empty.'
-			],
 			'Test /1/overrides/1/operations/1/optemplate/1/templateid is mandatory.' => [
 				'discoveryrules' => [
 					$new_lld_overrides([
@@ -4351,7 +4046,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'No permissions to referred object or it does not exist!'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/optemplate/1/templateid": a template ID is expected.'
 			],
 			'Test /1/overrides/1/operations/1/optemplate/1/templateid cannot exist twice.' => [
 				'discoveryrules' => [
@@ -4376,7 +4071,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'No permissions to referred object or it does not exist!'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/optemplate/2": value (templateid)=(50010) already exists.'
 			],
 			'Test /1/overrides/1/operations/1/optemplate is not supported for item prototype object.' => [
 				'discoveryrules' => [
@@ -4396,7 +4091,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/optemplate/1": unexpected parameter "template".'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/optemplate": should be empty.'
 			],
 			'Test /1/overrides/1/operations/1/optemplate is not supported for trigger prototype object.' => [
 				'discoveryrules' => [
@@ -4416,7 +4111,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/optemplate/1": unexpected parameter "template".'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/optemplate": should be empty.'
 			],
 			'Test /1/overrides/1/operations/1/optemplate is not supported for graph prototype object.' => [
 				'discoveryrules' => [
@@ -4436,7 +4131,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/optemplate/1": unexpected parameter "template".'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/optemplate": should be empty.'
 			],
 			// LLD rule override operation inventory
 			'Test /1/overrides/1/operations/1/opinventory/inventory_mode is mandatory.' => [
@@ -4495,7 +4190,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1": unexpected parameter "opinventory".'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/opinventory": should be empty.'
 			],
 			'Test /1/overrides/1/operations/1/opinventory is not supported for trigger prototype object.' => [
 				'discoveryrules' => [
@@ -4515,7 +4210,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1": unexpected parameter "opinventory".'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/opinventory": should be empty.'
 			],
 			'Test /1/overrides/1/operations/1/opinventory is not supported for graph prototype object.' => [
 				'discoveryrules' => [
@@ -4535,7 +4230,7 @@ class testDiscoveryRule extends CAPITest {
 						]
 					])
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1": unexpected parameter "opinventory".'
+				'expected_error' => 'Invalid parameter "/1/overrides/1/operations/1/opinventory": should be empty.'
 			]
 		];
 	}
@@ -4769,7 +4464,7 @@ class testDiscoveryRule extends CAPITest {
 				],
 				'expected_error' => null
 			],
-			'Test /1/overrides/1/filter/formula and ./formulaid are silently ignored if ./evaltype is not custom_expression.' => [
+			'Test /1/overrides/1/filter/formula and formulaid of conditions can pass with default values if ./evaltype is not custom_expression.' => [
 				'discoveryrules' => [
 					$new_lld_overrides([
 						[
@@ -4777,25 +4472,25 @@ class testDiscoveryRule extends CAPITest {
 							'step' => 1,
 							'filter' => [
 								'evaltype' => CONDITION_EVAL_TYPE_OR,
-								'formula' => 'X or Y or Z',
+								'formula' => '',
 								'conditions' => [
 									[
 										'macro' => '{#MACRO}',
 										'operator' => CONDITION_OPERATOR_NOT_REGEXP,
 										'value' => '',
-										'formulaid' => 'B'
+										'formulaid' => ''
 									],
 									[
 										'macro' => '{#MACRO}',
 										'operator' => CONDITION_OPERATOR_REGEXP,
 										'value' => '',
-										'formulaid' => 'C'
+										'formulaid' => ''
 									],
 									[
 										'macro' => '{#MACRO}',
 										'operator' => CONDITION_OPERATOR_NOT_REGEXP,
 										'value' => '',
-										'formulaid' => 'A'
+										'formulaid' => ''
 									]
 								]
 							]
@@ -5190,12 +4885,10 @@ class testDiscoveryRule extends CAPITest {
 		$this->assertEquals($db_lld_override['evaltype'], $filter['evaltype'], 'Override evaltype value.');
 
 		if ($filter['evaltype'] == CONDITION_EVAL_TYPE_EXPRESSION) {
-			$conditionid_by_formulaid = array_combine(
-				array_column($filter['conditions'], 'formulaid'),
-				array_column($db_lld_conditions, 'lld_override_conditionid')
+			CConditionHelper::replaceFormulaIds($filter['formula'],
+				array_combine(array_column($db_lld_conditions, 'lld_override_conditionid'), $filter['conditions'])
 			);
-			$formula = CConditionHelper::replaceLetterIds($filter['formula'], $conditionid_by_formulaid);
-			$this->assertEquals($db_lld_override['formula'], $formula);
+			$this->assertEquals($db_lld_override['formula'], $filter['formula']);
 		}
 
 		foreach ($filter['conditions'] as $num => $condition) {
@@ -5479,84 +5172,14 @@ class testDiscoveryRule extends CAPITest {
 		);
 		CTestArrayHelper::usort($db_lld_overrides, ['lld_overrideid']);
 
-		// Operation that had only optamplate is deleted.
+		// Operation that had only optemplate is deleted.
 		unset($request_lld_overrides[0]['operations']);
 
-		// Operation that had not only optamplate is not deleted.
+		// Operation that had not only optemplate is not deleted.
 		unset($request_lld_overrides[1]['operations'][0]['optemplate']);
 
 		foreach ($request_lld_overrides as $override_num => $request_lld_override) {
 			$this->assertLLDOverride($db_lld_overrides[$override_num], $request_lld_override);
-		}
-	}
-
-	public function testDiscoveryRuleOverrides_Copy() {
-		$itemid = '133764';
-		$hostids = ['90020', '90021'];
-
-		$result = $this->call('discoveryrule.copy', [
-			'discoveryids' => [$itemid],
-			'hostids' => $hostids
-		]);
-
-		$this->assertTrue($result['result']);
-
-		$result = $this->call('discoveryrule.get', [
-			'output' => [],
-			'selectOverrides' => 'extend',
-			'itemids' => $itemid
-		]);
-
-		$expected_overrides = $result['result'][0]['overrides'];
-		CTestArrayHelper::usort($expected_overrides, ['step']);
-
-		foreach ($expected_overrides as &$override) {
-			CTestArrayHelper::usort($override['filter']['conditions'], ['formulaid']);
-			CTestArrayHelper::usort($override['operations'], ['operationobject', 'operator', 'value']);
-
-			foreach ($override['operations'] as &$operation) {
-				if (array_key_exists('optag', $operation)) {
-					CTestArrayHelper::usort($operation['optag'], ['tag']);
-				}
-				if (array_key_exists('optemplate', $operation)) {
-					CTestArrayHelper::usort($operation['optemplate'], ['templateid']);
-				}
-			}
-			unset($operation);
-		}
-		unset($override);
-
-		$db_lld_ruleids = array_column(CDBHelper::getAll(
-			'SELECT itemid FROM items WHERE flags=1 AND '.dbConditionId('hostid', $hostids).' ORDER BY itemid'
-		), 'itemid');
-		$this->assertSame(count($db_lld_ruleids), count($hostids));
-
-		$result = $this->call('discoveryrule.get', [
-			'output' => [],
-			'selectOverrides' => 'extend',
-			'itemids' => $db_lld_ruleids
-		]);
-
-		foreach ($result['result'] as $lld_rule) {
-			CTestArrayHelper::usort($lld_rule['overrides'], ['step']);
-
-			foreach ($lld_rule['overrides'] as &$override) {
-				CTestArrayHelper::usort($override['filter']['conditions'], ['formulaid']);
-				CTestArrayHelper::usort($override['operations'], ['operationobject', 'operator', 'value']);
-
-				foreach ($override['operations'] as &$operation) {
-					if (array_key_exists('optag', $operation)) {
-						CTestArrayHelper::usort($operation['optag'], ['tag']);
-					}
-					if (array_key_exists('optemplate', $operation)) {
-						CTestArrayHelper::usort($operation['optemplate'], ['templateid']);
-					}
-				}
-				unset($operation);
-			}
-			unset($override);
-
-			$this->assertSame($expected_overrides, $lld_rule['overrides']);
 		}
 	}
 
@@ -6036,7 +5659,7 @@ class testDiscoveryRule extends CAPITest {
 						'incorrect' => '123'
 					]
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1": an array is expected.',
+				'expected_error' => 'Invalid parameter "/1/overrides/1": unexpected parameter "incorrect".',
 				'current_overrides' => null
 			],
 			'Test override object is validated.' => [
@@ -6046,7 +5669,7 @@ class testDiscoveryRule extends CAPITest {
 						[]
 					]
 				],
-				'expected_error' => 'Invalid parameter "/1/overrides/1": the parameter "step" is missing.',
+				'expected_error' => 'Invalid parameter "/1/overrides/1": the parameter "name" is missing.',
 				'current_overrides' => null
 			],
 			'Test that overrides remain untouched if update request omits overrides field.' => [

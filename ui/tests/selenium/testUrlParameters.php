@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -26,116 +21,178 @@ class testUrlParameters extends CLegacyWebTest {
 	public static function data() {
 		return [
 			[
-				'title' => 'Configuration of host groups',
-				'check_server_name' => true,
-				'server_name_on_page' => true,
-				'test_cases' => [
-					[
-						'url' => 'hostgroups.php?form=update&groupid=1',
-						'text_present' => 'Host groups'
-					],
-					[
-						'url' => 'hostgroups.php?form=update&groupid=9999999',
-						'text_not_present' => 'Host groups',
-						'text_present' => [
-							'No permissions to referred object or it does not exist!'
-						]
-					],
-					[
-						'url' => 'hostgroups.php?form=update&groupid=abc',
-						'text_not_present' => 'Host groups',
-						'text_present' => [
-							'Zabbix has received an incorrect request.',
-							'Field "groupid" is not integer.'
-						]
-					],
-					[
-						'url' => 'hostgroups.php?form=update&groupid=',
-						'text_not_present' => 'Host groups',
-						'text_present' => [
-							'Zabbix has received an incorrect request.',
-							'Field "groupid" is not integer.'
-						]
-					],
-					[
-						'url' => 'hostgroups.php?form=update&groupid=-1',
-						'text_not_present' => 'Host groups',
-						'text_present' => [
-							'Zabbix has received an incorrect request.',
-							'Incorrect value "-1" for "groupid" field.'
-						]
-					],
-					[
-						'url' => 'hostgroups.php?form=update',
-						'text_not_present' => 'Host groups',
-						'text_present' => [
-							'Zabbix has received an incorrect request.',
-							'Field "groupid" is mandatory.'
-						]
-					]
-				]
-			],
-			[
-				'title' => 'Configuration of templates',
-				'check_server_name' => true,
-				'server_name_on_page' => true,
-				'test_cases' => [
-					[
-						'url' => 'templates.php?form=update&templateid=10001',
-						'text_present' => 'Templates'
-					],
-					[
-						'url' => 'templates.php?form=update&templateid=9999999',
-						'text_not_present' => 'Templates',
-						'text_present' => [
-							'No permissions to referred object or it does not exist!'
-						]
-					],
-					[
-						'url' => 'templates.php?form=update&templateid=abc',
-						'text_not_present' => 'Templates',
-						'text_present' => [
-							'Zabbix has received an incorrect request.',
-							'Field "templateid" is not integer.'
-						]
-					],
-					[
-						'url' => 'templates.php?form=update&templateid=',
-						'text_not_present' => 'Templates',
-						'text_present' => [
-							'Zabbix has received an incorrect request.',
-							'Field "templateid" is not integer.'
-						]
-					],
-					[
-						'url' => 'templates.php?form=update&templateid=-1',
-						'text_not_present' => 'Templates',
-						'text_present' => [
-							'Zabbix has received an incorrect request.',
-							'Incorrect value "-1" for "templateid" field.'
-						]
-					],
-					[
-						'url' => 'templates.php?form=update',
-						'text_not_present' => 'Templates',
-						'text_present' => [
-							'Zabbix has received an incorrect request.',
-							'Field "templateid" is mandatory.'
-						]
-					]
-				]
-			],
-			[
-				'title' => 'Configuration of host',
+				'title' => 'Host group edit',
 				'check_server_name' => true,
 				'server_name_on_page' => false,
 				'test_cases' => [
 					[
-						'url' => 'zabbix.php?action=host.edit&hostid=10084',
+						'url' => 'zabbix.php?action=popup&popup=hostgroup.edit&groupid=4',
+						'text_present' => 'Host groups'
+					],
+					[
+						'url' => 'zabbix.php?action=popup&popup=hostgroup.edit&groupid=9999999',
+						'text_not_present' => 'Host groups',
+						'access_denied' => true,
+						'text_present' => [
+							'You are logged in as "Admin". You have no permissions to access this page.'
+						]
+					]
+				]
+			],
+			[
+				'title' => 'Fatal error, please report to the Zabbix team',
+				'check_server_name' => true,
+				'server_name_on_page' => false,
+				'test_cases' => [
+					[
+						'url' => 'zabbix.php?action=hostgroup.edit&groupid=abc',
+						'text_not_present' => 'Host groups',
+						'fatal_error' => true,
+						'text_present' => [
+							'Incorrect value "abc" for "groupid" field.',
+							'Controller: hostgroup.edit',
+							'action: hostgroup.edit',
+							'groupid: abc'
+						]
+					],
+					[
+						'url' => 'zabbix.php?action=hostgroup.edit&groupid[]=1',
+						'text_not_present' => 'Host groups',
+						'fatal_error' => true,
+						'text_present' => [
+							'Incorrect value for "groupid" field.',
+							'Controller: hostgroup.edit',
+							'action: hostgroup.edit',
+							'groupid: array'
+						]
+					],
+					[
+						'url' => 'zabbix.php?action=hostgroup.edit&name[]=name',
+						'text_not_present' => 'Host groups',
+						'fatal_error' => true,
+						'text_present' => [
+							'Incorrect value for field "name": a character string is expected.',
+							'Controller: hostgroup.edit',
+							'action: hostgroup.edit',
+							'name: array'
+						]
+					],
+					[
+						'url' => 'zabbix.php?action=hostgroup.edit&subgroups[]=1',
+						'text_not_present' => 'Host groups',
+						'fatal_error' => true,
+						'text_present' => [
+							'Incorrect value for "subgroups" field.',
+							'Controller: hostgroup.edit',
+							'action: hostgroup.edit',
+							'subgroups: array'
+						]
+					],
+					[
+						'url' => 'zabbix.php?action=hostgroup.edit&groupid=',
+						'text_not_present' => 'Host groups',
+						'fatal_error' => true,
+						'text_present' => [
+							'Incorrect value "" for "groupid" field.',
+							'Controller: hostgroup.edit',
+							'action: hostgroup.edit',
+							'groupid:'
+						]
+					],
+					[
+						'url' => 'zabbix.php?action=templategroup.edit&groupid[]=1',
+						'text_not_present' => 'Template groups',
+						'fatal_error' => true,
+						'text_present' => [
+							'Incorrect value for "groupid" field.',
+							'Controller: templategroup.edit',
+							'action: templategroup.edit',
+							'groupid: array'
+						]
+					],
+					[
+						'url' => 'zabbix.php?action=hostgroup.edit&groupid=-1',
+						'text_not_present' => 'Host groups',
+						'fatal_error' => true,
+						'text_present' => [
+							'Incorrect value "-1" for "groupid" field.',
+							'Controller: hostgroup.edit',
+							'action: hostgroup.edit',
+							'groupid: -1'
+						]
+					]
+				]
+			],
+			[
+				'title' => 'Template group edit',
+				'check_server_name' => true,
+				'server_name_on_page' => false,
+				'test_cases' => [
+					[
+						'url' => 'zabbix.php?action=popup&popup=templategroup.edit&groupid=1',
+						'text_present' => 'Template groups'
+					],
+					[
+						'url' => 'zabbix.php?action=popup&popup=templategroup.edit&groupid=9999999',
+						'text_not_present' => 'Template groups',
+						'access_denied' => true,
+						'text_present' => [
+							'You are logged in as "Admin". You have no permissions to access this page.'
+						]
+					]
+				]
+			],
+			[
+				'title' => 'Fatal error, please report to the Zabbix team',
+				'check_server_name' => true,
+				'server_name_on_page' => false,
+				'test_cases' => [
+					[
+						'url' => 'zabbix.php?action=templategroup.edit&groupid=abc',
+						'text_not_present' => 'Template groups',
+						'fatal_error' => true,
+						'text_present' => [
+							'Incorrect value "abc" for "groupid" field.',
+							'Controller: templategroup.edit',
+							'action: templategroup.edit',
+							'groupid: abc'
+						]
+					],
+					[
+						'url' => 'zabbix.php?action=templategroup.edit&groupid=',
+						'text_not_present' => 'Template groups',
+						'fatal_error' => true,
+						'text_present' => [
+							'Incorrect value "" for "groupid" field.',
+							'Controller: templategroup.edit',
+							'action: templategroup.edit',
+							'groupid:'
+						]
+					],
+					[
+						'url' => 'zabbix.php?action=templategroup.edit&groupid=-1',
+						'text_not_present' => 'Template groups',
+						'fatal_error' => true,
+						'text_present' => [
+							'Incorrect value "-1" for "groupid" field.',
+							'Controller: templategroup.edit',
+							'action: templategroup.edit',
+							'groupid: -1'
+						]
+					]
+				]
+			],
+			[
+				'title' => 'Host edit',
+				'check_server_name' => true,
+				'server_name_on_page' => false,
+				'test_cases' => [
+					[
+						'url' => 'zabbix.php?action=popup&popup=host.edit&hostid=10084',
 						'text_present' => 'Host'
 					],
 					[
-						'url' => 'zabbix.php?action=host.edit&hostid=9999999',
+						'url' => 'zabbix.php?action=popup&popup=host.edit&hostid=9999999',
 						'text_not_present' => 'Host',
 						'access_denied' => true,
 						'text_present' => [
@@ -184,6 +241,17 @@ class testUrlParameters extends CLegacyWebTest {
 						]
 					],
 					[
+						'url' => 'zabbix.php?action=host.edit&hostid[]=1',
+						'text_not_present' => 'Host',
+						'fatal_error' => true,
+						'text_present' => [
+							'Incorrect value for "hostid" field.',
+							'Controller: host.edit',
+							'action: host.edit',
+							'hostid: array'
+						]
+					],
+					[
 						'url' => 'zabbix.php?action=host.edit&hostid=',
 						'text_not_present' => 'Host',
 						'fatal_error' => true,
@@ -197,101 +265,52 @@ class testUrlParameters extends CLegacyWebTest {
 				]
 			],
 			[
-				'title' => 'Configuration of maintenance periods',
+				'title' => 'Fatal error, please report to the Zabbix team',
 				'check_server_name' => true,
-				'server_name_on_page' => true,
+				'server_name_on_page' => false,
 				'test_cases' => [
 					[
-						'url' => 'maintenance.php?form=update&maintenanceid=1',
-						'text_present' => 'Maintenance periods'
-					],
-					[
-						'url' => 'maintenance.php?form=update&maintenanceid=9999999',
-						'text_not_present' => 'Maintenance periods',
+						'url' => 'zabbix.php?action=action.list&eventsource=99999',
+						'text_not_present' => 'Trigger actions',
+						'fatal_error' => true,
 						'text_present' => [
-							'No permissions to referred object or it does not exist!'
+							'Incorrect value "99999" for "eventsource" field.',
+							'Controller: action.list',
+							'action: action.list',
+							'eventsource: 99999'
 						]
 					],
 					[
-						'url' => 'maintenance.php?form=update&maintenanceid=abc',
-						'text_not_present' => 'Maintenance periods',
+						'url' => 'zabbix.php?action=action.list&eventsource=abc',
+						'text_not_present' => 'Trigger actions',
+						'fatal_error' => true,
 						'text_present' => [
-							'Zabbix has received an incorrect request.',
-							'Field "maintenanceid" is not integer.'
+							'Incorrect value "abc" for "eventsource" field.',
+							'Controller: action.list',
+							'action: action.list',
+							'eventsource: abc'
 						]
 					],
 					[
-						'url' => 'maintenance.php?form=update&maintenanceid=',
-						'text_not_present' => 'Maintenance periods',
+						'url' => 'zabbix.php?action=action.list&eventsource=-1',
+						'text_not_present' => 'Trigger actions',
+						'fatal_error' => true,
 						'text_present' => [
-							'Zabbix has received an incorrect request.',
-							'Field "maintenanceid" is not integer.'
+							'Incorrect value "-1" for "eventsource" field.',
+							'Controller: action.list',
+							'action: action.list',
+							'eventsource: -1'
 						]
 					],
 					[
-						'url' => 'maintenance.php?form=update&maintenanceid=-1',
-						'text_not_present' => 'Maintenance periods',
+						'url' => 'zabbix.php?action=action.list&eventsource[]=0',
+						'text_not_present' => 'Trigger actions',
+						'fatal_error' => true,
 						'text_present' => [
-							'Zabbix has received an incorrect request.',
-							'Incorrect value "-1" for "maintenanceid" field.'
-						]
-					],
-					[
-						'url' => 'maintenance.php?form=update',
-						'text_not_present' => 'Maintenance periods',
-						'text_present' => [
-							'Zabbix has received an incorrect request.',
-							'Field "maintenanceid" is mandatory.'
-						]
-					]
-				]
-			],
-			[
-				'title' => 'Configuration of actions',
-				'check_server_name' => true,
-				'server_name_on_page' => true,
-				'test_cases' => [
-					[
-						'url' => 'actionconf.php?form=update&actionid=3',
-						'text_present' => 'Actions'
-					],
-					[
-						'url' => 'actionconf.php?form=update&actionid=9999999',
-						'text_not_present' => 'Actions',
-						'text_present' => [
-							'No permissions to referred object or it does not exist!'
-						]
-					],
-					[
-						'url' => 'actionconf.php?form=update&actionid=abc',
-						'text_not_present' => 'Actions',
-						'text_present' => [
-							'Zabbix has received an incorrect request.',
-							'Field "actionid" is not integer.'
-						]
-					],
-					[
-						'url' => 'actionconf.php?form=update&actionid=',
-						'text_not_present' => 'Actions',
-						'text_present' => [
-							'Zabbix has received an incorrect request.',
-							'Field "actionid" is not integer.'
-						]
-					],
-					[
-						'url' => 'actionconf.php?form=update&actionid=-1',
-						'text_not_present' => 'Actions',
-						'text_present' => [
-							'Zabbix has received an incorrect request.',
-							'Incorrect value "-1" for "actionid" field.'
-						]
-					],
-					[
-						'url' => 'actionconf.php?form=update',
-						'text_not_present' => 'Actions',
-						'text_present' => [
-							'Zabbix has received an incorrect request.',
-							'Field "actionid" is mandatory.'
+							'Incorrect value for "eventsource" field.',
+							'Controller: action.list',
+							'action: action.list',
+							'eventsource: array'
 						]
 					]
 				]
@@ -337,68 +356,20 @@ class testUrlParameters extends CLegacyWebTest {
 						]
 					],
 					[
+						'url' => 'sysmap.php?sysmapid[]=1',
+						'text_not_present' => 'Network maps',
+						'text_present' => [
+							'Zabbix has received an incorrect request.',
+							'Field "sysmapid" is not correct: invalid data type.'
+						]
+					],
+					[
 						'url' => 'sysmap.php',
 						'text_not_present' => 'Network maps',
 						'text_present' => [
 							'Zabbix has received an incorrect request.',
 							'Field "sysmapid" is mandatory.'
 						]
-					]
-				]
-			],
-			[
-				'title' => 'Configuration of discovery rules',
-				'check_server_name' => true,
-				'server_name_on_page' => false,
-				'test_cases' => [
-					[
-						'url' => 'zabbix.php?action=discovery.edit&druleid=2',
-						'text_present' => 'Discovery rules'
-					],
-					[
-						'url' => 'zabbix.php?action=discovery.edit&druleid=9999999',
-						'text_not_present' => 'Discovery rules',
-						'access_denied' => true,
-						'text_present' => [
-							'You are logged in as "Admin". You have no permissions to access this page.'
-						]
-					],
-					[
-						'url' => 'zabbix.php?action=discovery.edit&druleid=abc',
-						'text_not_present' => 'Discovery rules',
-						'fatal_error' => true,
-						'text_present' => [
-							'Incorrect value "abc" for "druleid" field.',
-							'Controller: discovery.edit',
-							'action: discovery.edit',
-							'druleid: abc'
-						]
-					],
-					[
-						'url' => 'zabbix.php?action=discovery.edit&druleid=',
-						'text_not_present' => 'Discovery rules',
-						'fatal_error' => true,
-						'text_present' => [
-							'Incorrect value "" for "druleid" field.',
-							'Controller: discovery.edit',
-							'action: discovery.edit',
-							'druleid:'
-						]
-					],
-					[
-						'url' => 'zabbix.php?action=discovery.edit&druleid=-1',
-						'text_not_present' => 'Discovery rules',
-						'fatal_error' => true,
-						'text_present' => [
-							'Incorrect value "-1" for "druleid" field.',
-							'Controller: discovery.edit',
-							'action: discovery.edit',
-							'druleid: -1'
-						]
-					],
-					[
-						'url' => 'zabbix.php?action=discovery.edit',
-						'text_present' => 'Discovery rules'
 					]
 				]
 			],
@@ -440,6 +411,14 @@ class testUrlParameters extends CLegacyWebTest {
 						'text_present' => [
 							'Zabbix has received an incorrect request.',
 							'Incorrect value "-1" for "httptestid" field.'
+						]
+					],
+					[
+						'url' => 'httpdetails.php?httptestid[]=1',
+						'text_not_present' => 'Details of web scenario',
+						'text_present' => [
+							'Zabbix has received an incorrect request.',
+							'Field "httptestid" is not correct: invalid data type.'
 						]
 					],
 					[
@@ -502,6 +481,15 @@ class testUrlParameters extends CLegacyWebTest {
 					[
 						'url' => 'zabbix.php?action=latest.view',
 						'text_present' => 'Latest data'
+					],
+					[
+						'url' => 'zabbix.php?action[]=latest.view',
+						'text_not_present' => 'Latest data',
+						'fatal_error' => true,
+						'text_present' => [
+							'Fatal error, please report to the Zabbix team',
+							'Incorrect value for field "action": a character string is expected.'
+						]
 					]
 				]
 			],
@@ -522,6 +510,32 @@ class testUrlParameters extends CLegacyWebTest {
 						'text_not_present' => 'Events',
 						'text_present' => [
 							'Not Found'
+						]
+					]
+				]
+			],
+			[
+				'title' => 'Event details',
+				'check_server_name' => true,
+				'server_name_on_page' => true,
+				'test_cases' => [
+					[
+						'url' => 'tr_events.php?triggerid=99251&eventid=93',
+						'text_present' => 'Event details'
+					],
+					[
+						'url' => 'tr_events.php?triggerid=1&eventid=1',
+						'text_present' => [
+							'No permissions to referred object or it does not exist!'
+						]
+					],
+					[
+						'url' => 'tr_events.php?triggerid[]=1&eventid[]=1',
+						'text_not_present' => 'Event details',
+						'text_present' => [
+							'Zabbix has received an incorrect request.',
+							'Field "triggerid" is not correct: invalid data type.',
+							'Field "eventid" is not correct: invalid data type.'
 						]
 					]
 				]
@@ -614,6 +628,17 @@ class testUrlParameters extends CLegacyWebTest {
 							'Fatal error, please report to the Zabbix team',
 							'Incorrect value for "filter_hostids" field.'
 						]
+					],
+					[
+						'url' => 'zabbix.php?action=charts.view&filter_hostids=1&filter_show[]=1&filter_set[]=1',
+						'text_not_present' => 'Graphs',
+						'fatal_error' => true,
+						'text_present' => [
+							'Fatal error, please report to the Zabbix team',
+							'Incorrect value for "filter_set" field.',
+							'Incorrect value "1" for "filter_hostids" field.',
+							'Incorrect value for "filter_show" field.'
+						]
 					]
 				]
 			],
@@ -636,6 +661,13 @@ class testUrlParameters extends CLegacyWebTest {
 						]
 					],
 					[
+						'url' => 'history.php?action=showgraph&itemids=1',
+						'text_present' => [
+							'Zabbix has received an incorrect request.',
+							'Field "itemids" is not correct: an array is expected.'
+						]
+					],
+					[
 						'url' => 'history.php?action=showgraph&itemids%5B%5D=abc',
 						'text_present' => [
 							'Zabbix has received an incorrect request.',
@@ -647,7 +679,7 @@ class testUrlParameters extends CLegacyWebTest {
 			[
 				'title' => 'Configuration of network maps',
 				'check_serer_name' => true,
-				'server_name_on_page' => true,
+				'server_name_on_page' => false,
 				'test_cases' => [
 					[
 						'url' => 'sysmaps.php?sysmapid=1&severity_min=0',
@@ -700,8 +732,28 @@ class testUrlParameters extends CLegacyWebTest {
 						]
 					],
 					[
-						'url' => 'sysmaps.php?sysmapid=1&severity_min=0',
-						'text_present' => 'Maps'
+						'url' => 'sysmaps.php?sysmapid[]=1&severity_min=0',
+						'text_present' => [
+							'Zabbix has received an incorrect request.',
+							'Field "sysmapid" is not correct: invalid data type.'
+						]
+					],
+					[
+						'url' => 'sysmaps.php?sysmapid=1&severity_min[]=0',
+						'text_present' => [
+							'Zabbix has received an incorrect request.',
+							'Field "severity_min" is not correct: invalid data type.'
+						]
+					],
+					[
+						'url' => 'zabbix.php?action=map.view&sysmapid[]=1',
+						'text_not_present' => 'Maps',
+						'fatal_error' => true,
+						'text_present' => [
+							'Fatal error, please report to the Zabbix team',
+							'Incorrect value for "sysmapid" field.',
+							'Controller: map.view'
+						]
 					]
 				]
 			],
@@ -725,6 +777,29 @@ class testUrlParameters extends CLegacyWebTest {
 					[
 						'url' => 'zabbix.php?action=discovery.view&filter_rst=1',
 						'text_present' => 'Status of discovery'
+					]
+				]
+			],
+			[
+				'title' => 'Fatal error, please report to the Zabbix team',
+				'check_server_name' => false,
+				'server_name_on_page' => false,
+				'test_cases' => [
+					[
+						'url' => 'zabbix.php?action[]=dashboard.list',
+						'text_not_present' => 'Dashboards',
+						'text_present' => [
+							'Fatal error, please report to the Zabbix team',
+							'Incorrect value for field "action": a character string is expected.'
+						]
+					],
+					[
+						'url' => 'zabbix.php?action[]=dashboard.view',
+						'text_not_present' => 'Dashboards',
+						'text_present' => [
+							'Fatal error, please report to the Zabbix team',
+							'Incorrect value for field "action": a character string is expected.'
+						]
 					]
 				]
 			],
@@ -762,6 +837,15 @@ class testUrlParameters extends CLegacyWebTest {
 						'text_not_present' => 'Status of discovery',
 						'text_present' => [
 							'Fatal error, please report to the Zabbix team',
+							'Controller: discovery.view'
+						]
+					],
+					[
+						'url' => 'zabbix.php?action=discovery.view&filter_rst[]=1',
+						'text_not_present' => 'Status of discovery',
+						'text_present' => [
+							'Fatal error, please report to the Zabbix team',
+							'Incorrect value for "filter_rst" field.',
 							'Controller: discovery.view'
 						]
 					]
@@ -802,10 +886,17 @@ class testUrlParameters extends CLegacyWebTest {
 						]
 					],
 					[
-						'url' => 'hostinventoriesoverview.php?filter_groups%5B%5D=9999999&filter_groupby=&filter_set=1',
+						'url' => 'hostinventoriesoverview.php?filter_groups=1&filter_groupby[]=&filter_set[]=1',
 						'text_present' => [
-							'No permissions to referred object or it does not exist!'
+							'Zabbix has received an incorrect request.',
+							'Field "filter_set" is not correct: invalid data type.',
+							'Field "filter_groups" is not correct: an array is expected.',
+							'Field "filter_groupby" is not correct: invalid data type.'
 						]
+					],
+					[
+						'url' => 'hostinventoriesoverview.php?filter_groups%5B%5D=9999999&filter_groupby=&filter_set=1',
+						'text_present' => 'Host inventory overview'
 					],
 					[
 						'url' => 'hostinventoriesoverview.php',
@@ -847,6 +938,14 @@ class testUrlParameters extends CLegacyWebTest {
 						'text_present' => [
 							'Page received incorrect data',
 							'Incorrect value for "filter_groups" field.'
+						]
+					],
+					[
+						'url' => 'hostinventories.php?filter_groups=1&filter_set[]=1',
+						'text_present' => [
+							'Zabbix has received an incorrect request.',
+							'Field "filter_set" is not correct: invalid data type.',
+							'Field "filter_groups" is not correct: an array is expected.'
 						]
 					],
 					[

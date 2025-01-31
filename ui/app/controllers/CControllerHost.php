@@ -1,22 +1,16 @@
 <?php declare(strict_types = 0);
-
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -170,19 +164,11 @@ abstract class CControllerHost extends CController {
 		// Re-sort the results again.
 		CArrayHelper::sort($hosts, [['field' => $filter['sort'], 'order' => $filter['sortorder']]]);
 
-		// Get count for every host with item type ITEM_TYPE_ZABBIX_ACTIVE (7).
-		$db_items_active_count = API::Item()->get([
-			'groupCount' => true,
-			'countOutput' => true,
-			'filter' => ['type' => ITEM_TYPE_ZABBIX_ACTIVE],
-			'hostids' => array_column($hosts, 'hostid')
-		]);
+		$hostids = array_column($hosts, 'hostid');
 
-		$item_active_by_hostid = [];
-
-		foreach ($db_items_active_count as $value) {
-			$item_active_by_hostid[$value['hostid']] = $value['rowscount'];
-		}
+		// Get count for every host with item type ITEM_TYPE_ZABBIX_ACTIVE (7) and ITEM_TYPE_ZABBIX (0).
+		$active_item_count_by_hostid = getItemTypeCountByHostId(ITEM_TYPE_ZABBIX_ACTIVE, $hostids);
+		$passive_item_count_by_hostid = getItemTypeCountByHostId(ITEM_TYPE_ZABBIX, $hostids);
 
 		$maintenanceids = [];
 
@@ -198,20 +184,21 @@ abstract class CControllerHost extends CController {
 
 		$problems = API::Problem()->get([
 			'output' => ['eventid', 'objectid', 'severity'],
-			'objectids' => array_keys($triggers),
 			'source' => EVENT_SOURCE_TRIGGERS,
 			'object' => EVENT_OBJECT_TRIGGER,
-			'suppressed' => ($filter['show_suppressed'] == ZBX_PROBLEM_SUPPRESSED_TRUE) ? null : false
+			'objectids' => array_keys($triggers),
+			'suppressed' => ($filter['show_suppressed'] == ZBX_PROBLEM_SUPPRESSED_TRUE) ? null : false,
+			'symptom' => false
 		]);
 
-		$items = API::Item()->get([
+		$items_count = API::Item()->get([
 			'countOutput' => true,
 			'groupCount' => true,
 			'hostids' => array_keys($hosts),
 			'webitems' =>true,
 			'monitored' => true
 		]);
-		$items_count = array_combine(array_column($items, 'hostid'), array_column($items, 'rowscount'));
+		$items_count = $items_count ? array_column($items_count, 'rowscount', 'hostid') : [];
 
 		// Group all problems per host per severity.
 		$host_problems = [];
@@ -223,8 +210,8 @@ abstract class CControllerHost extends CController {
 
 		foreach ($hosts as &$host) {
 			// Add active checks interface if host have items with type ITEM_TYPE_ZABBIX_ACTIVE (7).
-			if (array_key_exists($host['hostid'], $item_active_by_hostid)
-					&& $item_active_by_hostid[$host['hostid']] > 0) {
+			if (array_key_exists($host['hostid'], $active_item_count_by_hostid)
+					&& $active_item_count_by_hostid[$host['hostid']] > 0) {
 				$host['interfaces'][] = [
 					'type' => INTERFACE_TYPE_AGENT_ACTIVE,
 					'available' => $host['active_available'],
@@ -232,6 +219,9 @@ abstract class CControllerHost extends CController {
 				];
 			}
 			unset($host['active_available']);
+
+			$host['has_passive_checks'] = array_key_exists($host['hostid'], $passive_item_count_by_hostid)
+				&& $passive_item_count_by_hostid[$host['hostid']] > 0;
 
 			$host['items_count'] = array_key_exists($host['hostid'], $items_count) ? $items_count[$host['hostid']] : 0;
 
@@ -328,17 +318,40 @@ abstract class CControllerHost extends CController {
 	}
 
 	/**
-	 * Clean passed filter fields in input from default values required for HTML presentation. Convert field
+	 * Clean the filter from non-existing host group IDs.
+	 *
+	 * @param array $filter
+	 *
+	 * $filter = [
+	 *     'groupids' => (array)  Group IDs from filter to check.
+	 * ]
+	 *
+	 * @return array
+	 */
+	protected static function sanitizeFilter(array $filter): array {
+		if ($filter['groupids']) {
+			$groups = API::HostGroup()->get([
+				'output' => [],
+				'groupids' => $filter['groupids'],
+				'preservekeys' => true
+			]);
+
+			$filter['groupids'] = array_filter($filter['groupids'], static fn($groupid) =>
+				array_key_exists($groupid, $groups)
+			);
+		}
+
+		return $filter;
+	}
+
+	/**
+	 * Clean and convert passed filter input fields from default values required for HTML presentation.
 	 *
 	 * @param array $input  Filter fields values.
 	 *
 	 * @return array
 	 */
 	protected function cleanInput(array $input): array {
-		if (array_key_exists('filter_reset', $input) && $input['filter_reset']) {
-			return array_intersect_key(['filter_name' => ''], $input);
-		}
-
 		if (array_key_exists('tags', $input) && $input['tags']) {
 			$input['tags'] = array_filter($input['tags'], function($tag) {
 				return !($tag['tag'] === '' && $tag['value'] === '');

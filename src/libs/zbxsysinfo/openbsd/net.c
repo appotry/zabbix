@@ -1,26 +1,21 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-#include "common.h"
-#include "sysinfo.h"
+#include "zbxsysinfo.h"
+#include "../sysinfo.h"
+
 #include "zbxjson.h"
-#include "log.h"
 
 #include <sys/ioctl.h>
 #include <sys/sockio.h>
@@ -41,7 +36,6 @@ static struct nlist kernel_symbols[] =
 	{NULL, 0, 0, 0, 0}
 };
 
-#define IFNET_ID 0
 
 static int	get_ifdata(const char *if_name,
 		zbx_uint64_t *ibytes, zbx_uint64_t *ipackets, zbx_uint64_t *ierrors, zbx_uint64_t *idropped,
@@ -49,12 +43,12 @@ static int	get_ifdata(const char *if_name,
 		zbx_uint64_t *tbytes, zbx_uint64_t *tpackets, zbx_uint64_t *terrors,
 		zbx_uint64_t *icollisions, char **error)
 {
+#define IFNET_ID 0
 	struct ifnet_head	head;
 	struct ifnet		*ifp;
 
 	kvm_t	*kp;
-	int	len = 0;
-	int	ret = SYSINFO_RET_FAIL;
+	int	len = 0, ret = SYSINFO_RET_FAIL;
 
 	if (NULL == if_name || '\0' == *if_name)
 	{
@@ -203,9 +197,10 @@ clean:
 	}
 
 	return ret;
+#undef IFNET_ID
 }
 
-int	NET_IF_IN(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	net_if_in(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	char		*if_name, *mode, *error;
 	zbx_uint64_t	ibytes, ipackets, ierrors, idropped;
@@ -243,7 +238,7 @@ int	NET_IF_IN(AGENT_REQUEST *request, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-int	NET_IF_OUT(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	net_if_out(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	char		*if_name, *mode, *error;
 	zbx_uint64_t	obytes, opackets, oerrors;
@@ -279,7 +274,7 @@ int	NET_IF_OUT(AGENT_REQUEST *request, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-int	NET_IF_TOTAL(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	net_if_total(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	char		*if_name, *mode, *error;
 	zbx_uint64_t	tbytes, tpackets, terrors;
@@ -315,7 +310,7 @@ int	NET_IF_TOTAL(AGENT_REQUEST *request, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-int	NET_IF_COLLISIONS(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	net_if_collisions(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	char		*if_name, *error;
 	zbx_uint64_t	icollisions;
@@ -340,9 +335,8 @@ int	NET_IF_COLLISIONS(AGENT_REQUEST *request, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-int	NET_IF_DISCOVERY(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	net_if_discovery(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
-	int			i;
 	struct zbx_json		j;
 	struct if_nameindex	*interfaces;
 
@@ -354,7 +348,7 @@ int	NET_IF_DISCOVERY(AGENT_REQUEST *request, AGENT_RESULT *result)
 
 	zbx_json_initarray(&j, ZBX_JSON_STAT_BUF_LEN);
 
-	for (i = 0; 0 != interfaces[i].if_index; i++)
+	for (int i = 0; 0 != interfaces[i].if_index; i++)
 	{
 		zbx_json_addobject(&j, NULL);
 		zbx_json_addstring(&j, "{#IFNAME}", interfaces[i].if_name, ZBX_JSON_TYPE_STRING);

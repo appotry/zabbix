@@ -1,31 +1,28 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-#include "common.h"
-#include "sysinfo.h"
+#include "zbxsysinfo.h"
+#include "../sysinfo.h"
+
+#include "zbxstr.h"
 #include "zbxthreads.h"
-#include "perfstat.h"
 #include "zbxjson.h"
 #include "zbxalgo.h"
-#include "log.h"
 
-int	USER_PERF_COUNTER(AGENT_REQUEST *request, AGENT_RESULT *result)
+#include "perfstat/perfstat.h"
+
+int	user_perf_counter(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	int	ret = SYSINFO_RET_FAIL;
 	char	*counter, *error = NULL;
@@ -60,7 +57,7 @@ out:
 	return ret;
 }
 
-static int perf_counter_ex(const char *function, AGENT_REQUEST *request, AGENT_RESULT *result,
+static int	perf_counter_ex(const char *function, AGENT_REQUEST *request, AGENT_RESULT *result,
 		zbx_perf_counter_lang_t lang)
 {
 	char	counterpath[PDH_MAX_COUNTER_PATH], *tmp, *error = NULL;
@@ -83,25 +80,25 @@ static int perf_counter_ex(const char *function, AGENT_REQUEST *request, AGENT_R
 		goto out;
 	}
 
-	strscpy(counterpath, tmp);
+	zbx_strscpy(counterpath, tmp);
 
 	if (NULL == (tmp = get_rparam(request, 1)) || '\0' == *tmp)
 	{
 		interval = 1;
 	}
-	else if (FAIL == is_uint31(tmp, &interval))
+	else if (FAIL == zbx_is_uint31(tmp, &interval))
 	{
 		SET_MSG_RESULT(result, zbx_strdup(NULL, "Invalid second parameter."));
 		goto out;
 	}
 
-	if (1 > interval || MAX_COLLECTOR_PERIOD < interval)
+	if (1 > interval || ZBX_MAX_COLLECTOR_PERIOD < interval)
 	{
 		SET_MSG_RESULT(result, zbx_strdup(NULL, "Interval out of range."));
 		goto out;
 	}
 
-	if (FAIL == check_counter_path(counterpath, PERF_COUNTER_LANG_DEFAULT == lang))
+	if (FAIL == zbx_check_counter_path(counterpath, PERF_COUNTER_LANG_DEFAULT == lang))
 	{
 		SET_MSG_RESULT(result, zbx_strdup(NULL, "Invalid performance counter path."));
 		goto out;
@@ -122,12 +119,12 @@ out:
 	return ret;
 }
 
-int	PERF_COUNTER(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	perf_counter(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	return perf_counter_ex(__func__, request, result, PERF_COUNTER_LANG_DEFAULT);
 }
 
-int	PERF_COUNTER_EN(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	perf_counter_en(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	return perf_counter_ex(__func__, request, result, PERF_COUNTER_LANG_EN);
 }
@@ -199,7 +196,6 @@ int	perf_instance_discovery_ex(const char *function, AGENT_REQUEST *request, AGE
 	{
 		wchar_t			*cnt_list, *inst_list, *instance;
 		zbx_vector_str_t	instances, instances_uniq;
-		int			i;
 
 		cnt_list = zbx_malloc(NULL, sizeof(wchar_t) * cnt_len);
 		inst_list = zbx_malloc(NULL, sizeof(wchar_t) * inst_len);
@@ -225,7 +221,7 @@ int	perf_instance_discovery_ex(const char *function, AGENT_REQUEST *request, AGE
 		zbx_vector_str_sort(&instances_uniq, ZBX_DEFAULT_STR_COMPARE_FUNC);
 		zbx_vector_str_uniq(&instances_uniq, ZBX_DEFAULT_STR_COMPARE_FUNC);
 
-		for (i = 0; i < instances_uniq.values_num; i++)
+		for (int i = 0; i < instances_uniq.values_num; i++)
 		{
 			zbx_json_addobject(&j, NULL);
 			zbx_json_addstring(&j, "{#INSTANCE}", instances_uniq.values[i], ZBX_JSON_TYPE_STRING);
@@ -252,12 +248,12 @@ err:
 	return ret;
 }
 
-int	PERF_INSTANCE_DISCOVERY(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	perf_instance_discovery(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	return perf_instance_discovery_ex(__func__, request, result, PERF_COUNTER_LANG_DEFAULT);
 }
 
-int	PERF_INSTANCE_DISCOVERY_EN(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	perf_instance_discovery_en(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	return perf_instance_discovery_ex(__func__, request, result, PERF_COUNTER_LANG_EN);
 }

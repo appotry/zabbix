@@ -1,29 +1,23 @@
 <?php declare(strict_types = 0);
-
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
 class CControllerHostView extends CControllerHost {
 
 	protected function init(): void {
-		$this->disableSIDValidation();
+		$this->disableCsrfValidation();
 	}
 
 	protected function checkInput(): bool {
@@ -86,9 +80,14 @@ class CControllerHostView extends CControllerHost {
 
 	protected function doAction(): void {
 		$filter_tabs = [];
-		$profile = (new CTabFilterProfile(static::FILTER_IDX, static::FILTER_FIELDS_DEFAULT))
-			->read()
-			->setInput($this->cleanInput($this->getInputAll()));
+		$profile = (new CTabFilterProfile(static::FILTER_IDX, static::FILTER_FIELDS_DEFAULT))->read();
+
+		if ($this->hasInput('filter_reset')) {
+			$profile->reset();
+		}
+		else {
+			$profile->setInput($this->cleanInput($this->getInputAll()));
+		}
 
 		foreach ($profile->getTabsWithDefaults() as $index => $filter_tab) {
 			if ($index == $profile->selected) {
@@ -100,6 +99,8 @@ class CControllerHostView extends CControllerHost {
 		}
 
 		$filter = $filter_tabs[$profile->selected];
+		$filter = self::sanitizeFilter($filter);
+
 		$refresh_curl = new CUrl('zabbix.php');
 		$filter['action'] = 'host.view.refresh';
 		array_map([$refresh_curl, 'setArgument'], array_keys($filter), $filter);
@@ -117,9 +118,10 @@ class CControllerHostView extends CControllerHost {
 				'selected' => $profile->selected,
 				'support_custom_time' => 0,
 				'expanded' => $profile->expanded,
-				'page' => $filter['page']
+				'page' => $filter['page'],
+				'csrf_token' => CCsrfTokenHelper::get('tabfilter')
 			]
-		] + $this->getData($filter);
+		];
 
 		$response = new CControllerResponseData($data);
 		$response->setTitle(_('Hosts'));

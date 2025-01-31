@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 require_once dirname(__FILE__).'/../include/CIntegrationTest.php';
@@ -34,9 +29,13 @@ class testEscalations extends CIntegrationTest {
 	private static $triggerid;
 	private static $maint_start_tm;
 	private static $trigger_actionid;
+	private static $scriptid_problem;
+	private static $scriptid_recovery;
 
 	const TRAPPER_ITEM_NAME = 'trap';
 	const HOST_NAME = 'test_actions';
+	const COMMAND_PROBLEM = 'echo "problem"';
+	const COMMAND_RECOVERY = 'echo "recovery"';
 
 	/**
 	 * @inheritdoc
@@ -95,11 +94,11 @@ class testEscalations extends CIntegrationTest {
 		$response = $this->call('action.create', [
 			'esc_period' => '1h',
 			'eventsource' => EVENT_SOURCE_TRIGGERS,
-			'status' => 0,
+			'status' => ACTION_STATUS_ENABLED,
 			'filter' => [
 				'conditions' => [
 					[
-						'conditiontype' => CONDITION_TYPE_TRIGGER,
+						'conditiontype' => ZBX_CONDITION_TYPE_TRIGGER,
 						'operator' => CONDITION_OPERATOR_EQUAL,
 						'value' => self::$triggerid
 					]
@@ -139,6 +138,14 @@ class testEscalations extends CIntegrationTest {
 		$this->assertEquals(1, count($response['result']['actionids']));
 		self::$trigger_actionid = $response['result']['actionids'][0];
 
+		// Enable mediatypes
+		$response = $this->call('mediatype.update', [
+			'mediatypeid' => 1,
+			'status' => 0
+		]);
+		$this->assertArrayHasKey('mediatypeids', $response['result']);
+		$this->assertEquals(1, count($response['result']['mediatypeids']));
+
 		return true;
 	}
 
@@ -152,6 +159,28 @@ class testEscalations extends CIntegrationTest {
 			self::COMPONENT_SERVER => [
 				'DebugLevel' => 4,
 				'LogFileSize' => 20
+			]
+		];
+	}
+
+	/**
+	 * Component configuration provider for remote command related tests.
+	 *
+	 * @return array
+	 */
+	public function serverConfigurationProviderRemote() {
+		return [
+			self::COMPONENT_SERVER => [
+				'DebugLevel' => 4,
+				'LogFileSize' => 20,
+				'Timeout' => 30
+			],
+			self::COMPONENT_AGENT => [
+				'Hostname' => self::HOST_NAME,
+				'ServerActive' => '127.0.0.1:'.self::getConfigurationValue(self::COMPONENT_SERVER,
+						'ListenPort', 10051),
+				'AllowKey' => 'system.run[*]',
+				'LogRemoteCommands' => 1
 			]
 		];
 	}
@@ -278,6 +307,13 @@ class testEscalations extends CIntegrationTest {
 			'actionid' => self::$trigger_actionid,
 			'pause_suppressed' => 1
 		]);
+
+		$this->reloadConfigurationCache();
+
+		$this->sendSenderValue(self::HOST_NAME, self::TRAPPER_ITEM_NAME, 4);
+		$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, 'In escalation_execute()', true, 120);
+		$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, 'End of escalation_execute()', true, 10, 3);
+
 		// Create maintenance period
 		self::$maint_start_tm = time() + 10;
 		$maint_end_tm = self::$maint_start_tm + 60 * 2;
@@ -299,10 +335,6 @@ class testEscalations extends CIntegrationTest {
 		$maintenance_id = $response['result']['maintenanceids'][0];
 
 		$this->reloadConfigurationCache();
-
-		$this->sendSenderValue(self::HOST_NAME, self::TRAPPER_ITEM_NAME, 4);
-		$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, 'In escalation_execute()', true, 120);
-		$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, 'End of escalation_execute()', true, 10, 3);
 
 		$response = $this->callUntilDataIsPresent('alert.get', [
 			'actionids' => [self::$trigger_actionid]
@@ -385,7 +417,7 @@ class testEscalations extends CIntegrationTest {
 
 		$response = $this->callUntilDataIsPresent('alert.get', [
 			'actionids' => [self::$trigger_actionid]
-		], 5, 2);
+		], 15, 5);
 		$this->assertArrayHasKey(0, $response['result']);
 		$this->assertEquals(0, $response['result'][0]['p_eventid']);
 
@@ -553,9 +585,10 @@ class testEscalations extends CIntegrationTest {
 
 		$response = $this->call('action.update', [
 			'actionid' => self::$trigger_actionid,
+			'esc_period' => '1m',
 			'operations' => [
 				[
-					'esc_period' => '1m',
+					'esc_period' => 0,
 					'esc_step_from' => 1,
 					'esc_step_to' => 1,
 					'evaltype' => 0,
@@ -563,8 +596,8 @@ class testEscalations extends CIntegrationTest {
 					'opmessage' => [
 						'default_msg' => 0,
 						'mediatypeid' => 0,
-						'message' => 'Problem',
-						'subject' => 'Problem'
+						'message' => 'Cause problem 1',
+						'subject' => 'Cause problem 1'
 					],
 					'opmessage_grp' => [['usrgrpid' => 7]]
 				],
@@ -577,8 +610,8 @@ class testEscalations extends CIntegrationTest {
 					'opmessage' => [
 						'default_msg' => 0,
 						'mediatypeid' => 0,
-						'message' => 'Problem',
-						'subject' => 'Problem'
+						'message' => 'Cause problem 2',
+						'subject' => 'Cause problem 2'
 					],
 					'opmessage_grp' => [['usrgrpid' => 7]]
 				]
@@ -588,25 +621,179 @@ class testEscalations extends CIntegrationTest {
 		$this->assertArrayHasKey('actionids', $response['result']);
 		$this->assertArrayHasKey(0, $response['result']['actionids']);
 
+		// create items, triggers, actions for testing symptom events
+		$pause_symptoms = [
+			1 => ACTION_PAUSE_SYMPTOMS_TRUE,
+			2 => ACTION_PAUSE_SYMPTOMS_FALSE
+		];
+		$trapper_keys = [];
+		$symptom_triggerids = [];
+		$symptom_actionids = [];
+
+		foreach ([1, 2] as $i) {
+			// Create trapper item
+			$name = $key = self::TRAPPER_ITEM_NAME."_s".(string)$i;
+			$trapper_keys[$i] = $key;
+			$response = $this->call('item.create', [
+				'hostid' => self::$hostid,
+				'name' => $name,
+				'key_' => $key,
+				'type' => ITEM_TYPE_TRAPPER,
+				'value_type' => ITEM_VALUE_TYPE_UINT64
+			]);
+			$this->assertArrayHasKey('itemids', $response['result']);
+			$this->assertCount(1, $response['result']['itemids']);
+
+			// Create trigger
+			$response = $this->call('trigger.create', [
+				'description' => 'Mandatory description',
+				'expression' => 'last(/'.self::HOST_NAME.'/'.$key.')>0'
+			]);
+			$this->assertArrayHasKey('triggerids', $response['result']);
+			$this->assertCount(1, $response['result']['triggerids']);
+			$symptom_triggerids[$i] = $response['result']['triggerids'][0];
+
+			// Create action
+			$response = $this->call('action.create', [
+				'esc_period' => '1m',
+				'eventsource' => EVENT_SOURCE_TRIGGERS,
+				'status' => ACTION_STATUS_ENABLED,
+				'pause_symptoms' => $pause_symptoms[$i],
+				'filter' => [
+					'conditions' => [
+						[
+							'conditiontype' => ZBX_CONDITION_TYPE_TRIGGER,
+							'operator' => CONDITION_OPERATOR_EQUAL,
+							'value' => $symptom_triggerids[$i]
+						]
+					],
+					'evaltype' => CONDITION_EVAL_TYPE_AND_OR
+				],
+				'name' => 'Symptom action '.(string)$i,
+				'operations' => [
+					[
+						'esc_period' => 0,
+						'esc_step_from' => 1,
+						'esc_step_to' => 1,
+						'evaltype' => 0,
+						'operationtype' => OPERATION_TYPE_MESSAGE,
+						'opmessage' => [
+							'default_msg' => 0,
+							'mediatypeid' => 0,
+							'message' => 'Symptom problem 1',
+							'subject' => 'Symptom problem 1'
+						],
+						'opmessage_grp' => [['usrgrpid' => 7]]
+					],
+					[
+						'esc_period' => 0,
+						'esc_step_from' => 2,
+						'esc_step_to' => 2,
+						'evaltype' => 0,
+						'operationtype' => OPERATION_TYPE_MESSAGE,
+						'opmessage' => [
+							'default_msg' => 0,
+							'mediatypeid' => 0,
+							'message' => 'Symptom problem 2',
+							'subject' => 'Symptom problem 2'
+						],
+						'opmessage_grp' => [['usrgrpid' => 7]]
+					]
+				]
+			]);
+
+			$this->assertArrayHasKey('actionids', $response['result']);
+			$this->assertCount(1, $response['result']['actionids']);
+			$symptom_actionids[$i] = $response['result']['actionids'][0];
+		}
+
 		$this->reloadConfigurationCache();
 
+		// start all events as causes, because only existing events can be ranked as symptoms
 		$this->sendSenderValue(self::HOST_NAME, self::TRAPPER_ITEM_NAME, 7);
-		$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, 'In escalation_execute()', true, 95, 3);
-		$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, 'End of escalation_execute()', true, 10, 3);
+		$this->sendSenderValue(self::HOST_NAME, $trapper_keys[1], 7);
+		$this->sendSenderValue(self::HOST_NAME, $trapper_keys[2], 7);
 
-		$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, 'In escalation_execute()', true, 95, 3);
-		$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, 'End of escalation_execute()', true, 10, 3);
+		$response = $this->callUntilDataIsPresent('problem.get', [
+			'output' => ['eventid'],
+			'objectids' => [self::$triggerid, $symptom_triggerids[1], $symptom_triggerids[2]]
+		]);
 
+		$this->assertCount(3, $response['result']);
+		$this->assertArrayHasKey('eventid', $response['result'][0]);
+		$this->assertArrayHasKey('eventid', $response['result'][1]);
+		$this->assertArrayHasKey('eventid', $response['result'][2]);
+
+		$cause_eventid = $response['result'][0]['eventid'];
+
+		// these events are causes at this point and will be ranked as symptoms later
+		$symptom_eventids[1] = $response['result'][1]['eventid'];
+		$symptom_eventids[2] = $response['result'][2]['eventid'];
+
+		// wait until escalation step 1 is completed for all three events
+		for ($i = 0; $i < 3; $i++) {
+			$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, 'In escalation_execute()', true, 95, 3);
+			$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, 'End of escalation_execute()', true, 10, 3);
+		}
+
+		// rank 2 events as symptom events
+		$response = $this->call('event.acknowledge', [
+			'eventids' => $symptom_eventids,
+			'action' => ZBX_PROBLEM_UPDATE_RANK_TO_SYMPTOM,
+			'cause_eventid' => $cause_eventid
+		]);
+
+		$this->assertArrayHasKey('result', $response);
+		$this->assertArrayHasKey('eventids', $response['result']);
+		$this->assertCount(2, $response['result']['eventids']);
+
+		// Escalations are expected for 2 events:
+		//    1. the cause event;
+		//    2. one symptom event with ACTION_PAUSE_SYMPTOMS_FALSE.
+		for ($i = 0; $i < 2; $i++) {
+			$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, 'In escalation_execute()', true, 95, 3);
+			$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, 'End of escalation_execute()', true, 10, 3);
+		}
+
+		// check alerts for the cause event
 		$response = $this->callUntilDataIsPresent('alert.get', [
 				'output' => 'extend',
 				'actionids' => [self::$trigger_actionid],
 				'sortfield' => 'alertid'
 		], 5, 2);
+
+		// 2 escalations are expected
 		$this->assertCount(2, $response['result']);
 		$this->assertEquals(1, $response['result'][0]['esc_step']);
 		$this->assertEquals(2, $response['result'][1]['esc_step']);
 
+		// check alerts for the symptom event with ACTION_PAUSE_SYMPTOMS_TRUE
+		$response = $this->callUntilDataIsPresent('alert.get', [
+			'output' => 'extend',
+			'actionids' => $symptom_actionids[1],
+			'sortfield' => 'alertid'
+		], 5, 2);
+
+		// 1 escalation is expected
+		$this->assertCount(1, $response['result']);
+		$this->assertEquals(1, $response['result'][0]['esc_step']);
+
+		// check alerts for the symptom event with ACTION_PAUSE_SYMPTOMS_FALSE
+		$response = $this->callUntilDataIsPresent('alert.get', [
+			'output' => 'extend',
+			'actionids' => $symptom_actionids[2],
+			'sortfield' => 'alertid'
+		], 5, 2);
+
+		// 2 escalations are expected
+		$this->assertCount(2, $response['result']);
+		$this->assertEquals(1, $response['result'][0]['esc_step']);
+		$this->assertEquals(2, $response['result'][1]['esc_step']);
+
+		// stop events
 		$this->sendSenderValue(self::HOST_NAME, self::TRAPPER_ITEM_NAME, 0);
+		$this->sendSenderValue(self::HOST_NAME, $trapper_keys[1], 0);
+		$this->sendSenderValue(self::HOST_NAME, $trapper_keys[2], 0);
 	}
 
 	/**
@@ -644,7 +831,7 @@ HEREDOC;
 					'value' => '{EVENT.SOURCE}'
 				]
 			],
-			'content_type' => 1
+			'status' => 0
 		]);
 		$this->assertArrayHasKey('mediatypeids', $response['result']);
 		$this->assertEquals(1, count($response['result']['mediatypeids']));
@@ -670,7 +857,7 @@ HEREDOC;
 			'filter' => [
 				'conditions' => [
 					[
-						'conditiontype' => CONDITION_TYPE_TRIGGER,
+						'conditiontype' => ZBX_CONDITION_TYPE_TRIGGER,
 						'operator' => CONDITION_OPERATOR_EQUAL,
 						'value' => self::$triggerid
 					]
@@ -717,7 +904,6 @@ HEREDOC;
 		$this->reloadConfigurationCache();
 
 		$this->sendSenderValue(self::HOST_NAME, self::TRAPPER_ITEM_NAME, 8);
-		$this->sendSenderValue(self::HOST_NAME, self::TRAPPER_ITEM_NAME, 0);
 
 		$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, 'In escalation_execute()', true, 95, 3);
 		$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, 'End of escalation_execute()', true, 10, 3);
@@ -725,9 +911,143 @@ HEREDOC;
 		$response = $this->callUntilDataIsPresent('alert.get', [
 			'actionids' => $actionid
 		], 5, 2);
+
 		$this->assertCount(1, $response['result']);
 
+		$this->sendSenderValue(self::HOST_NAME, self::TRAPPER_ITEM_NAME, 0);
+
 		$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, 'In escalation_recover()', true, 200);
+		$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, 'End of escalation_recover()', true);
+
+		$response = $this->callUntilDataIsPresent('alert.get', [
+			'actionids' => $actionid
+		], 5, 2);
+		$this->assertCount(2, $response['result']);
+	}
+
+	/**
+	 * Test active remote commands
+	 *testEscalations_checkActiveCommands
+	 * @required-components server, agent
+	 * @configurationDataProvider serverConfigurationProviderRemote
+	 * @backup actions, alerts, history_uint, media_type, users, media, events, problem
+	 */
+	public function testEscalations_checkActiveCommands() {
+		$this->clearLog(self::COMPONENT_SERVER);
+		$this->reloadConfigurationCache();
+
+		// Create remote commands
+		$response = $this->call('script.create', [
+			'name' => 'Test remote command problem',
+			'command' => self::COMMAND_PROBLEM,
+			'execute_on' => 0,
+			'scope' => 1,
+			'type' => 0
+		]);
+		$this->assertArrayHasKey('scriptids', $response['result']);
+		self::$scriptid_problem = $response['result']['scriptids'][0];
+
+		$response = $this->call('script.create', [
+			'name' => 'Test remote command recovery',
+			'command' => self::COMMAND_RECOVERY,
+			'execute_on' => 0,
+			'scope' => 1,
+			'type' => 0
+		]);
+		$this->assertArrayHasKey('scriptids', $response['result']);
+		self::$scriptid_recovery = $response['result']['scriptids'][0];
+
+		// Create active item
+		$response = $this->call('item.create', [
+			'hostid' => self::$hostid,
+			'name' => 'Agent variant',
+			'key_' => 'agent.variant',
+			'type' => ITEM_TYPE_ZABBIX_ACTIVE,
+			'value_type' => ITEM_VALUE_TYPE_UINT64,
+			'delay' => '1s'
+		]);
+		$this->assertArrayHasKey('itemids', $response['result']);
+		$this->assertEquals(1, count($response['result']['itemids']));
+
+		// Create action
+		$response = $this->call('action.create', [
+			'esc_period' => '1h',
+			'eventsource' => 0,
+			'status' => 0,
+			'filter' => [
+				'conditions' => [
+					[
+						'conditiontype' => ZBX_CONDITION_TYPE_TRIGGER,
+						'operator' => CONDITION_OPERATOR_EQUAL,
+						'value' => self::$triggerid
+					]
+				],
+				'evaltype' => 0
+			],
+			'name' => 'Remote command action',
+			'operations' => [
+				[
+					'esc_period' => 0,
+					'esc_step_from' => 1,
+					'esc_step_to' => 1,
+					'operationtype' => OPERATION_TYPE_COMMAND,
+					'opcommand' => [
+						'scriptid' => self::$scriptid_problem
+					],
+					'opcommand_hst' => [
+						[
+							'hostid'=> self::$hostid
+						]
+					]
+				]
+			],
+			'pause_suppressed' => 0,
+			'recovery_operations' => [
+				[
+					'operationtype' => OPERATION_TYPE_COMMAND,
+					'opcommand' => [
+						'scriptid' => self::$scriptid_recovery
+					],
+					'opcommand_hst' => [
+						[
+							'hostid'=> self::$hostid
+						]
+					]
+				]
+			]
+		]);
+		$this->assertArrayHasKey('actionids', $response['result']);
+		$this->assertEquals(1, count($response['result']['actionids']));
+		$actionid = $response['result']['actionids'];
+
+		$response = $this->call('action.update', [
+			'actionid' => self::$trigger_actionid,
+			'status' => 1
+		]);
+
+		$this->reloadConfigurationCache();
+
+		$this->sendSenderValue(self::HOST_NAME, self::TRAPPER_ITEM_NAME, 8);
+
+		$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, 'In escalation_execute()', true, 95, 3);
+		$this->waitForLogLineToBePresent(self::COMPONENT_AGENT, "Executing command '".self::COMMAND_PROBLEM."'",
+				true, 10, 3);
+		$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, 'End of zbx_process_command_results(), parsed 1',
+				true);
+		$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, 'End of escalation_execute()', true, 10, 3);
+
+		$response = $this->callUntilDataIsPresent('alert.get', [
+			'actionids' => $actionid
+		], 5, 2);
+		$this->assertCount(1, $response['result']);
+
+		$this->sendSenderValue(self::HOST_NAME, self::TRAPPER_ITEM_NAME, 0);
+
+		$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, 'In escalation_recover()', true, 200);
+		$this->waitForLogLineToBePresent(self::COMPONENT_AGENT, "Executing command '".self::COMMAND_RECOVERY."'",
+				true, 10, 3);
+		$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, 'End of zbx_process_command_results(), parsed 1',
+				true);
 		$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, 'End of escalation_recover()', true);
 
 		$response = $this->callUntilDataIsPresent('alert.get', [
@@ -780,4 +1100,5 @@ HEREDOC;
 
 		$this->sendSenderValue(self::HOST_NAME, self::TRAPPER_ITEM_NAME, 0);
 	}
+
 }
