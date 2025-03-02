@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -198,6 +193,10 @@ class testWebScenario extends CAPITest {
 						[
 							'name' => 'header_name-symbols☺æų""\\//!@#$%^&*()_+',
 							'value' => 'header_value-symbols☺æų""\\//!@#$%^&*()_+'
+						],
+						[
+							'name' => 'header_name-without-value',
+							'value' => ''
 						]
 					],
 					'variables' => [
@@ -531,7 +530,29 @@ class testWebScenario extends CAPITest {
 				'httptest' => [
 					[
 						'httptestid' => '15001',
-						'name' => 'Апи скрипт обнавлён утф-8'
+						'name' => 'Апи скрипт обновлён утф-8'
+					]
+				],
+				'expected_error' => null
+			],
+			'Accept full-length username' => [
+				'httptest' => [
+					[
+						'httptestid' => '15001',
+						'name' => 'accept.username',
+						'authentication' => ZBX_HTTP_AUTH_BASIC,
+						'http_user' => str_repeat('z', 255)
+					]
+				],
+				'expected_error' => null
+			],
+			'Accept full-length password' => [
+				'httptest' => [
+					[
+						'httptestid' => '15001',
+						'name' => 'accept.password',
+						'authentication' => ZBX_HTTP_AUTH_BASIC,
+						'http_password' => str_repeat('z', 255)
 					]
 				],
 				'expected_error' => null
@@ -572,33 +593,60 @@ class testWebScenario extends CAPITest {
 		$result = $this->call('httptest.update', $httptests, $expected_error);
 
 		if ($expected_error === null) {
-			foreach ($result['result']['httptestids'] as $key => $id) {
-				$dbResult = DBSelect('select * from httptest where httptestid='.zbx_dbstr($id));
-				$dbRow = DBFetch($dbResult);
-				$this->assertEquals($dbRow['name'], $httptests[$key]['name']);
-				$this->assertEquals($dbRow['httptestid'], $httptests[$key]['httptestid']);
-				$this->assertEquals($dbRow['nextcheck'], 0);
-				$this->assertEquals($dbRow['delay'], 60);
-				$this->assertEquals($dbRow['status'], 0);
-				$this->assertEquals($dbRow['agent'], 'Zabbix');
-				$this->assertEquals($dbRow['authentication'], 0);
-				$this->assertEquals($dbRow['http_user'], '');
-				$this->assertEquals($dbRow['http_password'], '');
-				$this->assertEquals($dbRow['hostid'], 50009);
-				$this->assertEquals($dbRow['templateid'], 0);
-				$this->assertEquals($dbRow['http_proxy'], '');
-				$this->assertEquals($dbRow['retries'], 1);
-				$this->assertEquals($dbRow['ssl_cert_file'], '');
-				$this->assertEquals($dbRow['ssl_key_file'], '');
-				$this->assertEquals($dbRow['ssl_key_password'], '');
-				$this->assertEquals($dbRow['verify_peer'], 0);
-				$this->assertEquals($dbRow['verify_host'], 0);
+			foreach ($result['result']['httptestids'] as $id) {
+				$dbRow = DBFetch(DBSelect('SELECT * FROM httptest WHERE '.dbConditionId('httptestid', [$id])));
+				$httptest = [];
+
+				foreach ($httptests as $_httptest) {
+					if (bccomp($_httptest['httptestid'], $id) == 0) {
+						$httptest = $_httptest;
+						break;
+					};
+				}
+
+				$matches = [
+					'name' => $httptest['name'],
+					'httptestid' => $httptest['httptestid'],
+					'delay' => '60',
+					'status' => '0',
+					'agent' => 'Zabbix',
+					'hostid' => '50009',
+					'templateid' => '0',
+					'http_proxy' => '',
+					'retries' => '1',
+					'ssl_cert_file' => '',
+					'ssl_key_password' => '',
+					'verify_peer' => '0',
+					'verify_host' => '0'
+				];
+
+				$optional_fields = [
+					'authentication' => '0',
+					'http_user' => '',
+					'http_password' => ''
+				];
+				foreach ($optional_fields as $field => $expected_value) {
+					if (array_key_exists($field, $httptest)) {
+						$matches[$field] = $expected_value;
+					}
+				}
+
+				$dbRow = array_intersect_key($dbRow, $matches);
+				$matches = array_intersect_key($httptest, $matches) + $matches;
+
+				ksort($matches);
+				ksort($dbRow);
+
+				$this->assertEquals($dbRow, $matches, 'Post-update mismatch');
 			}
 		}
 		else {
 			foreach ($httptests as $httptest) {
 				if (array_key_exists('name', $httptest) && $httptest['name'] !== 'Api web scenario'){
-					$this->assertEquals(0, CDBHelper::getCount('select * from httptest where name='.zbx_dbstr($httptest['name'])));
+					$this->assertEquals(
+						CDBHelper::getCount('SELECT * FROM httptest WHERE '.dbConditionString('name', [$httptest['name']])),
+						0, 'Update on '.$httptest['name'].' should have failed'
+					);
 				}
 			}
 		}
@@ -704,27 +752,6 @@ class testWebScenario extends CAPITest {
 			// Check web headers.
 			[
 				'httptest' => [
-					'name' => 'Api web with wrong headers',
-					'headers' => [
-						['name' => '☺', 'value' => '']
-					]
-				],
-				'expected_error' => 'Invalid parameter "/1/headers/1/value": cannot be empty.'
-			],
-			[
-				'httptest' => [
-					'name' => 'Api web with empty headers value',
-					'headers' => [
-						[
-							'name' => 'login',
-							'value' => ''
-						]
-					]
-				],
-				'expected_error' => 'Invalid parameter "/1/headers/1/value": cannot be empty.'
-			],
-			[
-				'httptest' => [
 					'name' => 'Api web with empty headers name',
 					'headers' => [
 						[
@@ -753,7 +780,7 @@ class testWebScenario extends CAPITest {
 					'name' => 'Api web with long http_password',
 					'authentication' => '1',
 					'http_user' => 'admin',
-					'http_password' => 'Phasellus imperdiet sapien sed justo elementum, quis maximuslpi65',
+					'http_password' => str_repeat('z', 256),
 					'steps' => [
 						[
 							'name' => 'Homepage',
@@ -785,7 +812,7 @@ class testWebScenario extends CAPITest {
 					'name' => 'Api web with long http_password',
 					'authentication' => '2',
 					'http_user' => 'admin',
-					'http_password' => 'Phasellus imperdiet sapien sed justo elementum, quis maximuslpi65',
+					'http_password' => str_repeat('z', 256),
 					'steps' => [
 						[
 							'name' => 'Homepage',
@@ -814,18 +841,18 @@ class testWebScenario extends CAPITest {
 			],
 			[
 				'httptest' => [
-					'name' => 'Api web with long http_user',
+					'name' => 'Api web with overly long http_user',
 					'authentication' => '1',
-					'http_user' => 'Phasellus imperdiet sapien sed justo elementum, quis maximuslpi65'
+					'http_user' => str_repeat('z', 256)
 				],
 				'expected_error' => 'Invalid parameter "/1/http_user": value is too long.'
 			],
 			// Check web user name used for NTLM authentication .
 			[
 				'httptest' => [
-					'name' => 'Api web with long http_user',
+					'name' => 'Api web with overly long http_user',
 					'authentication' => '2',
-					'http_user' => 'Phasellus imperdiet sapien sed justo elementum, quis maximuslpi65'
+					'http_user' => str_repeat('z', 256)
 				],
 				'expected_error' => 'Invalid parameter "/1/http_user": value is too long.'
 			],
@@ -1202,275 +1229,6 @@ class testWebScenario extends CAPITest {
 		}
 	}
 
-	public static function web_user_permissions() {
-		return [
-			// Zabbix admin have read-write permissions to host.
-			[
-				'method' => 'httptest.create',
-				'login' => ['user' => 'zabbix-admin', 'password' => 'zabbix'],
-				'httptest' => [
-					'name' => 'API create web as zabbix admin with read-write permissions',
-					'hostid' => '50009',
-					'steps' => [
-						[
-							'name' => 'API create step as zabbix admin with read-write permissions',
-							'url' => 'http://zabbix.com',
-							'no' => 0
-						]
-					]
-				],
-				'expected_error' => null
-			],
-			[
-				'method' => 'httptest.update',
-				'login' => ['user' => 'zabbix-admin', 'password' => 'zabbix'],
-				'httptest' => [
-					'name' => 'API update web as zabbix admin with read-write permissions',
-					'httptestid' => '15001'
-				],
-				'expected_error' => null
-			],
-			[
-				'method' => 'httptest.delete',
-				'login' => ['user' => 'zabbix-admin', 'password' => 'zabbix'],
-				'httptest' => ['15010'],
-				'expected_error' => null
-			],
-			// Zabbix admin have read permissions to host.
-			[
-				'method' => 'httptest.create',
-				'login' => ['user' => 'zabbix-admin', 'password' => 'zabbix'],
-				'httptest' => [
-					'name' => 'API create web as zabbix admin with read permissions',
-					'hostid' => '50012',
-					'steps' => [
-						[
-							'name' => 'API create step',
-							'url' => 'http://zabbix.com',
-							'no' => 0
-						]
-					]
-				],
-				'expected_error' => 'No permissions to referred object or it does not exist!'
-			],
-			[
-				'method' => 'httptest.update',
-				'login' => ['user' => 'zabbix-admin', 'password' => 'zabbix'],
-				'httptest' => [
-					'name' => 'API update web as zabbix admin with read permissions',
-					'httptestid' => '15008'
-				],
-				'expected_error' => 'No permissions to referred object or it does not exist!'
-			],
-			[
-				'method' => 'httptest.delete',
-				'login' => ['user' => 'zabbix-admin', 'password' => 'zabbix'],
-				'httptest' => ['15008'],
-				'expected_error' => 'No permissions to referred object or it does not exist!'
-			],
-			// Zabbix admin have deny permissions to host.
-			[
-				'method' => 'httptest.create',
-				'login' => ['user' => 'zabbix-admin', 'password' => 'zabbix'],
-				'httptest' => [
-					'name' => 'API create web as zabbix admin with deny permissions',
-					'hostid' => '50014',
-					'steps' => [
-						[
-							'name' => 'API create step',
-							'url' => 'http://zabbix.com',
-							'no' => 0
-						]
-					]
-				],
-				'expected_error' => 'No permissions to referred object or it does not exist!'
-			],
-			[
-				'method' => 'httptest.update',
-				'login' => ['user' => 'zabbix-admin', 'password' => 'zabbix'],
-				'httptest' => [
-					'name' => 'API update web as zabbix admin with read permissions',
-					'httptestid' => '15009'
-				],
-				'expected_error' => 'No permissions to referred object or it does not exist!'
-			],
-			[
-				'method' => 'httptest.delete',
-				'login' => ['user' => 'zabbix-admin', 'password' => 'zabbix'],
-				'httptest' => ['15009'],
-				'expected_error' => 'No permissions to referred object or it does not exist!'
-			],
-			// Zabbix admin have None permissions to host.
-			[
-				'method' => 'httptest.create',
-				'login' => ['user' => 'zabbix-admin', 'password' => 'zabbix'],
-				'httptest' => [
-					'name' => 'API create web as zabbix admin with none permissions',
-					'hostid' => '50010',
-					'steps' => [
-						[
-							'name' => 'API create step',
-							'url' => 'http://zabbix.com',
-							'no' => 0
-						]
-					]
-				],
-				'expected_error' => 'No permissions to referred object or it does not exist!'
-			],
-			[
-				'method' => 'httptest.update',
-				'login' => ['user' => 'zabbix-admin', 'password' => 'zabbix'],
-				'httptest' => [
-					'name' => 'API update web as zabbix admin with none permissions',
-					'httptestid' => '15006'
-				],
-				'expected_error' => 'No permissions to referred object or it does not exist!'
-			],
-			[
-				'method' => 'httptest.delete',
-				'login' => ['user' => 'zabbix-admin', 'password' => 'zabbix'],
-				'httptest' => ['15006'],
-				'expected_error' => 'No permissions to referred object or it does not exist!'
-			],
-			// Zabbix user attempt to create a web scenario.
-			[
-				'method' => 'httptest.create',
-				'login' => ['user' => 'zabbix-user', 'password' => 'zabbix'],
-				'httptest' => [
-					'name' => 'API create web as zabbix user with read-write permissions',
-					'hostid' => '50009',
-					'steps' => [
-						[
-							'name' => 'API create step as zabbix user with read-write permissions',
-							'url' => 'http://zabbix.com',
-							'no' => 0
-						]
-					]
-				],
-				'expected_error' => 'No permissions to call "httptest.create".'
-			],
-			[
-				'method' => 'httptest.update',
-				'login' => ['user' => 'zabbix-user', 'password' => 'zabbix'],
-				'httptest' => [
-					'name' => 'API update web as zabbix user with read-write permissions',
-					'httptestid' => '15001'
-				],
-				'expected_error' => 'No permissions to call "httptest.update".'
-			],
-			[
-				'method' => 'httptest.delete',
-				'login' => ['user' => 'zabbix-user', 'password' => 'zabbix'],
-				'httptest' => ['15011'],
-				'expected_error' => 'No permissions to call "httptest.delete".'
-			],
-			// Zabbix user have read permissions to host.
-			[
-				'method' => 'httptest.create',
-				'login' => ['user' => 'zabbix-user', 'password' => 'zabbix'],
-				'httptest' => [
-					'name' => 'API create web as zabbix user with read permissions',
-					'hostid' => '50012',
-					'steps' => [
-						[
-							'name' => 'API create step',
-							'url' => 'http://zabbix.com',
-							'no' => 0
-						]
-					]
-				],
-				'expected_error' => 'No permissions to call "httptest.create".'
-			],
-			[
-				'method' => 'httptest.update',
-				'login' => ['user' => 'zabbix-user', 'password' => 'zabbix'],
-				'httptest' => [
-					'name' => 'API update web as zabbix user with read permissions',
-					'httptestid' => '15008'
-				],
-				'expected_error' => 'No permissions to call "httptest.update".'
-			],
-			[
-				'method' => 'httptest.delete',
-				'login' => ['user' => 'zabbix-admin', 'password' => 'zabbix'],
-				'httptest' => ['15008'],
-				'expected_error' => 'No permissions to referred object or it does not exist!'
-			],
-			// Zabbix admin have deny permissions to host.
-			[
-				'method' => 'httptest.create',
-				'login' => ['user' => 'zabbix-user', 'password' => 'zabbix'],
-				'httptest' => [
-					'name' => 'API create web as zabbix admin with deny permissions',
-					'hostid' => '50014',
-					'steps' => [
-						[
-							'name' => 'API create step',
-							'url' => 'http://zabbix.com',
-							'no' => 0
-						]
-					]
-				],
-				'expected_error' => 'No permissions to call "httptest.create".'
-			],
-			[
-				'method' => 'httptest.update',
-				'login' => ['user' => 'zabbix-user', 'password' => 'zabbix'],
-				'httptest' => [
-					'name' => 'API update web as zabbix user with read permissions',
-					'httptestid' => '15009'
-				],
-				'expected_error' => 'No permissions to call "httptest.update".'
-			],
-			[
-				'method' => 'httptest.delete',
-				'login' => ['user' => 'zabbix-user', 'password' => 'zabbix'],
-				'httptest' => ['15009'],
-				'expected_error' => 'No permissions to call "httptest.delete".'
-			],
-			// Zabbix user have None permissions to host.
-			[
-				'method' => 'httptest.create',
-				'login' => ['user' => 'zabbix-admin', 'password' => 'zabbix'],
-				'httptest' => [
-					'name' => 'API create web as zabbix user with none permissions',
-					'hostid' => '50010',
-					'steps' => [
-						[
-							'name' => 'API create step',
-							'url' => 'http://zabbix.com',
-							'no' => 0
-						]
-					]
-				],
-				'expected_error' => 'No permissions to referred object or it does not exist!'
-			],
-			[
-				'method' => 'httptest.update',
-				'login' => ['user' => 'zabbix-admin', 'password' => 'zabbix'],
-				'httptest' => [
-					'name' => 'API update web as zabbix user with none permissions',
-					'httptestid' => '15006'
-				],
-				'expected_error' => 'No permissions to referred object or it does not exist!'
-			],
-			[
-				'method' => 'httptest.delete',
-				'login' => ['user' => 'zabbix-admin', 'password' => 'zabbix'],
-				'httptest' => ['15006'],
-				'expected_error' => 'No permissions to referred object or it does not exist!'
-			]
-		];
-	}
-
-	/**
-	* @dataProvider web_user_permissions
-	*/
-	public function testWebScenario_UserPermissions($method, $login, $user, $expected_error) {
-		$this->authorize($login['user'], $login['password']);
-		$this->call($method, $user, $expected_error);
-	}
-
 	public static function httptest_update_name_key() {
 		return [
 			[
@@ -1606,12 +1364,6 @@ class testWebScenario extends CAPITest {
 				]
 			]
 		], null);
-
-		$itemids = array_keys(array_fill(150151, 9, 0));
-
-		DBexecute('UPDATE items SET name=REPLACE(name, '.zbx_dbstr('"Webtest key_name"').', '.zbx_dbstr('"$1"').') WHERE '.dbConditionInt('itemid', $itemids));
-		DBexecute('UPDATE items SET name=REPLACE(name, '.zbx_dbstr('"Webstep name 1"').', '.zbx_dbstr('"$2"').') WHERE '.dbConditionInt('itemid', $itemids));
-		DBexecute('UPDATE items SET name=REPLACE(name, '.zbx_dbstr('"Webstep name 2"').', '.zbx_dbstr('"$2"').') WHERE '.dbConditionInt('itemid', $itemids));
 	}
 
 	/**

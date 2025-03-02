@@ -17,6 +17,7 @@
 	<target name="create-frontend-configs">
 		<property name="dbtype" value="${DBTYPE}"/>
 		<property name="dbhost" value="${DBHOST}"/>
+		<property name="dbport" value="${DBPORT}"/>
 		<property name="dbname" value="${DBNAME}"/>
 		<property name="dbuser" value="${DBUSER}"/>
 		<property name="dbpassword" value="${DBPASSWORD}"/>
@@ -27,6 +28,7 @@
 		<copy overwrite="true" file="ui/tests/templates/zabbix.conf.php" tofile="ui/conf/zabbix.conf.php"/>
 		<replace file="ui/conf/zabbix.conf.php" token="{DBTYPE}" value="${dbtype}"/>
 		<replace file="ui/conf/zabbix.conf.php" token="{DBHOST}" value="${dbhost}"/>
+		<replace file="ui/conf/zabbix.conf.php" token="'{DBPORT}'" value="${dbport}"/>
 		<replace file="ui/conf/zabbix.conf.php" token="{DBNAME}" value="${dbname}"/>
 		<replace file="ui/conf/zabbix.conf.php" token="{DBUSER}" value="${dbuser}"/>
 		<replace file="ui/conf/zabbix.conf.php" token="{DBPASSWORD}" value="${dbpassword}"/>
@@ -65,6 +67,12 @@
 		<replace file="ui/tests/bootstrap.php" token="{PHPUNIT_DATA_SOURCES_DIR}" value="${basedir}/ui/tests/selenium/data/sources/"/>
 	</target>
 
+	<target name="show-browser-info">
+		<exec executable="php" failonerror="on">
+			<arg line="ui/tests/browser.php"/>
+		</exec>
+	</target>
+
 	<target name="create-saml-configs">
 		<property name="phpunit_simplesaml_baseurl" value="${PHPUNIT_SIMPLESAML_BASEURL}"/>
 		<property name="phpunit_sp_entity_id" value="${PHPUNIT_SP_ENTITY_ID}"/>
@@ -86,9 +94,33 @@
 		<chmod file="${SIMPLESAMLPHP_CFG_FILE}" perm="go+r"/>
 	</target>
 
+	<target name="create-ldap-configs">
+		<property name="phpunit_ldap_host" value="${PHPUNIT_LDAP_HOST}"/>
+		<property name="phpunit_ldap_bind_password" value="${PHPUNIT_LDAP_BIND_PASSWORD}"/>
+		<property name="phpunit_ldap_username" value="${PHPUNIT_LDAP_USERNAME}"/>
+		<property name="phpunit_ldap_user_password" value="${PHPUNIT_LDAP_USER_PASSWORD}"/>
+
+		<!-- LDAP settings -->
+		<replace file="ui/tests/bootstrap.php" token="{PHPUNIT_LDAP_HOST}" value="${phpunit_ldap_host}"/>
+		<replace file="ui/tests/bootstrap.php" token="{PHPUNIT_LDAP_BIND_PASSWORD}" value="${phpunit_ldap_bind_password}"/>
+		<replace file="ui/tests/bootstrap.php" token="{PHPUNIT_LDAP_USERNAME}" value="${phpunit_ldap_username}"/>
+		<replace file="ui/tests/bootstrap.php" token="{PHPUNIT_LDAP_USER_PASSWORD}" value="${phpunit_ldap_user_password}"/>
+	</target>
+
 	<target name="init-integration">
+		<exec executable="go" failonerror="on">
+			<arg line="clean -cache"/>
+		</exec>
 		<!-- Copy agent2 configuration file -->
 		<copy overwrite="true" file="src/go/conf/zabbix_agent2.conf" tofile="conf/zabbix_agent2.conf"/>
+	</target>
+
+	<target name="apply-custom-patches">
+		<!-- Reducing the delay for multiselect suggestions -->
+		<exec executable="git" failonerror="on">
+			<arg line="apply"/>
+			<arg line="ui/tests/selenium/patches/ms_delay.patch"/>
+		</exec>
 	</target>
 
 	<target name="init-frontend-modules">
@@ -120,6 +152,35 @@
 		</exec>
 	</target>
 
+	<target name="make-binary-agent-3.0">
+		<exec executable="git" outputproperty="git.initial_rev" failonerror="on">
+			<arg value="rev-parse"/>
+			<arg value="--verify"/>
+			<arg value="HEAD"/>
+		</exec>
+		<exec executable="git" failonerror="on">
+			<arg line="checkout"/>
+			<arg line="df9ee823715d4caccf63f402a126d2f039b31057"/>
+		</exec>
+		<exec executable="./bootstrap.sh" failonerror="on"/>
+		<exec executable="./configure" failonerror="on">
+			<arg line="--quiet"/>
+			<arg line="--enable-agent"/>
+			<arg line="--prefix=${basedir}"/>
+		</exec>
+		<exec executable="make" failonerror="on">
+			<arg line="-j4"/>
+			<arg line="-s"/>
+			<arg line="install"/>
+		</exec>
+		<move file="${basedir}/conf/zabbix_agentd.conf" tofile="${basedir}/conf/zabbix_agentd_3.0.conf"/>
+		<move file="${basedir}/sbin/zabbix_agentd" tofile="${basedir}/sbin/zabbix_agentd_3.0"/>
+		<exec executable="git" failonerror="on">
+			<arg line="checkout"/>
+			<arg line="${git.initial_rev}"/>
+		</exec>
+	</target>
+
 	<target name="make-binaries-postgresql">
 		<!-- Binaries for integration tests -->
 		<exec executable="./bootstrap.sh" failonerror="on"/>
@@ -131,6 +192,11 @@
 			<arg line="--enable-agent2"/>
 			<arg line="--with-postgresql"/>
 			<arg line="--prefix=${basedir}"/>
+			<arg line="--with-libcurl"/>
+			<arg line="--with-stacksize=128"/>
+			<arg line="--with-openssl"/>
+			<arg line="--with-net-snmp"/>
+			<arg line="--with-ssh2"/>
 		</exec>
 		<exec executable="make" failonerror="on">
 			<arg line="-j4"/>
@@ -150,6 +216,7 @@
 			<env key="PGPASSWORD" value="${dbpassword}"/>
 			<arg line="-q"/>
 			<arg line="-h '${dbhost}'"/>
+			<arg line="-p '${dbport}'"/>
 			<arg line="-U '${dbuser}'"/>
 			<arg line="--set ON_ERROR_STOP=1"/>
 			<arg line="-c 'create database ${dbname} ENCODING = UTF8 TEMPLATE = template0'"/>
@@ -158,6 +225,7 @@
 			<env key="PGPASSWORD" value="${dbpassword}"/>
 			<arg line="-q"/>
 			<arg line="-h '${dbhost}'"/>
+			<arg line="-p '${dbport}'"/>
 			<arg line="-U '${dbuser}'"/>
 			<arg line="-1"/>
 			<arg line="--set ON_ERROR_STOP=1"/>
@@ -167,6 +235,7 @@
 			<env key="PGPASSWORD" value="${dbpassword}"/>
 			<arg line="-q"/>
 			<arg line="-h '${dbhost}'"/>
+			<arg line="-p '${dbport}'"/>
 			<arg line="-U '${dbuser}'"/>
 			<arg line="-1"/>
 			<arg line="--set ON_ERROR_STOP=1"/>
@@ -176,9 +245,20 @@
 			<env key="PGPASSWORD" value="${dbpassword}"/>
 			<arg line="-q"/>
 			<arg line="-h '${dbhost}'"/>
+			<arg line="-p '${dbport}'"/>
 			<arg line="-U '${dbuser}'"/>
 			<arg line="--set ON_ERROR_STOP=1"/>
 			<arg line="${dbname}"/>
+		</exec>
+		<exec executable="psql" failonerror="on">
+			<env key="PGPASSWORD" value="${dbpassword}"/>
+			<arg line="-q"/>
+			<arg line="-h '${dbhost}'"/>
+			<arg line="-p '${dbport}'"/>
+			<arg line="-U '${dbuser}'"/>
+			<arg line="--set ON_ERROR_STOP=1"/>
+			<arg line="${dbname}"/>
+			<arg line="-c 'VACUUM ANALYZE'"/>
 		</exec>
 	</target>
 
@@ -188,9 +268,33 @@
 			<env key="PGPASSWORD" value="${dbpassword}"/>
 			<arg line="-q"/>
 			<arg line="-h '${dbhost}'"/>
+			<arg line="-p '${dbport}'"/>
 			<arg line="-U '${dbuser}'"/>
 			<arg line="--set ON_ERROR_STOP=1"/>
 			<arg line="-c 'drop database if exists ${dbname}'"/>
+		</exec>
+	</target>
+
+	<target name="create-db-tsdb" depends="create-db-postgresql">
+		<!-- Create PostgreSQL database with TimescaleDB extension-->
+		<exec executable="psql" failonerror="on">
+			<env key="PGPASSWORD" value="${dbpassword}"/>
+			<arg line="-q"/>
+			<arg line="-d '${dbname}'"/>
+			<arg line="-h '${dbhost}'"/>
+			<arg line="-p '${dbport}'"/>
+			<arg line="-U '${dbuser}'"/>
+			<arg line="--set ON_ERROR_STOP=1"/>
+			<arg line="-c 'create extension if not exists timescaledb cascade;'"/>
+		</exec>
+		<exec executable="psql" input="database/postgresql/timescaledb/schema.sql" failonerror="on">
+			<env key="PGPASSWORD" value="${dbpassword}"/>
+			<arg line="-q"/>
+			<arg line="-h '${dbhost}'"/>
+			<arg line="-p '${dbport}'"/>
+			<arg line="-U '${dbuser}'"/>
+			<arg line="--set ON_ERROR_STOP=1"/>
+			<arg line="${dbname}"/>
 		</exec>
 	</target>
 
@@ -200,6 +304,7 @@
 			<env key="PGPASSWORD" value="${dbpassword}"/>
 			<arg line="-q"/>
 			<arg line="-h '${dbhost}'"/>
+			<arg line="-p '${dbport}'"/>
 			<arg line="-U '${dbuser}'"/>
 			<arg line="--set ON_ERROR_STOP=1"/>
 			<arg line="-c 'drop database if exists ${dbname}_proxy'"/>
@@ -208,6 +313,16 @@
 			<env key="PGPASSWORD" value="${dbpassword}"/>
 			<arg line="-q"/>
 			<arg line="-h '${dbhost}'"/>
+			<arg line="-p '${dbport}'"/>
+			<arg line="-U '${dbuser}'"/>
+			<arg line="--set ON_ERROR_STOP=1"/>
+			<arg line="-c 'drop database if exists ${dbname}_proxy_ha1'"/>
+		</exec>
+		<exec executable="psql" failonerror="on">
+			<env key="PGPASSWORD" value="${dbpassword}"/>
+			<arg line="-q"/>
+			<arg line="-h '${dbhost}'"/>
+			<arg line="-p '${dbport}'"/>
 			<arg line="-U '${dbuser}'"/>
 			<arg line="--set ON_ERROR_STOP=1"/>
 			<arg line="-c 'create database ${dbname}_proxy ENCODING = UTF8 TEMPLATE = template0'"/>
@@ -216,18 +331,39 @@
 			<env key="PGPASSWORD" value="${dbpassword}"/>
 			<arg line="-q"/>
 			<arg line="-h '${dbhost}'"/>
+			<arg line="-p '${dbport}'"/>
 			<arg line="-U '${dbuser}'"/>
 			<arg line="-1"/>
 			<arg line="--set ON_ERROR_STOP=1"/>
 			<arg line="${dbname}_proxy"/>
 		</exec>
+		<exec executable="psql" failonerror="on">
+			<env key="PGPASSWORD" value="${dbpassword}"/>
+			<arg line="-q"/>
+			<arg line="-h '${dbhost}'"/>
+			<arg line="-p '${dbport}'"/>
+			<arg line="-U '${dbuser}'"/>
+			<arg line="--set ON_ERROR_STOP=1"/>
+			<arg line="-c 'create database ${dbname}_proxy_ha1 ENCODING = UTF8 TEMPLATE = template0'"/>
+		</exec>
+		<exec executable="psql" input="database/postgresql/schema.sql" failonerror="on">
+			<env key="PGPASSWORD" value="${dbpassword}"/>
+			<arg line="-q"/>
+			<arg line="-h '${dbhost}'"/>
+			<arg line="-p '${dbport}'"/>
+			<arg line="-U '${dbuser}'"/>
+			<arg line="-1"/>
+			<arg line="--set ON_ERROR_STOP=1"/>
+			<arg line="${dbname}_proxy_ha1"/>
+		</exec>
 	</target>
 
-	<target name="init-frontend-postgresql" depends="create-configs,create-saml-configs,make-dbschema,make-gettext,create-db-postgresql,init-frontend-modules">
+	<target name="init-frontend-postgresql" depends="create-configs,create-saml-configs,create-ldap-configs,make-dbschema,make-gettext,create-db-postgresql,apply-custom-patches,init-frontend-modules">
 		<exec executable="psql" input="ui/tests/selenium/data/data_test.sql" failonerror="on">
 			<env key="PGPASSWORD" value="${dbpassword}"/>
 			<arg line="-q"/>
 			<arg line="-h '${dbhost}'"/>
+			<arg line="-p '${dbport}'"/>
 			<arg line="-U '${dbuser}'"/>
 			<arg line="-1"/>
 			<arg line="--set ON_ERROR_STOP=1"/>
@@ -240,6 +376,7 @@
 			<env key="PGPASSWORD" value="${dbpassword}"/>
 			<arg line="-q"/>
 			<arg line="-h '${dbhost}'"/>
+			<arg line="-p '${dbport}'"/>
 			<arg line="-U '${dbuser}'"/>
 			<arg line="-1"/>
 			<arg line="--set ON_ERROR_STOP=1"/>
@@ -247,17 +384,20 @@
 		</exec>
 	</target>
 
-	<target name="init-integration-postgresql" depends="create-configs,init-integration,make-binaries-postgresql,create-db-postgresql,init-proxy-postgresql">
+	<target name="init-integration-postgresql" depends="create-configs,init-integration,make-binary-agent-3.0,make-binaries-postgresql,create-db-postgresql,init-proxy-postgresql">
 		<exec executable="psql" input="ui/tests/integration/data/data_test.sql" failonerror="on">
 			<env key="PGPASSWORD" value="${dbpassword}"/>
 			<arg line="-q"/>
 			<arg line="-h '${dbhost}'"/>
+			<arg line="-p '${dbport}'"/>
 			<arg line="-U '${dbuser}'"/>
 			<arg line="-1"/>
 			<arg line="--set ON_ERROR_STOP=1"/>
 			<arg line="${dbname}"/>
 		</exec>
 	</target>
+
+	<target name="init-integration-tsdb" depends="create-configs,init-integration,make-binary-agent-3.0,make-binaries-postgresql,create-db-tsdb,init-proxy-postgresql"/>
 
 	<target name="init-dast-postgresql" depends="create-frontend-configs,make-dbschema,create-db-postgresql"/>
 
@@ -272,6 +412,11 @@
 			<arg line="--enable-agent2"/>
 			<arg line="--with-mysql"/>
 			<arg line="--prefix=${basedir}"/>
+			<arg line="--with-libcurl"/>
+			<arg line="--with-stacksize=128"/>
+			<arg line="--with-openssl"/>
+			<arg line="--with-net-snmp"/>
+			<arg line="--with-ssh2"/>
 		</exec>
 		<exec executable="make" failonerror="on">
 			<arg line="-j4"/>
@@ -290,24 +435,28 @@
 		<exec executable="mysql" failonerror="on">
 			<env key="MYSQL_PWD" value="${dbpassword}"/>
 			<arg line="--host=${dbhost}"/>
+			<arg line="--port=${dbport}"/>
 			<arg line="--user=${dbuser}"/>
 			<arg line="--execute='create database ${dbname} character set utf8mb4 collate utf8mb4_bin'"/>
 		</exec>
 		<exec executable="mysql" input="database/mysql/schema.sql" failonerror="on">
 			<env key="MYSQL_PWD" value="${dbpassword}"/>
 			<arg line="--host=${dbhost}"/>
+			<arg line="--port=${dbport}"/>
 			<arg line="--user=${dbuser}"/>
 			<arg line="${dbname}"/>
 		</exec>
 		<exec executable="mysql" input="database/mysql/images.sql" failonerror="on">
 			<env key="MYSQL_PWD" value="${dbpassword}"/>
 			<arg line="--host=${dbhost}"/>
+			<arg line="--port=${dbport}"/>
 			<arg line="--user=${dbuser}"/>
 			<arg line="${dbname}"/>
 		</exec>
 		<exec executable="mysql" input="database/mysql/data.sql" failonerror="on">
 			<env key="MYSQL_PWD" value="${dbpassword}"/>
 			<arg line="--host=${dbhost}"/>
+			<arg line="--port=${dbport}"/>
 			<arg line="--user=${dbuser}"/>
 			<arg line="${dbname}"/>
 		</exec>
@@ -318,6 +467,7 @@
 		<exec executable="mysql" failonerror="on">
 			<env key="MYSQL_PWD" value="${dbpassword}"/>
 			<arg line="--host=${dbhost}"/>
+			<arg line="--port=${dbport}"/>
 			<arg line="--user=${dbuser}"/>
 			<arg line="--execute='drop database if exists ${dbname}'"/>
 		</exec>
@@ -328,27 +478,52 @@
 		<exec executable="mysql" failonerror="on">
 			<env key="MYSQL_PWD" value="${dbpassword}"/>
 			<arg line="--host=${dbhost}"/>
+			<arg line="--port=${dbport}"/>
 			<arg line="--user=${dbuser}"/>
 			<arg line="--execute='drop database if exists ${dbname}_proxy'"/>
 		</exec>
 		<exec executable="mysql" failonerror="on">
 			<env key="MYSQL_PWD" value="${dbpassword}"/>
 			<arg line="--host=${dbhost}"/>
+			<arg line="--port=${dbport}"/>
+			<arg line="--user=${dbuser}"/>
+			<arg line="--execute='drop database if exists ${dbname}_proxy_ha1'"/>
+		</exec>
+		<exec executable="mysql" failonerror="on">
+			<env key="MYSQL_PWD" value="${dbpassword}"/>
+			<arg line="--host=${dbhost}"/>
+			<arg line="--port=${dbport}"/>
 			<arg line="--user=${dbuser}"/>
 			<arg line="--execute='create database ${dbname}_proxy character set utf8mb4 collate utf8mb4_bin'"/>
 		</exec>
 		<exec executable="mysql" input="database/mysql/schema.sql" failonerror="on">
 			<env key="MYSQL_PWD" value="${dbpassword}"/>
 			<arg line="--host=${dbhost}"/>
+			<arg line="--port=${dbport}"/>
 			<arg line="--user=${dbuser}"/>
 			<arg line="${dbname}_proxy"/>
 		</exec>
+		<exec executable="mysql" failonerror="on">
+			<env key="MYSQL_PWD" value="${dbpassword}"/>
+			<arg line="--host=${dbhost}"/>
+			<arg line="--port=${dbport}"/>
+			<arg line="--user=${dbuser}"/>
+			<arg line="--execute='create database ${dbname}_proxy_ha1 character set utf8mb4 collate utf8mb4_bin'"/>
+		</exec>
+		<exec executable="mysql" input="database/mysql/schema.sql" failonerror="on">
+			<env key="MYSQL_PWD" value="${dbpassword}"/>
+			<arg line="--host=${dbhost}"/>
+			<arg line="--port=${dbport}"/>
+			<arg line="--user=${dbuser}"/>
+			<arg line="${dbname}_proxy_ha1"/>
+		</exec>
 	</target>
 
-	<target name="init-frontend-mysql" depends="create-configs,create-saml-configs,make-dbschema,make-gettext,create-db-mysql,init-frontend-modules">
+	<target name="init-frontend-mysql" depends="create-configs,create-saml-configs,create-ldap-configs,make-dbschema,make-gettext,create-db-mysql,apply-custom-patches,init-frontend-modules">
 		<exec executable="mysql" input="ui/tests/selenium/data/data_test.sql" failonerror="on">
 			<env key="MYSQL_PWD" value="${dbpassword}"/>
 			<arg line="--host=${dbhost}"/>
+			<arg line="--port=${dbport}"/>
 			<arg line="--user=${dbuser}"/>
 			<arg line="${dbname}"/>
 		</exec>
@@ -358,15 +533,17 @@
 		<exec executable="mysql" input="ui/tests/api_json/data/data_test.sql" failonerror="on">
 			<env key="MYSQL_PWD" value="${dbpassword}"/>
 			<arg line="--host=${dbhost}"/>
+			<arg line="--port=${dbport}"/>
 			<arg line="--user=${dbuser}"/>
 			<arg line="${dbname}"/>
 		</exec>
 	</target>
 
-	<target name="init-integration-mysql" depends="create-configs,init-integration,make-binaries-mysql,create-db-mysql,init-proxy-mysql">
+	<target name="init-integration-mysql" depends="create-configs,init-integration,make-binary-agent-3.0,make-binaries-mysql,create-db-mysql,init-proxy-mysql">
 		<exec executable="mysql" input="ui/tests/integration/data/data_test.sql" failonerror="on">
 			<env key="MYSQL_PWD" value="${dbpassword}"/>
 			<arg line="--host=${dbhost}"/>
+			<arg line="--port=${dbport}"/>
 			<arg line="--user=${dbuser}"/>
 			<arg line="${dbname}"/>
 		</exec>
@@ -409,21 +586,23 @@
 			<arg line="--log-junit=${basedir}/build/logs/phpunit.xml"/>
 			<arg line="--bootstrap=bootstrap.php"/>
 			<arg line="--do-not-cache-result"/>
+			<arg line="--dont-report-useless-tests"/>
 			<arg line="${phpunit_filter}"/>
 			<arg line="integration/IntegrationTests.php"/>
 		</exec>
 	</target>
 
 	<target name="build-phpunit" depends="test-phpunit"/>
-	<target name="build-mysql" depends="init-frontend-mysql,test-frontend"/>
-	<target name="build-postgresql" depends="init-frontend-postgresql,test-frontend"/>
+	<target name="build-mysql" depends="init-frontend-mysql,show-browser-info,test-frontend"/>
+	<target name="build-postgresql" depends="init-frontend-postgresql,show-browser-info,test-frontend"/>
 	<target name="build-api-mysql" depends="init-api-mysql,test-api"/>
 	<target name="build-api-postgresql" depends="init-api-postgresql,test-api"/>
 	<target name="build-integration-mysql" depends="init-integration-mysql,test-integration"/>
 	<target name="build-integration-postgresql" depends="init-integration-postgresql,test-integration"/>
+	<target name="build-integration-tsdb" depends="init-integration-tsdb,test-integration"/>
 	<target name="build-dast-mysql" depends="init-dast-mysql"/>
 	<target name="build-dast-postgresql" depends="init-dast-postgresql"/>
 
 	<!-- Default target -->
-	<target name="build" depends="build-phpunit,build-mysql,build-postgresql,build-integration-mysql,build-integration-postgresql"/>
+	<target name="build" depends="build-phpunit,build-mysql,build-postgresql,build-integration-mysql,build-integration-postgresql,build-integration-tsdb"/>
 </project>

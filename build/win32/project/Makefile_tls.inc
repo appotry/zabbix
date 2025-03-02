@@ -71,6 +71,14 @@ LIBS =		$(LIBS) "$(TLSLIB)"
 !	ENDIF
 
 INCS =	$(INCS) /I "$(TLSINCDIR)"
-OBJS =	$(OBJS) ..\..\..\src\libs\zbxcrypto\tls.o ..\..\..\src\libs\zbxcrypto\tls_version.o
+OBJS =	$(OBJS) ..\..\..\src\libs\zbxcomms\tls.o ..\..\..\src\libs\zbxcomms\tls_version.o ..\..\..\src\libs\zbxcomms\tls_validate.o
+
+	### GnuTLS ###
+!	IF "$(TLS)" == "gnutls"
+OBJS =	$(OBJS) ..\..\..\src\libs\zbxcomms\tls_gnutls.o
+	### OpenSSL ###
+!	ELSEIF "$(TLS)" == "openssl"
+OBJS =	$(OBJS) ..\..\..\src\libs\zbxcomms\tls_openssl.o
+!	ENDIF
 
 !ENDIF

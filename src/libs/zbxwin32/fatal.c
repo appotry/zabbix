@@ -1,52 +1,56 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-#include "common.h"
-#include "log.h"
+#include "zbxwin32.h"
+
+#include "zbxstr.h"
+#include "zbxlog.h"
 
 #include <excpt.h>
 #include <DbgHelp.h>
 
 #pragma comment(lib, "DbgHelp.lib")
 
-#define STACKWALK_MAX_NAMELEN	4096
-
-#define ZBX_LSHIFT(value, bits)	(((unsigned __int64)value) << bits)
-
-extern const char	*progname;
+typedef BOOL (WINAPI *SymGetLineFromAddrW64_func_t)(HANDLE, DWORD64, PDWORD, PIMAGEHLP_LINE64);
+typedef BOOL (WINAPI *SymFromAddr_func_t)(HANDLE a, DWORD64 b , PDWORD64 c, PSYMBOL_INFO d);
 
 #ifdef _M_X64
-
-#define ZBX_IMAGE_FILE_MACHINE	IMAGE_FILE_MACHINE_AMD64
-
 static void	print_register(const char *name, unsigned __int64 value)
 {
 	zabbix_log(LOG_LEVEL_CRIT, "%-7s = %16I64x = %20I64u = %20I64d", name, value, value, value);
 }
+#else
+static void	print_register(const char *name, unsigned __int32 value)
+{
+	zabbix_log(LOG_LEVEL_CRIT, "%-7s = %16lx = %20lu = %20ld", name, value, value, value);
+}
+#endif
 
 static void	print_fatal_info(CONTEXT *pctx)
 {
 	zabbix_log(LOG_LEVEL_CRIT, "====== Fatal information: ======");
 
+#ifdef _M_X64
 	zabbix_log(LOG_LEVEL_CRIT, "Program counter: 0x%08lx", pctx->Rip);
+#else
+	zabbix_log(LOG_LEVEL_CRIT, "Program counter: 0x%04x", pctx->Eip);
+#endif
 	zabbix_log(LOG_LEVEL_CRIT, "=== Registers: ===");
 
+#define ZBX_LSHIFT(value, bits)	(((unsigned __int64)value) << bits)
+
+#ifdef _M_X64
 	print_register("r8", pctx->R8);
 	print_register("r9", pctx->R9);
 	print_register("r10", pctx->R10);
@@ -68,24 +72,7 @@ static void	print_fatal_info(CONTEXT *pctx)
 	print_register("rsp", pctx->Rsp);
 	print_register("efl", pctx->EFlags);
 	print_register("csgsfs", ZBX_LSHIFT(pctx->SegCs, 24) | ZBX_LSHIFT(pctx->SegGs, 16) | ZBX_LSHIFT(pctx->SegFs, 8));
-}
-
 #else
-
-#define ZBX_IMAGE_FILE_MACHINE	IMAGE_FILE_MACHINE_I386
-
-static void	print_register(const char *name, unsigned __int32 value)
-{
-	zabbix_log(LOG_LEVEL_CRIT, "%-7s = %16lx = %20lu = %20ld", name, value, value, value);
-}
-
-static void	print_fatal_info(CONTEXT *pctx)
-{
-	zabbix_log(LOG_LEVEL_CRIT, "====== Fatal information: ======");
-
-	zabbix_log(LOG_LEVEL_CRIT, "Program counter: 0x%04x", pctx->Eip);
-	zabbix_log(LOG_LEVEL_CRIT, "=== Registers: ===");
-
 	print_register("edi", pctx->Edi);
 	print_register("esi", pctx->Esi);
 	print_register("ebp", pctx->Ebp);
@@ -98,12 +85,12 @@ static void	print_fatal_info(CONTEXT *pctx)
 	print_register("esp", pctx->Esp);
 	print_register("efl", pctx->EFlags);
 	print_register("csgsfs", ZBX_LSHIFT(pctx->SegCs, 24) | ZBX_LSHIFT(pctx->SegGs, 16) | ZBX_LSHIFT(pctx->SegFs, 8));
-}
-
 #endif
 
-typedef BOOL (WINAPI *SymGetLineFromAddrW64_func_t)(HANDLE, DWORD64, PDWORD, PIMAGEHLP_LINE64);
-typedef BOOL (WINAPI *SymFromAddr_func_t)(HANDLE a, DWORD64 b , PDWORD64 c, PSYMBOL_INFO d);
+#undef ZBX_LSHIFT
+}
+
+static zbx_get_progname_f	get_progname_cb = NULL;
 
 void	zbx_backtrace(void)
 {
@@ -114,16 +101,19 @@ static void	print_backtrace(CONTEXT *pctx)
 	SymGetLineFromAddrW64_func_t	zbx_SymGetLineFromAddrW64 = NULL;
 	SymFromAddr_func_t		zbx_SymFromAddr	= NULL;
 
-	CONTEXT			ctx, ctxcount;
-	STACKFRAME64		s, scount;
-	PSYMBOL_INFO		pSym = NULL;
-	HMODULE			hModule;
-	HANDLE			hProcess, hThread;
-	DWORD64			offset;
-	wchar_t			szProcessName[MAX_PATH];
-	char			*process_name = NULL, *process_path = NULL, *frame = NULL;
-	size_t			frame_alloc = 0, frame_offset;
-	int			nframes = 0;
+	CONTEXT		ctx, ctxcount;
+	STACKFRAME64	s, scount;
+	PSYMBOL_INFO	pSym = NULL;
+	HMODULE		hModule;
+	HANDLE		hProcess, hThread;
+	DWORD64		offset;
+	wchar_t		szProcessName[MAX_PATH];
+	char		*process_name = NULL, *process_path = NULL, *frame = NULL;
+	size_t		frame_alloc = 0, frame_offset;
+	int		nframes = 0;
+	char		*file_name;
+	char		path[MAX_PATH];
+	HMODULE		hm = NULL;
 
 	ctx = *pctx;
 
@@ -154,7 +144,7 @@ static void	print_backtrace(CONTEXT *pctx)
 
 		process_name = zbx_unicode_to_utf8(szProcessName);
 
-		if (NULL != (ptr = strstr(process_name, progname)))
+		if (NULL != (ptr = strstr(process_name, get_progname_cb())))
 			zbx_strncpy_alloc(&process_path, &path_alloc, &path_offset, process_name, ptr - process_name);
 	}
 
@@ -181,6 +171,12 @@ static void	print_backtrace(CONTEXT *pctx)
 	scount = s;
 	ctxcount = ctx;
 
+#ifdef _M_X64
+#define ZBX_IMAGE_FILE_MACHINE	IMAGE_FILE_MACHINE_AMD64
+#else
+#define ZBX_IMAGE_FILE_MACHINE	IMAGE_FILE_MACHINE_I386
+#endif
+
 	/* get number of frames, ctxcount may be modified during StackWalk64() calls */
 	while (TRUE == StackWalk64(ZBX_IMAGE_FILE_MACHINE, hProcess, hThread, &scount, &ctxcount, NULL, NULL, NULL,
 			NULL))
@@ -192,9 +188,9 @@ static void	print_backtrace(CONTEXT *pctx)
 
 	while (TRUE == StackWalk64(ZBX_IMAGE_FILE_MACHINE, hProcess, hThread, &s, &ctx, NULL, NULL, NULL, NULL))
 	{
+		file_name = process_name;
 		frame_offset = 0;
-		zbx_snprintf_alloc(&frame, &frame_alloc, &frame_offset, "%d: %s", nframes--,
-				NULL == process_name ? "(unknown)" : process_name);
+		*path = '\0';
 
 		if (NULL != pSym)
 		{
@@ -205,7 +201,22 @@ static void	print_backtrace(CONTEXT *pctx)
 			if (NULL != zbx_SymFromAddr &&
 					TRUE == zbx_SymFromAddr(hProcess, s.AddrPC.Offset, &offset, pSym))
 			{
-				zbx_snprintf_alloc(&frame, &frame_alloc, &frame_offset, "%s+0x%lx", pSym->Name, offset);
+#ifdef _M_X64
+				zbx_uint64_t address = s.AddrPC.Offset;
+#else
+				zbx_uint32_t address = s.AddrPC.Offset;
+#endif
+
+				if (0 != GetModuleHandleExA(
+						GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+						GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+						(LPCSTR) address, &hm))
+				{
+					if (0 != GetModuleFileNameA(hm, path, sizeof(path)))
+						file_name = path;
+				}
+				zbx_snprintf_alloc(&frame, &frame_alloc, &frame_offset, "%s+0x%lx",
+						pSym->Name, offset);
 			}
 
 			if (NULL != zbx_SymGetLineFromAddrW64 && TRUE == zbx_SymGetLineFromAddrW64(hProcess,
@@ -217,11 +228,14 @@ static void	print_backtrace(CONTEXT *pctx)
 			zbx_chrcpy_alloc(&frame, &frame_alloc, &frame_offset, ')');
 		}
 
-		zabbix_log(LOG_LEVEL_CRIT, "%s [0x%lx]", frame, s.AddrPC.Offset);
+		zabbix_log(LOG_LEVEL_CRIT, "%d: %s%s [0x%lx]",
+				nframes--, NULL == file_name ? "(unknown)" : file_name, frame, s.AddrPC.Offset);
 
 		if (0 == s.AddrReturn.Offset)
 			break;
 	}
+
+#undef ZBX_IMAGE_FILE_MACHINE
 
 	SymCleanup(hProcess);
 
@@ -231,15 +245,34 @@ static void	print_backtrace(CONTEXT *pctx)
 	zbx_free(pSym);
 }
 
-int	zbx_win_exception_filter(unsigned int code, struct _EXCEPTION_POINTERS *ep)
+void	zbx_init_library_win32(zbx_get_progname_f get_progname)
 {
-	zabbix_log(LOG_LEVEL_CRIT, "Unhandled exception %x detected at 0x%p. Crashing ...", code,
-			ep->ExceptionRecord->ExceptionAddress);
+	get_progname_cb = get_progname;
+}
+
+static void	zbx_win_exception_filter(struct _EXCEPTION_POINTERS *ep, const char *msg)
+{
+	zabbix_log(LOG_LEVEL_CRIT, msg, ep->ExceptionRecord->ExceptionCode, ep->ExceptionRecord->ExceptionAddress);
 
 	print_fatal_info(ep->ContextRecord);
 	print_backtrace(ep->ContextRecord);
 
 	zabbix_log(LOG_LEVEL_CRIT, "================================");
+}
+
+LONG	zbx_win_seh_handler(struct _EXCEPTION_POINTERS *ep)
+{
+	zbx_win_exception_filter(ep, "Unhandled exception %x detected at 0x%p. Crashing ...");
 
 	return EXCEPTION_CONTINUE_SEARCH;
 }
+
+#ifdef _M_X64
+LONG	zbx_win_veh_handler(struct _EXCEPTION_POINTERS *ep)
+{
+	if (SUCCEED == ZBX_CHECK_LOG_LEVEL(LOG_LEVEL_TRACE))
+		zbx_win_exception_filter(ep, "VEH Trap detected exception %x at 0x%p. Exception information:");
+
+	return EXCEPTION_CONTINUE_SEARCH;
+}
+#endif /* _M_X64 */

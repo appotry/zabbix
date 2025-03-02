@@ -1,21 +1,16 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 use PHPUnit\Framework\TestCase;
@@ -235,6 +230,13 @@ class CValidationRuleTest extends TestCase {
 					'cuid' => true
 				]
 			],
+			['setting name', '',
+				[
+					'setting' => [
+						'field' => 'name'
+					]
+				]
+			],
 			['in', 'Cannot parse validation rules "in" at position 0.', false],
 			['in 1, 2', 'Cannot parse validation rules "in 1, 2" at position 0.', false],
 			['in 1,|fatal', 'Cannot parse validation rules "in 1,|fatal" at position 0.', false],
@@ -251,12 +253,12 @@ class CValidationRuleTest extends TestCase {
 	/**
 	 * @dataProvider provider
 	 */
-	public function test_parse($rule, $error_exprected, $result_expected) {
+	public function test_parse($rule, $error_expected, $result_expected) {
 		$parser = new CValidationRule();
 
 		$rc = $parser->parse($rule);
 
 		$this->assertEquals($result_expected, $rc);
-		$this->assertEquals($error_exprected, $parser->getError());
+		$this->assertEquals($error_expected, $parser->getError());
 	}
 }

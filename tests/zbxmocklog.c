@@ -1,33 +1,23 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-#include "common.h"
+#include "zbxmocktest.h"
 
-/* make sure that __wrap_*() prototypes match unwrapped counterparts */
-#define __zbx_zabbix_log __wrap___zbx_zabbix_log
-#include "log.h"
-#undef __zbx_zabbix_log
+#include "zbxcommon.h"
 
-void	__wrap___zbx_zabbix_log(int level, const char *fmt, ...)
+void	zbx_mock_log_impl(int level, const char *fmt, va_list args)
 {
-	va_list		args;
-
 	fprintf(stdout, "[ LOG (");
 
 	switch (level)
@@ -57,9 +47,7 @@ void	__wrap___zbx_zabbix_log(int level, const char *fmt, ...)
 
 	fprintf(stdout, ") ] ");
 
-	va_start(args, fmt);
 	vfprintf(stdout, fmt, args);
-	va_end(args);
 
 	fprintf(stdout, "\n");
 	fflush(stdout);

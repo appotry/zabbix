@@ -10,6 +10,7 @@ SUBDIRS = \
 	misc
 
 EXTRA_DIST = \
+	README.md \
 	bin \
 	build \
 	ui \
@@ -63,29 +64,29 @@ if DBSCHEMA
 dbschema_mysql:
 	cd database/mysql && \
 	$(MAKE) $(AM_MAKEFLAGS) data.sql && \
-	$(MAKE) $(AM_MAKEFLAGS) schema.sql
-
-dbschema_oracle:
-	cd database/oracle && \
-	$(MAKE) $(AM_MAKEFLAGS) data.sql && \
-	$(MAKE) $(AM_MAKEFLAGS) schema.sql
+	$(MAKE) $(AM_MAKEFLAGS) schema.sql && \
+	$(MAKE) $(AM_MAKEFLAGS) -C option-patches
 
 dbschema_postgresql:
 	cd database/postgresql && \
 	$(MAKE) $(AM_MAKEFLAGS) data.sql && \
 	$(MAKE) $(AM_MAKEFLAGS) schema.sql && \
-	$(MAKE) $(AM_MAKEFLAGS) timescaledb.sql
+	$(MAKE) $(AM_MAKEFLAGS) -C option-patches
+
+dbschema_timescaledb:
+	cd database/postgresql/timescaledb && \
+	$(MAKE) $(AM_MAKEFLAGS) schema.sql && \
+	$(MAKE) $(AM_MAKEFLAGS) -C option-patches
 
 dbschema_sqlite3:
 	cd database/sqlite3 && \
-	$(MAKE) $(AM_MAKEFLAGS) data.sql && \
 	$(MAKE) $(AM_MAKEFLAGS) schema.sql
 
 dbschema_c:
 	cd src/libs/zbxdbschema && \
 	$(MAKE) $(AM_MAKEFLAGS) dbschema.c
 
-dbschema: dbschema_mysql dbschema_oracle dbschema_postgresql dbschema_sqlite3 dbschema_c
+dbschema: dbschema_mysql dbschema_postgresql dbschema_timescaledb dbschema_sqlite3 dbschema_c
 endif
 
 gettext:
@@ -93,22 +94,17 @@ gettext:
 
 css_theme_blue:
 	sass --no-cache --sourcemap=none sass/stylesheets/sass/screen.scss ui/assets/styles/blue-theme.css
-	cp ui/assets/styles/blue-theme.css sass/stylesheets/screen.css
 
 css_theme_dark:
 	sass --no-cache --sourcemap=none sass/stylesheets/sass/dark-theme.scss ui/assets/styles/dark-theme.css
-	cp ui/assets/styles/dark-theme.css sass/stylesheets/dark-theme.css
 
 css_hc_light:
 	sass --no-cache --sourcemap=none sass/stylesheets/sass/hc-light.scss ui/assets/styles/hc-light.css
-	cp ui/assets/styles/hc-light.css sass/stylesheets/hc-light.css
 
 css_hc_dark:
 	sass --no-cache --sourcemap=none sass/stylesheets/sass/hc-dark.scss ui/assets/styles/hc-dark.css
-	cp ui/assets/styles/hc-dark.css sass/stylesheets/hc-dark.css
 
-css_icons:
-	cp sass/img/icon-sprite.svg ui/assets/img/
+css_images:
 	cp sass/img/browser-sprite.png ui/assets/img/
 	cp sass/apple-touch-icon-120x120-precomposed.png ui/assets/img/
 	cp sass/apple-touch-icon-152x152-precomposed.png ui/assets/img/
@@ -118,25 +114,57 @@ css_icons:
 	cp sass/touch-icon-192x192.png ui/assets/img/
 	cp sass/favicon.ico ui/
 
-css: css_theme_blue css_theme_dark css_hc_light css_hc_dark css_icons
+icons_build:
+	cd sass/icons && \
+	npm run generate
+	cp sass/icons/dist/_icons.scss sass/stylesheets/sass/base/
+	cp sass/icons/dist/zabbix-icons.svg ui/assets/fonts/
+	cp sass/icons/dist/zabbix-icons.ttf ui/assets/fonts/
+	cp sass/icons/dist/zabbix-icons.woff ui/assets/fonts/
+	cp sass/icons/dist/zabbix-icons.woff2 ui/assets/fonts/
+
+icons_cleanup:
+	cd sass/icons && \
+	npm run cleanup
+
+css: css_theme_blue css_theme_dark css_hc_light css_hc_dark css_images
+
+icons: icons_build css icons_cleanup
+
+
+## list of modules which should be built with testing suite
+MODULES = \
+	dummy
+
+modules_build:
+	-@for module in $(MODULES); do \
+		$(MAKE) -C src/modules/$$module; \
+	done
+
+modules_clean:
+	-@for module in $(MODULES); do \
+		$(MAKE) -C src/modules/$$module; \
+	done
 
 ## cmocka test support
-if ZBXCMOCKA
+if TESTS
 WRAP_DB_FUNCS = \
+	-Wl,--wrap=zbx_db_select \
 	-Wl,--wrap=zbx_db_vselect \
 	-Wl,--wrap=zbx_db_select_n \
-	-Wl,--wrap=zbx_db_fetch \
-	-Wl,--wrap=__zbx_DBexecute \
-	-Wl,--wrap=DBbegin \
-	-Wl,--wrap=DBcommit \
-	-Wl,--wrap=DBexecute_multiple_query \
-	-Wl,--wrap=DBfree_result
+	-Wl,--wrap=zbx_db_execute \
+	-Wl,--wrap=zbx_db_begin \
+	-Wl,--wrap=zbx_db_commit \
+	-Wl,--wrap=zbx_db_execute_multiple_query
 
 WRAP_IO_FUNCS = \
 	-Wl,--wrap=fopen \
 	-Wl,--wrap=fclose \
 	-Wl,--wrap=fgets \
-	-Wl,--wrap=open
+	-Wl,--wrap=fstat \
+	-Wl,--wrap=open \
+	-Wl,--wrap=lseek \
+	-Wl,--wrap=close
 
 WRAP_FS_FUNCS = \
 	-Wl,--wrap=opendir \
@@ -150,29 +178,51 @@ WRAP_EXIT = \
 
 WRAP_COMM_FUNCS = \
 	-Wl,--wrap=read \
-	-Wl,--wrap=connect
-
-WRAP_LOG = \
-	-Wl,--wrap=__zbx_zabbix_log
+	-Wl,--wrap=connect \
+	-Wl,--wrap=poll
 
 COMMON_WRAP_FUNCS = \
 	$(WRAP_DB_FUNCS) \
 	$(WRAP_IO_FUNCS) \
 	$(WRAP_FS_FUNCS) \
 	$(WRAP_EXIT) \
-	$(WRAP_COMM_FUNCS) \
-	$(WRAP_LOG)
+	$(WRAP_COMM_FUNCS)
 
-tests_build:
+tests_build: modules_build
 	$(MAKE) $(AM_MAKEFLAGS) && \
 	cd tests && \
-	$(MAKE) $(AM_MAKEFLAGS) LDFLAGS="$(LDFLAGS) $(COMMON_WRAP_FUNCS)" LIBS="$(LIBS) -lcmocka -lyaml"
+	$(MAKE) $(AM_MAKEFLAGS) LDFLAGS="$(LDFLAGS) $(COMMON_WRAP_FUNCS)" LIBS="$(LIBS)"
 
 tests: tests_build
+	export LD_LIBRARY_PATH=$$LD_LIBRARY_PATH:$(CMOCKA_LIBRARY_PATH):$(YAML_LIBRARY_PATH); \
 	tests/tests_run.pl
 
-clean: clean-recursive
+clean: clean-recursive modules_clean build_test_zbxcommon_clean
 	cd tests && $(MAKE) clean
 endif
 
-.PHONY: test tests clean
+build_test_zbxcommon:
+	$(MAKE) $(AM_MAKEFLAGS) && \
+	cd tests/test_zbxcommon && \
+	$(MAKE) $(AM_MAKEFLAGS)
+
+build_test_zbxcommon_clean:
+	cd tests/test_zbxcommon && $(MAKE) clean
+
+sbom: sbom-ui
+
+sbom-ui: ui/sbom.json
+
+ui/sbom.json:
+	(cd ${@D} && \
+		composer CycloneDX:make-sbom --omit=dev --no-interaction \
+		--spec-version=1.4 \
+		--output-reproducible --output-format=JSON --output-file="${@F}")
+
+ui/sbom.xml:
+	(cd ${@D} && \
+		composer CycloneDX:make-sbom --omit=dev --no-interaction \
+		--spec-version=1.4 \
+		--output-reproducible --output-format=XML --output-file="${@F}")
+
+.PHONY: test tests clean modules_build modules_clean sbom sbom-ui

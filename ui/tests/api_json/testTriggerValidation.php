@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -107,7 +102,7 @@ class testTriggerValidation extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Cannot create circular dependencies.'
+				'expected_error' => 'Trigger "test-trigger-1" cannot depend on the trigger "test-trigger-2", because a circular linkage ("test-trigger-2" -> "test-trigger-1" -> "test-trigger-2") would occur.'
 			],
 			'delete trigger name' => [
 				'triggers' => [
@@ -129,7 +124,7 @@ class testTriggerValidation extends CAPITest {
 						]
 					]
 				],
-				'expected_error' => 'Cannot create dependency on trigger itself.'
+				'expected_error' => 'Trigger "test-trigger-1" cannot depend on the trigger "test-trigger-1", because a circular linkage ("test-trigger-1" -> "test-trigger-1") would occur.'
 			],
 			'update read-only properties' => [
 				'triggers' => [
@@ -140,7 +135,7 @@ class testTriggerValidation extends CAPITest {
 				],
 				'expected_error' => 'Invalid parameter "/1": unexpected parameter "flags".'
 			],
-			'add unexisting dependent trigger' => [
+			'add nonexistent dependent trigger' => [
 				'triggers' => [
 					[
 						'triggerid' => self::UPDATE_TRIGGER_1,
@@ -272,20 +267,20 @@ class testTriggerValidation extends CAPITest {
 				],
 				'expected_error' => 'Invalid parameter "/1/priority": value must be one of 0, 1, 2, 3, 4, 5.'
 			],
-			'Trigger with unexpected recovery exporession' => [
+			'Trigger with unexpected recovery expression' => [
 				'triggers' => [
 					[
-						'description' => 'Trigger with unexpected recovery exporession',
+						'description' => 'Trigger with unexpected recovery expression',
 						'expression' => 'last(/Trigger validation test host/item)=0',
 						'recovery_expression' => 'last(/Trigger validation test host/item)=1'
 					]
 				],
 				'expected_error' => 'Incorrect value for field "recovery_expression": should be empty.'
 			],
-			'Trigger with unspecified recovery exporession' => [
+			'Trigger with unspecified recovery expression' => [
 				'triggers' => [
 					[
-						'description' => 'Trigger with unspecified recovery exporession',
+						'description' => 'Trigger with unspecified recovery expression',
 						'expression' => 'last(/Trigger validation test host/item)=0',
 						'recovery_mode' => 1
 					]
@@ -295,7 +290,7 @@ class testTriggerValidation extends CAPITest {
 			'Trigger with invalid recovery expression #1' => [
 				'triggers' => [
 					[
-						'description' => 'Trigger with expected recovery exporession',
+						'description' => 'Trigger with expected recovery expression',
 						'expression' => 'last(/Trigger validation test host/item)=0',
 						'recovery_mode' => 1,
 						'recovery_expression' => ['last(/Trigger validation test host/item)=1']
@@ -306,7 +301,7 @@ class testTriggerValidation extends CAPITest {
 			'Trigger with invalid recovery expression #2' => [
 				'triggers' => [
 					[
-						'description' => 'Trigger with expected recovery exporession',
+						'description' => 'Trigger with expected recovery expression',
 						'expression' => 'last(/Trigger validation test host/item)=0',
 						'recovery_mode' => 1,
 						'recovery_expression' => '1+1'
@@ -392,7 +387,7 @@ class testTriggerValidation extends CAPITest {
 						]]
 					]
 				],
-				'expected_error' => 'Cannot add dependency from a host to a template.'
+				'expected_error' => 'Trigger "Trigger with invalid dependencies" cannot depend on the trigger "template-trigger", because dependencies of host triggers on template triggers are not allowed.'
 			],
 			'Trigger with invalid dependencies #3' => [
 				'triggers' => [

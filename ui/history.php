@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -25,7 +20,7 @@ require_once dirname(__FILE__).'/include/graphs.inc.php';
 
 $page['file'] = 'history.php';
 $page['title'] = _('History');
-$page['scripts'] = ['class.calendar.js', 'gtlc.js', 'flickerfreescreen.js', 'layout.mode.js'];
+$page['scripts'] = ['gtlc.js', 'flickerfreescreen.js', 'layout.mode.js'];
 $page['type'] = detect_page_type(PAGE_TYPE_HTML);
 $page['web_layout_mode'] = CViewHelper::loadLayoutMode();
 
@@ -38,7 +33,7 @@ require_once dirname(__FILE__).'/include/page_header.php';
 
 // VAR	TYPE	OPTIONAL	FLAGS	VALIDATION	EXCEPTION
 $fields = [
-	'itemids' =>		[T_ZBX_INT,			O_OPT, P_SYS,	DB_ID,	null],
+	'itemids' =>		[T_ZBX_INT,			O_OPT, P_SYS|P_ONLY_ARRAY,	DB_ID,	null],
 	'from' =>			[T_ZBX_RANGE_TIME,	O_OPT, P_SYS,	null,	null],
 	'to' =>				[T_ZBX_RANGE_TIME,	O_OPT, P_SYS,	null,	null],
 	'filter_task' =>	[T_ZBX_STR,			O_OPT, null,	IN(FILTER_TASK_SHOW.','.FILTER_TASK_HIDE.','.FILTER_TASK_MARK.','.FILTER_TASK_INVERT_MARK), null],
@@ -72,14 +67,14 @@ $items = [];
 $value_type = '';
 
 if ($itemids) {
-	$items = API::Item()->get([
-		'output' => ['itemid', 'name', 'value_type'],
+	$items = CArrayHelper::renameObjectsKeys(API::Item()->get([
+		'output' => ['itemid', 'name_resolved', 'value_type'],
 		'selectHosts' => ['name'],
 		'itemids' => $itemids,
 		'preservekeys' => true,
 		'templated' => false,
 		'webitems' => true
-	]);
+	]), ['name_resolved' => 'name']);
 
 	if (getRequest('action') == HISTORY_BATCH_GRAPH) {
 		// Remove items that are not numeric.

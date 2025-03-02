@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -26,18 +21,18 @@ class CControllerGuiUpdate extends CController {
 		$timezones = array_keys(CTimezoneHelper::getList());
 
 		$fields = [
-			'default_lang' =>				'db config.default_lang|in '.implode(',', array_keys(getLocales())),
-			'default_timezone' =>			'required|in '.ZBX_DEFAULT_TIMEZONE.','.implode(',', $timezones).'|db config.default_timezone',
-			'default_theme' =>				'required|db config.default_theme|in '.implode(',', $themes),
-			'search_limit' =>				'required|db config.search_limit|ge 1|le 999999',
-			'max_overview_table_size' =>	'required|db config.max_overview_table_size|ge 5|le 999999',
-			'max_in_table' =>				'required|db config.max_in_table|ge 1|le 99999',
-			'server_check_interval' =>		'required|db config.server_check_interval|in 0,'.SERVER_CHECK_INTERVAL,
-			'work_period' =>				'required|db config.work_period|time_periods',
-			'show_technical_errors' =>		'db config.show_technical_errors|in 0,1',
-			'history_period' =>				'required|db config.history_period|time_unit '.implode(':', [SEC_PER_DAY, 7 * SEC_PER_DAY]),
-			'period_default' =>				'required|db config.period_default|time_unit_year '.implode(':', [SEC_PER_MIN, 10 * SEC_PER_YEAR]),
-			'max_period' =>					'required|db config.max_period|time_unit_year '.implode(':', [SEC_PER_YEAR, 10 * SEC_PER_YEAR])
+			'default_lang' =>				'in '.implode(',', array_keys(getLocales())),
+			'default_timezone' =>			'required|in '.ZBX_DEFAULT_TIMEZONE.','.implode(',', $timezones),
+			'default_theme' =>				'required|in '.implode(',', $themes),
+			'search_limit' =>				'required|ge 1|le 999999',
+			'max_overview_table_size' =>	'required|ge 5|le 999999',
+			'max_in_table' =>				'required|ge 1|le 99999',
+			'server_check_interval' =>		'required|in 0,'.SERVER_CHECK_INTERVAL,
+			'work_period' =>				'required|time_periods',
+			'show_technical_errors' =>		'in 0,1',
+			'history_period' =>				'required|time_unit '.implode(':', [SEC_PER_DAY, 7 * SEC_PER_DAY]),
+			'period_default' =>				'required|time_unit_year '.implode(':', [SEC_PER_MIN, 10 * SEC_PER_YEAR]),
+			'max_period' =>					'required|time_unit_year '.implode(':', [SEC_PER_YEAR, 10 * SEC_PER_YEAR])
 		];
 
 		$ret = $this->validateInput($fields);
@@ -45,9 +40,8 @@ class CControllerGuiUpdate extends CController {
 		if (!$ret) {
 			switch ($this->GetValidationError()) {
 				case self::VALIDATION_ERROR:
-					$response = new CControllerResponseRedirect((new CUrl('zabbix.php'))
-						->setArgument('action', 'gui.edit')
-						->getUrl()
+					$response = new CControllerResponseRedirect(
+						(new CUrl('zabbix.php'))->setArgument('action', 'gui.edit')
 					);
 					$response->setFormData($this->getInputAll());
 					CMessageHelper::setErrorTitle(_('Cannot update configuration'));
@@ -88,9 +82,8 @@ class CControllerGuiUpdate extends CController {
 
 		$result = API::Settings()->update($settings);
 
-		$response = new CControllerResponseRedirect((new CUrl('zabbix.php'))
-			->setArgument('action', 'gui.edit')
-			->getUrl()
+		$response = new CControllerResponseRedirect(
+			(new CUrl('zabbix.php'))->setArgument('action', 'gui.edit')
 		);
 
 		if ($result) {

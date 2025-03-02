@@ -1,20 +1,15 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 #include "zbxmocktest.h"
@@ -23,23 +18,17 @@
 
 /* make sure that __wrap_*() prototypes match unwrapped counterparts */
 
-#define zbx_db_vselect	__wrap_zbx_db_vselect
-#define zbx_db_fetch	__wrap_zbx_db_fetch
-#define DBfree_result	__wrap_DBfree_result
+#define zbx_db_vselect			__wrap_zbx_db_vselect
+#define zbx_db_execute			__wrap_zbx_db_execute
+#define zbx_db_execute_multiple_query	__wrap_zbx_db_execute_multiple_query
+#define zbx_db_begin			__wrap_zbx_db_begin
+#define zbx_db_commit			__wrap_zbx_db_commit
 #include "zbxdb.h"
 #undef zbx_db_vselect
-#undef zbx_db_fetch
-#undef DBfree_result
-
-#define __zbx_DBexecute			__wrap___zbx_DBexecute
-#define DBexecute_multiple_query	__wrap_DBexecute_multiple_query
-#define DBbegin				__wrap_DBbegin
-#define DBcommit			__wrap_DBcommit
-#include "zbxdbhigh.h"
-#undef __zbx_DBexecute
-#undef DBexecute_multiple_query
-#undef DBbegin
-#undef DBcommit
+#undef zbx_db_execute
+#undef zbx_db_execute_multiple_query
+#undef zbx_db_begin
+#undef zbx_db_commit
 
 #define ZBX_MOCK_DB_RESULT_COLUMNS_MAX	128
 
@@ -60,16 +49,17 @@ static zbx_mockdb_t	mockdb;
 
 struct zbx_db_result
 {
-	DB_ROW			row;
+	zbx_db_row_t		row;
 	char			*data_source;	/* for error messages */
 	zbx_mock_handle_t	rows;
 	int			row_to_fetch;	/* for error messages */
 	int			columns;	/* to make sure that rows have identical number of columns */
 };
 
-DB_RESULT	__fwd_zbx_db_select(const char *fmt, ...);
-DB_RESULT	__wrap_zbx_db_select_n(const char *query, int n);
-int	__wrap___zbx_DBexecute(const char *fmt, ...);
+zbx_db_result_t	__wrap_zbx_db_select(const char *fmt, ...);
+zbx_db_result_t	__wrap_zbx_db_select_n(const char *query, int n);
+
+zbx_db_result_t	__wrap_zbx_dbconn_select(zbx_dbconn_t *db, const char *fmt, ...);
 
 /* zbx_mockdb_t:queries hashset support */
 static zbx_hash_t	mockdb_query_hash(const void *data)
@@ -131,21 +121,26 @@ static char	*generate_data_source(const char *sql)
 			break;
 	}
 
-	if (ptr_ds == data_source)
-		zbx_free(data_source);	/* failed to generate data_source */
+	if (ptr_ds != data_source)
+	{
+		if (' ' == *(ptr_ds - 1))
+			ptr_ds--;
+
+		*ptr_ds = '\0';
+	}
 	else
-		*(ptr_ds - 1) = '\0';
+		zbx_free(data_source);	/* failed to generate data_source */
 
 	return data_source;
 }
 
-DB_RESULT	__wrap_zbx_db_vselect(const char *fmt, va_list args)
+zbx_db_result_t	__wrap_zbx_db_vselect(const char *fmt, va_list args)
 {
 	char			*sql = NULL, *data_source = NULL;
 	zbx_mock_error_t	error;
 	zbx_mock_handle_t	rows;
 	zbx_mockdb_query_t	*query, query_local;
-	DB_RESULT		result = NULL;
+	zbx_db_result_t		result = NULL;
 
 	sql = zbx_dvsprintf(sql, fmt, args);
 	printf("\tSQL: %s\n", sql);
@@ -181,10 +176,10 @@ DB_RESULT	__wrap_zbx_db_vselect(const char *fmt, va_list args)
 	return result;
 }
 
-DB_RESULT	__fwd_zbx_db_select(const char *fmt, ...)
+zbx_db_result_t	__wrap_zbx_db_select(const char *fmt, ...)
 {
 	va_list		args;
-	DB_RESULT	result;
+	zbx_db_result_t	result;
 
 	va_start(args, fmt);
 	result = __wrap_zbx_db_vselect(fmt, args);
@@ -193,12 +188,12 @@ DB_RESULT	__fwd_zbx_db_select(const char *fmt, ...)
 	return result;
 }
 
-DB_RESULT	__wrap_zbx_db_select_n(const char *query, int n)
+zbx_db_result_t	__wrap_zbx_db_select_n(const char *query, int n)
 {
-	return __fwd_zbx_db_select("%s limit %d", query, n);
+	return __wrap_zbx_db_select("%s limit %d", query, n);
 }
 
-DB_ROW	__wrap_zbx_db_fetch(DB_RESULT result)
+zbx_db_row_t	zbx_db_fetch(zbx_db_result_t result)
 {
 	zbx_mock_error_t	error;
 	zbx_mock_handle_t	row, field;
@@ -256,7 +251,7 @@ DB_ROW	__wrap_zbx_db_fetch(DB_RESULT result)
 }
 
 
-void	__wrap_DBfree_result(DB_RESULT result)
+void	zbx_db_free_result(zbx_db_result_t result)
 {
 	if (NULL != result)
 	{
@@ -267,14 +262,14 @@ void	__wrap_DBfree_result(DB_RESULT result)
 	zbx_free(result);
 }
 
-int	__wrap___zbx_DBexecute(const char *fmt, ...)
+int	__wrap_zbx_db_execute(const char *fmt, ...)
 {
 	ZBX_UNUSED(fmt);
 
 	return 0;
 }
 
-int	__wrap_DBexecute_multiple_query(const char *query, const char *field_name, zbx_vector_uint64_t *ids)
+int	__wrap_zbx_db_execute_multiple_query(const char *query, const char *field_name, const zbx_vector_uint64_t *ids)
 {
 	ZBX_UNUSED(query);
 	ZBX_UNUSED(field_name);
@@ -283,11 +278,11 @@ int	__wrap_DBexecute_multiple_query(const char *query, const char *field_name, z
 	return SUCCEED;
 }
 
-void	__wrap_DBbegin(void)
+void	__wrap_zbx_db_begin(void)
 {
 }
 
-int	__wrap_DBcommit(void)
+int	__wrap_zbx_db_commit(void)
 {
 	return ZBX_DB_OK;
 }
@@ -301,4 +296,11 @@ void	zbx_mockdb_init(void)
 void	zbx_mockdb_destroy(void)
 {
 	zbx_hashset_destroy(&mockdb.queries);
+}
+
+zbx_db_result_t	zbx_dbconn_vselect(zbx_dbconn_t *db, const char *fmt, va_list args)
+{
+	ZBX_UNUSED(db);
+
+	return __wrap_zbx_db_vselect(fmt, args);
 }

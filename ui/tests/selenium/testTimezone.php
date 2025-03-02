@@ -1,28 +1,23 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 require_once dirname(__FILE__).'/../include/CWebTest.php';
 require_once dirname(__FILE__).'/behaviors/CMessageBehavior.php';
 
 /**
- * @backup users, config
+ * @backup users, settings
  */
 class testTimezone extends CWebTest {
 
@@ -42,7 +37,7 @@ class testTimezone extends CWebTest {
 		$this->page->userLogin('Admin', 'zabbix');
 		$this->setTimezone('System', 'gui');
 		$this->page->open('zabbix.php?action=problem.view');
-		$etc_time = $this->getProblemTime('Trigger for tag permissions Oracle');
+		$etc_time = $this->getProblemTime('4_trigger_Average');
 
 		// UTC -3 hours.
 		$this->setTimezone('UTC', 'gui');
@@ -50,7 +45,7 @@ class testTimezone extends CWebTest {
 
 		// Return to problem page and check time.
 		$this->page->open('zabbix.php?action=problem.view');
-		$utc_time = $this->getProblemTime('Trigger for tag permissions Oracle');
+		$utc_time = $this->getProblemTime('4_trigger_Average');
 		$this->assertEquals($etc_time, $utc_time);
 	}
 
@@ -98,7 +93,7 @@ class testTimezone extends CWebTest {
 		$this->page->userLogin('Admin', 'zabbix');
 		$this->setTimezone('System', 'gui');
 		$this->page->open('zabbix.php?action=problem.view');
-		$system_time = $this->getProblemTime('Trigger for tag permissions Oracle');
+		$system_time = $this->getProblemTime('4_trigger_Average');
 		$this->page->logout();
 
 		// User timezone change.
@@ -108,10 +103,10 @@ class testTimezone extends CWebTest {
 
 		// User timezone check.
 		$this->page->open('zabbix.php?action=problem.view');
-		$user_time = $this->getProblemTime('Trigger for tag permissions Oracle');
+		$user_time = $this->getProblemTime('4_trigger_Average');
 		$this->assertEquals($system_time, $user_time);
 		$this->assertEquals($data['timezone_db'], CDBHelper::getValue('SELECT timezone FROM users WHERE username='.zbx_dbstr('test-timezone')));
-		$this->assertEquals('system', CDBHelper::getValue('SELECT default_timezone FROM config WHERE configid='.zbx_dbstr('1')));
+		$this->assertEquals('system', CDBHelper::getValue('SELECT value_str FROM settings WHERE name=\'default_timezone\''));
 		$this->page->logout();
 	}
 
@@ -190,7 +185,7 @@ class testTimezone extends CWebTest {
 		$this->page->userLogin('Admin', 'zabbix');
 		$this->setTimezone('System', 'gui');
 		$this->page->open('zabbix.php?action=problem.view');
-		$system_time = $this->getProblemTime('Trigger for tag permissions Oracle');
+		$system_time = $this->getProblemTime('4_trigger_Average');
 		$this->page->open('zabbix.php?action=user.edit');
 		$form = $this->query('name:user_form')->asForm()->waitUntilVisible()->one();
 		if (CTestArrayHelper::get($data, 'fields.Time zone')) {
@@ -210,11 +205,32 @@ class testTimezone extends CWebTest {
 
 		// Actual time after timezone change.
 		$this->page->open('zabbix.php?action=problem.view');
-		$user_time = $this->getProblemTime('Trigger for tag permissions Oracle');
+		$user_time = $this->getProblemTime('4_trigger_Average');
 		$this->assertEquals($system_time, $user_time);
 		$this->assertEquals($data['timezone_db'], CDBHelper::getValue('SELECT timezone FROM users WHERE username='.
 				zbx_dbstr($data['fields']['Username'])));
-		$this->assertEquals('system', CDBHelper::getValue('SELECT default_timezone FROM config WHERE configid='.zbx_dbstr('1')));
+		$this->assertEquals('system', CDBHelper::getValue('SELECT value_str FROM settings WHERE name=\'default_timezone\''));
+		$this->page->logout();
+	}
+
+	/**
+	 * Check for time parser error absence (Added after ZBX-23883).
+	 */
+	public function testTimezone_TimeSelector() {
+		$this->page->userLogin('Admin', 'zabbix');
+		$this->setTimezone('Atlantic/Cape_Verde', 'userprofile');
+		$this->page->open('zabbix.php?action=actionlog.list&from=now-1h&to=now&filter_messages=&filter_set=1')->waitUntilReady();
+		$filter = CFilterElement::find()->one();
+		$filter->selectTab('Last 1 hour');
+
+		foreach (['This day last week', 'Day before yesterday', 'Today so far', 'Yesterday', 'Today'] as $time) {
+			$filter->query('link', $time)->one()->click();
+			$this->page->waitUntilReady();
+
+			// No error messages awaiting on time selector change.
+			$this->assertFalse($this->query('xpath://output['.CXPathHelper::fromClass('msg-bad').']')->exists());
+		}
+
 		$this->page->logout();
 	}
 
@@ -246,7 +262,7 @@ class testTimezone extends CWebTest {
 		}
 
 		$this->page->open('zabbix.php?action='.$page.'.edit');
-		$form = $this->query('xpath://form[@aria-labeledby="page-title-general"]')->one()->asForm();
+		$form = $this->query('xpath://form[@aria-labelledby="page-title-general"]')->one()->asForm();
 		$timezone = CDateTimeHelper::getTimeZoneFormat($timezone);
 		$form->fill([$field_name => $timezone]);
 		$form->submit();

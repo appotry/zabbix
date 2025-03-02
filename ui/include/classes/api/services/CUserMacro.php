@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -48,7 +43,8 @@ class CUserMacro extends CApiService {
 	 * @param array $options['globalmacroids'] global macros ids
 	 * @param array $options['templateids'] template ids
 	 * @param boolean $options['globalmacro'] only global macros
-	 * @param boolean $options['selectGroups'] select groups
+	 * @param boolean $options['selectHostGroups'] select host groups
+	 * @param boolean $options['selectTemplateGroups'] select template groups
 	 * @param boolean $options['selectHosts'] select hosts
 	 * @param boolean $options['selectTemplates'] select templates
 	 *
@@ -56,7 +52,6 @@ class CUserMacro extends CApiService {
 	 */
 	public function get($options = []) {
 		$result = [];
-		$userid = self::$userData['userid'];
 
 		$sqlParts = [
 			'select'	=> ['macros' => 'hm.hostmacroid'],
@@ -93,7 +88,8 @@ class CUserMacro extends CApiService {
 			'searchWildcardsEnabled'	=> null,
 			// output
 			'output'					=> API_OUTPUT_EXTEND,
-			'selectGroups'				=> null,
+			'selectHostGroups'			=> null,
+			'selectTemplateGroups'		=> null,
 			'selectHosts'				=> null,
 			'selectTemplates'			=> null,
 			'countOutput'				=> false,
@@ -106,25 +102,18 @@ class CUserMacro extends CApiService {
 
 		// editable + PERMISSION CHECK
 		if (self::$userData['type'] != USER_TYPE_SUPER_ADMIN && !$options['nopermissions']) {
-			if ($options['editable'] && !is_null($options['globalmacro'])) {
-				return [];
+			if (($options['editable'] && !is_null($options['globalmacro'])) || self::$userData['ugsetid'] == 0) {
+				return $options['countOutput'] ? '0' : [];
 			}
 			else {
-				$permission = $options['editable'] ? PERM_READ_WRITE : PERM_READ;
+				$sqlParts['from'][] = 'host_hgset hh';
+				$sqlParts['from'][] = 'permission p';
+				$sqlParts['where'][] = 'hm.hostid=hh.hostid';
+				$sqlParts['where'][] = 'hh.hgsetid=p.hgsetid';
 
-				$userGroups = getUserGroupsByUserId($userid);
-
-				$sqlParts['where'][] = 'EXISTS ('.
-						'SELECT NULL'.
-						' FROM hosts_groups hgg'.
-							' JOIN rights r'.
-								' ON r.id=hgg.groupid'.
-									' AND '.dbConditionInt('r.groupid', $userGroups).
-						' WHERE hm.hostid=hgg.hostid'.
-						' GROUP BY hgg.hostid'.
-						' HAVING MIN(r.permission)>'.PERM_DENY.
-							' AND MAX(r.permission)>='.zbx_dbstr($permission).
-						')';
+				if ($options['editable']) {
+					$sqlParts['where'][] = 'p.permission='.PERM_READ_WRITE;
+				}
 			}
 		}
 
@@ -135,7 +124,8 @@ class CUserMacro extends CApiService {
 			$options['triggerids'] = null;
 			$options['hostids'] = null;
 			$options['itemids'] = null;
-			$options['selectGroups'] = null;
+			$options['selectHostGroups'] = null;
+			$options['selectTemplateGroups'] = null;
 			$options['selectTemplates'] = null;
 			$options['selectHosts'] = null;
 			$options['inherited'] = null;
@@ -231,11 +221,10 @@ class CUserMacro extends CApiService {
 		if ($result) {
 			$result = $this->addRelatedObjects($options, $result);
 			$result = $this->unsetExtraFields($result, ['hostid', 'type'], $options['output']);
-		}
 
-		// removing keys (hash -> array)
-		if (!$options['preservekeys']) {
-			$result = zbx_cleanHashes($result);
+			if (!$options['preservekeys']) {
+				$result = array_values($result);
+			}
 		}
 
 		return $result;
@@ -322,7 +311,7 @@ class CUserMacro extends CApiService {
 	 *
 	 * @throws APIException if the input is invalid
 	 */
-	private function validateUpdateGlobal(array &$globalmacros, array &$db_globalmacros = null) {
+	private function validateUpdateGlobal(array &$globalmacros, ?array &$db_globalmacros = null) {
 		$api_input_rules = ['type' => API_OBJECTS, 'flags' => API_NOT_EMPTY | API_NORMALIZE, 'uniq' => [['globalmacroid'], ['macro']], 'fields' => [
 			'globalmacroid' =>	['type' => API_ID, 'flags' => API_REQUIRED],
 			'macro' =>			['type' => API_USER_MACRO, 'length' => DB::getFieldLength('globalmacro', 'macro')],
@@ -384,7 +373,7 @@ class CUserMacro extends CApiService {
 	 *
 	 * @throws APIException if macros already exists.
 	 */
-	private function checkDuplicates(array $globalmacros, array $db_globalmacros = null): void {
+	private function checkDuplicates(array $globalmacros, ?array $db_globalmacros = null): void {
 		$macros = [];
 
 		foreach ($globalmacros as $globalmacro) {
@@ -435,7 +424,7 @@ class CUserMacro extends CApiService {
 	 *
 	 * @throws APIException if the input is invalid.
 	 */
-	private function validateDeleteGlobal(array &$globalmacroids, array &$db_globalmacros = null) {
+	private function validateDeleteGlobal(array &$globalmacroids, ?array &$db_globalmacros = null) {
 		$api_input_rules = ['type' => API_IDS, 'flags' => API_NOT_EMPTY, 'uniq' => true];
 
 		if (!CApiInputValidator::validate($api_input_rules, $globalmacroids, '/', $error)) {
@@ -514,13 +503,14 @@ class CUserMacro extends CApiService {
 	 *
 	 * @throws APIException if the input is invalid.
 	 */
-	protected function validateUpdate(array &$hostmacros, array &$db_hostmacros = null) {
+	protected function validateUpdate(array &$hostmacros, ?array &$db_hostmacros = null) {
 		$api_input_rules = ['type' => API_OBJECTS, 'flags' => API_NOT_EMPTY | API_NORMALIZE, 'uniq' => [['hostmacroid']], 'fields' => [
 			'hostmacroid' =>	['type' => API_ID, 'flags' => API_REQUIRED],
 			'macro' =>			['type' => API_USER_MACRO, 'length' => DB::getFieldLength('hostmacro', 'macro')],
 			'type' =>			['type' => API_INT32, 'in' => implode(',', [ZBX_MACRO_TYPE_TEXT, ZBX_MACRO_TYPE_SECRET, ZBX_MACRO_TYPE_VAULT])],
 			'value' =>			['type' => API_STRING_UTF8, 'length' => DB::getFieldLength('hostmacro', 'value')],
-			'description' =>	['type' => API_STRING_UTF8, 'length' => DB::getFieldLength('hostmacro', 'description')]
+			'description' =>	['type' => API_STRING_UTF8, 'length' => DB::getFieldLength('hostmacro', 'description')],
+			'automatic' =>		['type' => API_INT32, 'in' => implode(',', [ZBX_USERMACRO_MANUAL])]
 		]];
 
 		if (!CApiInputValidator::validate($api_input_rules, $hostmacros, '/', $error)) {
@@ -528,7 +518,7 @@ class CUserMacro extends CApiService {
 		}
 
 		$db_hostmacros = $this->get([
-			'output' => ['hostmacroid', 'hostid', 'macro', 'type', 'description'],
+			'output' => ['hostmacroid', 'hostid', 'macro', 'type', 'description', 'automatic'],
 			'hostmacroids' => array_column($hostmacros, 'hostmacroid'),
 			'editable' => true,
 			'inherited' => false,
@@ -554,6 +544,12 @@ class CUserMacro extends CApiService {
 
 		foreach ($hostmacros as $index => &$hostmacro) {
 			$db_hostmacro = $db_hostmacros[$hostmacro['hostmacroid']];
+
+			if ($db_hostmacro['automatic'] == ZBX_USERMACRO_AUTOMATIC && !array_key_exists('automatic', $hostmacro)) {
+				self::exception(ZBX_API_ERROR_PERMISSIONS,
+					_s('Not allowed to modify automatic user macro "%1$s".', $db_hostmacro['macro'])
+				);
+			}
 
 			if ($hostmacro['type'] != $db_hostmacro['type']) {
 				if ($db_hostmacro['type'] == ZBX_MACRO_TYPE_SECRET) {
@@ -601,7 +597,7 @@ class CUserMacro extends CApiService {
 	 *
 	 * @throws APIException if any of the given macros already exist.
 	 */
-	private function checkHostDuplicates(array $hostmacros, array $db_hostmacros = null) {
+	private function checkHostDuplicates(array $hostmacros, ?array $db_hostmacros = null) {
 		$macro_names = [];
 		$existing_macros = [];
 
@@ -714,7 +710,7 @@ class CUserMacro extends CApiService {
 	 *
 	 * @throws APIException if the input is invalid.
 	 */
-	protected function validateDelete(array &$hostmacroids, array &$db_hostmacros = null) {
+	protected function validateDelete(array &$hostmacroids, ?array &$db_hostmacros = null) {
 		$api_input_rules = ['type' => API_IDS, 'flags' => API_NOT_EMPTY, 'uniq' => true];
 
 		if (!CApiInputValidator::validate($api_input_rules, $hostmacroids, '/', $error)) {
@@ -765,7 +761,7 @@ class CUserMacro extends CApiService {
 			'countOutput' => true,
 			'hostids' => $hostids,
 			'filter' => [
-				'flags' => ZBX_FLAG_DISCOVERY_NORMAL
+				'flags' => [ZBX_FLAG_DISCOVERY_NORMAL, ZBX_FLAG_DISCOVERY_CREATED]
 			],
 			'editable' => true
 		]);
@@ -812,7 +808,7 @@ class CUserMacro extends CApiService {
 	 *
 	 * @return array
 	 */
-	private function getMacrosToInherit(array $hostmacros, array $db_hostmacros = null): array {
+	private function getMacrosToInherit(array $hostmacros, ?array $db_hostmacros = null): array {
 		$templated_host_prototypeids = DBfetchColumn(DBselect(
 			'SELECT hd.hostid'.
 			' FROM host_discovery hd,items i,hosts h'.
@@ -862,8 +858,8 @@ class CUserMacro extends CApiService {
 	 * @param array  $upd_hostmacros
 	 * @param array  $db_hostmacros
 	 */
-	private function prepareInheritedObjects(array $tpl_hostmacros, array &$ins_hostmacros = null,
-			array &$upd_hostmacros = null, array &$db_hostmacros = null): void {
+	private function prepareInheritedObjects(array $tpl_hostmacros, ?array &$ins_hostmacros = null,
+			?array &$upd_hostmacros = null, ?array &$db_hostmacros = null): void {
 		$ins_hostmacros = [];
 		$upd_hostmacros = [];
 		$db_hostmacros = [];
@@ -983,7 +979,8 @@ class CUserMacro extends CApiService {
 		$sqlParts = parent::applyQueryOutputOptions($tableName, $tableAlias, $options, $sqlParts);
 
 		if ($options['output'] != API_OUTPUT_COUNT && $options['globalmacro'] === null) {
-			if ($options['selectGroups'] !== null || $options['selectHosts'] !== null || $options['selectTemplates'] !== null) {
+			if ($options['selectHostGroups'] !== null || $options['selectTemplateGroups'] !== null
+					|| $options['selectHosts'] !== null || $options['selectTemplates'] !== null) {
 				$sqlParts = $this->addQuerySelect($this->fieldId('hostid'), $sqlParts);
 			}
 		}
@@ -1036,56 +1033,105 @@ class CUserMacro extends CApiService {
 		$result = parent::addRelatedObjects($options, $result);
 
 		if ($options['globalmacro'] === null) {
-			$hostMacroIds = array_keys($result);
-
-			/*
-			 * Adding objects
-			 */
-			// adding groups
-			if ($options['selectGroups'] !== null && $options['selectGroups'] != API_OUTPUT_COUNT) {
-				$res = DBselect(
-					'SELECT hm.hostmacroid,hg.groupid'.
-						' FROM hostmacro hm,hosts_groups hg'.
-						' WHERE '.dbConditionInt('hm.hostmacroid', $hostMacroIds).
-						' AND hm.hostid=hg.hostid'
-				);
-				$relationMap = new CRelationMap();
-				while ($relation = DBfetch($res)) {
-					$relationMap->addRelation($relation['hostmacroid'], $relation['groupid']);
-				}
-
-				$groups = API::HostGroup()->get([
-					'output' => $options['selectGroups'],
-					'groupids' => $relationMap->getRelatedIds(),
-					'preservekeys' => true
-				]);
-				$result = $relationMap->mapMany($result, $groups, 'groups');
-			}
-
-			// adding templates
-			if ($options['selectTemplates'] !== null && $options['selectTemplates'] != API_OUTPUT_COUNT) {
-				$relationMap = $this->createRelationMap($result, 'hostmacroid', 'hostid');
-				$templates = API::Template()->get([
-					'output' => $options['selectTemplates'],
-					'templateids' => $relationMap->getRelatedIds(),
-					'preservekeys' => true
-				]);
-				$result = $relationMap->mapMany($result, $templates, 'templates');
-			}
-
-			// adding templates
-			if ($options['selectHosts'] !== null && $options['selectHosts'] != API_OUTPUT_COUNT) {
-				$relationMap = $this->createRelationMap($result, 'hostmacroid', 'hostid');
-				$templates = API::Host()->get([
-					'output' => $options['selectHosts'],
-					'hostids' => $relationMap->getRelatedIds(),
-					'preservekeys' => true
-				]);
-				$result = $relationMap->mapMany($result, $templates, 'hosts');
-			}
+			$this->addRelatedHostGroups($options, $result);
+			$this->addRelatedTemplateGroups($options, $result);
+			$this->addRelatedTemplates($options, $result);
+			$this->addRelatedHosts($options, $result);
 		}
 
 		return $result;
+	}
+
+	private function addRelatedHostGroups(array $options, array &$result): void {
+		if ($options['selectHostGroups'] === null || $options['selectHostGroups'] === API_OUTPUT_COUNT) {
+			return;
+		}
+
+		$resource = DBselect(
+			'SELECT hm.hostmacroid,hg.groupid'.
+			' FROM hostmacro hm'.
+			' JOIN hosts_groups hg ON hm.hostid=hg.hostid'.
+			' JOIN hstgrp hgg ON hg.groupid=hgg.groupid'.
+				' AND '.dbConditionInt('hgg.type', [HOST_GROUP_TYPE_HOST_GROUP]).
+			' WHERE '.dbConditionId('hm.hostmacroid', array_keys($result))
+		);
+		$relation_map = new CRelationMap();
+
+		while ($relation = DBfetch($resource)) {
+			$relation_map->addRelation($relation['hostmacroid'], $relation['groupid']);
+		}
+
+		$related_ids = $relation_map->getRelatedIds();
+		$groups = $related_ids
+			? API::HostGroup()->get([
+				'output' => $options['selectHostGroups'],
+				'groupids' => $related_ids,
+				'preservekeys' => true
+			])
+			: [];
+
+		$result = $relation_map->mapMany($result, $groups, 'hostgroups');
+	}
+
+	private function addRelatedTemplateGroups(array $options, array &$result): void {
+		if ($options['selectTemplateGroups'] === null || $options['selectTemplateGroups'] === API_OUTPUT_COUNT) {
+			return;
+		}
+
+		$resource = DBselect(
+			'SELECT hm.hostmacroid,hg.groupid'.
+			' FROM hostmacro hm'.
+			' JOIN hosts_groups hg ON hm.hostid=hg.hostid'.
+			' JOIN hstgrp hgg ON hg.groupid=hgg.groupid'.
+				' AND '.dbConditionInt('hgg.type', [HOST_GROUP_TYPE_TEMPLATE_GROUP]).
+			' WHERE '.dbConditionId('hm.hostmacroid', array_keys($result))
+		);
+		$relation_map = new CRelationMap();
+
+		while ($relation = DBfetch($resource)) {
+			$relation_map->addRelation($relation['hostmacroid'], $relation['groupid']);
+		}
+
+		$related_ids = $relation_map->getRelatedIds();
+		$groups = $related_ids
+			? API::TemplateGroup()->get([
+				'output' => $options['selectTemplateGroups'],
+				'groupids' => $related_ids,
+				'preservekeys' => true
+			])
+			: [];
+
+		$result = $relation_map->mapMany($result, $groups, 'templategroups');
+	}
+
+	private function addRelatedTemplates(array $options, array &$result): void {
+		if ($options['selectTemplates'] === null || $options['selectTemplates'] === API_OUTPUT_COUNT) {
+			return;
+		}
+
+		$relation_map = $this->createRelationMap($result, 'hostmacroid', 'hostid');
+		$templates = API::Template()->get([
+			'output' => $options['selectTemplates'],
+			'templateids' => $relation_map->getRelatedIds(),
+			'preservekeys' => true
+		]);
+
+		$result = $relation_map->mapMany($result, $templates, 'templates');
+	}
+
+	private function addRelatedHosts(array $options, array &$result): void {
+		if ($options['selectHosts'] === null || $options['selectHosts'] === API_OUTPUT_COUNT) {
+			return;
+		}
+
+		$relation_map = $this->createRelationMap($result, 'hostmacroid', 'hostid');
+		$hosts = API::Host()->get([
+			'output' => $options['selectHosts'],
+			'hostids' => $relation_map->getRelatedIds(),
+			'preservekeys' => true
+		]);
+
+		$result = $relation_map->mapMany($result, $hosts, 'hosts');
 	}
 
 	protected function unsetExtraFields(array $objects, array $fields, $output = []) {

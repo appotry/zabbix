@@ -1,20 +1,15 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 package ceph
@@ -26,16 +21,53 @@ import (
 )
 
 func Test_dfHandler(t *testing.T) {
-	out := outDf{Pools: map[string]poolStat{
-		"device_health_metrics": {PercentUsed: 0, Objects: 0, BytesUsed: 0, Rd: 0, RdBytes: 0, Wr: 0, WrBytes: 0,
-			StoredRaw: 0, MaxAvail: 1390298112},
-		"new_pool": {PercentUsed: 0, Objects: 0, BytesUsed: 0, Rd: 0, RdBytes: 0, Wr: 0, WrBytes: 0,
-			StoredRaw: 0, MaxAvail: 695170880},
-		"test_zabbix": {PercentUsed: 0, Objects: 4, BytesUsed: 786432, Rd: 0, RdBytes: 0, Wr: 4, WrBytes: 24576,
-			StoredRaw: 66618, MaxAvail: 1390298112},
-		"zabbix": {PercentUsed: 0, Objects: 0, BytesUsed: 0, Rd: 0, RdBytes: 0, Wr: 0, WrBytes: 0,
-			StoredRaw: 0, MaxAvail: 1390298112},
-	},
+	out := outDf{
+		Pools: map[string]poolStat{
+			"device_health_metrics": {
+				PercentUsed: 0.3,
+				Objects:     0,
+				BytesUsed:   0,
+				Rd:          0,
+				RdBytes:     0,
+				Wr:          0,
+				WrBytes:     0,
+				StoredRaw:   0,
+				MaxAvail:    1390298112,
+			},
+			"new_pool": {
+				PercentUsed: 0.4,
+				Objects:     0,
+				BytesUsed:   0,
+				Rd:          0,
+				RdBytes:     0,
+				Wr:          0,
+				WrBytes:     0,
+				StoredRaw:   0,
+				MaxAvail:    695170880,
+			},
+			"test_zabbix": {
+				PercentUsed: 0.00018851681670639664,
+				Objects:     4,
+				BytesUsed:   786432,
+				Rd:          0,
+				RdBytes:     0,
+				Wr:          4,
+				WrBytes:     24576,
+				StoredRaw:   66618,
+				MaxAvail:    1390298112,
+			},
+			"zabbix": {
+				PercentUsed: 0,
+				Objects:     0,
+				BytesUsed:   0,
+				Rd:          0,
+				RdBytes:     0,
+				Wr:          0,
+				WrBytes:     0,
+				StoredRaw:   0,
+				MaxAvail:    1390298112,
+			},
+		},
 		Rd:              0,
 		RdBytes:         0,
 		Wr:              4,
@@ -55,6 +87,7 @@ func Test_dfHandler(t *testing.T) {
 	type args struct {
 		data map[command][]byte
 	}
+
 	tests := []struct {
 		name    string
 		args    args
@@ -79,8 +112,10 @@ func Test_dfHandler(t *testing.T) {
 			got, err := dfHandler(tt.args.data)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("dfHandler() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
+
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("dfHandler() got = %v, want %v", got, tt.want)
 			}

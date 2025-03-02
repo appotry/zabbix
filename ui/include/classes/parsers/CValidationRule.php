@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 class CValidationRule {
@@ -77,7 +72,8 @@ class CValidationRule {
 									&& !$this->parseArray($buffer, $pos, $rule)
 									&& !$this->parseFlags($buffer, $pos, $rule)
 									&& !$this->parseBool($buffer, $pos, $rule)
-									&& !$this->parseCuid($buffer, $pos, $rule)) {
+									&& !$this->parseCuid($buffer, $pos, $rule)
+									&& !$this->parseSetting($buffer, $pos, $rule)) {
 								// incorrect validation rule
 								break 3;
 							}
@@ -712,6 +708,40 @@ class CValidationRule {
 
 		$pos += 4;
 		$rules['cuid'] = true;
+
+		return true;
+	}
+
+	/**
+	 * setting <field>
+	 *
+	 * 'setting' => array(
+	 *     'field' => '<field>'
+	 * )
+	 */
+	private function parseSetting($buffer, &$pos, &$rules) {
+		$i = $pos;
+
+		if (strncmp(substr($buffer, $i), 'setting ', 8) != 0) {
+			return false;
+		}
+
+		$i += 8;
+
+		while (isset($buffer[$i]) && $buffer[$i] == ' ') {
+			$i++;
+		}
+
+		$field = '';
+
+		if (!$this->parseField($buffer, $i, $field)) {
+			return false;
+		}
+
+		$pos = $i;
+		$rules['setting'] = [
+			'field' => $field
+		];
 
 		return true;
 	}

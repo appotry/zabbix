@@ -2,22 +2,17 @@
 // +build linux
 
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 package proc
@@ -29,6 +24,7 @@ import "C"
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -37,26 +33,20 @@ import (
 	"strings"
 	"syscall"
 
-	"zabbix.com/pkg/procfs"
+	"golang.zabbix.com/agent2/pkg/procfs"
+	"golang.zabbix.com/sdk/log"
 )
 
-func read2k(filename string) (data []byte, err error) {
-	fd, err := syscall.Open(filename, syscall.O_RDONLY, 0)
-	if err != nil {
-		return
-	}
-	var n int
-	b := make([]byte, 2048)
-	if n, err = syscall.Read(fd, b); err == nil {
-		data = b[:n]
-	}
-	syscall.Close(fd)
-	return
+var errStatmFormat = errors.New("invalid statm file format")
+
+type processUserInfo struct {
+	uid int64
+	gid int64
 }
 
 func getProcessName(pid string) (name string, err error) {
 	var data []byte
-	if data, err = read2k("/proc/" + pid + "/stat"); err != nil {
+	if data, err = procfs.ReadAll("/proc/" + pid + "/stat"); err != nil {
 		return
 	}
 	var left, right int
@@ -73,15 +63,15 @@ func parseProcessStatus(pid string, proc *procStatus) (err error) {
 	proc.Pid, _ = strconv.ParseUint(pid, 10, 64)
 
 	var data []byte
-	if data, err = read2k("/proc/" + pid + "/status"); err != nil {
+	if data, err = procfs.ReadAll("/proc/" + pid + "/status"); err != nil {
 		return err
 	}
 
 	var pos int
 	var nonvoluntary int64
 	nonvoluntary, proc.Vsize, proc.Rss, proc.Data, proc.Exe, proc.Hwm, proc.Lck, proc.Lib, proc.Peak, proc.Pin,
-			proc.Pte, proc.Stk, proc.Swap, proc.Threads, proc.CtxSwitches =
-			-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
+		proc.Pte, proc.Stk, proc.Swap, proc.Threads, proc.CtxSwitches =
+		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
 	s := strings.Split(string(data), "\n")
 	for _, tmp := range s {
 		if pos = strings.IndexRune(tmp, ':'); pos == -1 {
@@ -142,18 +132,114 @@ func parseProcessStatus(pid string, proc *procStatus) (err error) {
 	return nil
 }
 
-func parseStateString(val string, state *string) () {
+func parseStateString(val string, state *string) {
 	posLeft := strings.IndexRune(val, '(')
 	posRight := strings.IndexRune(val, ')')
 
 	if posLeft == -1 || posRight == -1 {
 		*state = val
 	} else {
-		*state = val[posLeft+1:posRight]
+		*state = val[posLeft+1 : posRight]
 	}
 }
 
-func getProcessCalculatedMetrics(pid string, proc *procStatus) () {
+func parseSmaps(pid string, proc *procStatus) error {
+	const pssAdjust = 512
+
+	var data []byte
+	var err error
+	if data, err = procfs.ReadAll("/proc/" + pid + "/smaps_rollup"); err != nil {
+		if data, err = procfs.ReadAll("/proc/" + pid + "/smaps"); err != nil {
+			return err
+		}
+	}
+
+	s := strings.Split(string(data), "\n")
+	var pos int
+	var tmp, privateHuge, sharedHuge, shared, private, pss int64
+	var havePss bool
+	for _, line := range s {
+		if pos = strings.IndexRune(line, ':'); pos == -1 {
+			continue
+		}
+
+		k := line[:pos]
+		v := strings.TrimSpace(line[pos+1:])
+
+		trimUnit(v, &tmp)
+
+		if tmp == -1 {
+			continue
+		}
+
+		switch k {
+		case "Private_Hugetlb":
+			privateHuge += tmp
+			continue
+		case "Shared_Hugetlb":
+			sharedHuge += tmp
+			continue
+		case "Pss":
+			havePss = true
+			pss += (tmp + pssAdjust)
+			continue
+		}
+
+		if strings.HasPrefix(k, "Shared") {
+			shared += tmp
+		} else if strings.HasPrefix(k, "Private") {
+			private += tmp
+		}
+	}
+
+	if havePss {
+		shared = pss - private
+	}
+
+	proc.Pss = shared + private + privateHuge + sharedHuge
+
+	return nil
+}
+
+func parseStatm(pid string, proc *procStatus) error {
+	const statmMinColumnCount = 2
+	var data []byte
+	var err error
+
+	if data, err = procfs.ReadAll("/proc/" + pid + "/statm"); err != nil {
+		return fmt.Errorf("failed to read statm file: %w", err)
+	}
+
+	var lines []string
+
+	if lines = strings.Split(string(data), " "); len(lines) < statmMinColumnCount {
+		return fmt.Errorf("failed to parse memory stats: %w", errStatmFormat)
+	}
+
+	var rss int64
+
+	if rss, err = strconv.ParseInt(lines[1], 10, 64); err != nil {
+		return fmt.Errorf("failed to parse RSS count from statm: %w", err)
+	}
+
+	proc.Pss = rss * int64(os.Getpagesize())
+
+	return nil
+}
+
+func getProcessPss(pid string, proc *procStatus) {
+	if err := parseSmaps(pid, proc); err == nil {
+		return
+	}
+
+	if err := parseStatm(pid, proc); err == nil {
+		return
+	}
+
+	proc.Pss = -1
+}
+
+func getProcessCalculatedMetrics(pid string, proc *procStatus) {
 	addNonNegative(&proc.Size, proc.Exe)
 	addNonNegative(&proc.Size, proc.Data)
 	addNonNegative(&proc.Size, proc.Stk)
@@ -165,9 +251,11 @@ func getProcessCalculatedMetrics(pid string, proc *procStatus) () {
 	}
 
 	proc.Pmem = float64(proc.Rss) / float64(mem) * 100.00
+
+	getProcessPss(pid, proc)
 }
 
-func getProcessCpuTimes(pid string, proc *procStatus) () {
+func getProcessCpuTimes(pid string, proc *procStatus) {
 	var stat procStat
 	getProcessStats(pid, &stat)
 	if stat.err != nil {
@@ -177,7 +265,9 @@ func getProcessCpuTimes(pid string, proc *procStatus) () {
 		return
 	}
 
+	log.Tracef("Calling C function \"sysconf()\"")
 	proc.CpuTimeUser = float64(stat.utime) / float64(C.sysconf(C._SC_CLK_TCK))
+	log.Tracef("Calling C function \"sysconf()\"")
 	proc.CpuTimeSystem = float64(stat.stime) / float64(C.sysconf(C._SC_CLK_TCK))
 	proc.PageFaults = stat.pageFaults
 }
@@ -204,7 +294,7 @@ func getProcessNames(pid string, proc *procStatus) (err error) {
 
 func getProcessState(pid string) (name string, err error) {
 	var data []byte
-	if data, err = read2k("/proc/" + pid + "/status"); err != nil {
+	if data, err = procfs.ReadAll("/proc/" + pid + "/status"); err != nil {
 		return
 	}
 
@@ -218,12 +308,17 @@ func getProcessState(pid string) (name string, err error) {
 	return "", fmt.Errorf("cannot find process state /proc/%s/status", pid)
 }
 
-func getProcessUserID(pid string) (userid int64, err error) {
+func getProcessUserInfo(pid string) (userinfo processUserInfo, err error) {
 	var fi os.FileInfo
+	userinfo = processUserInfo{}
 	if fi, err = os.Stat("/proc/" + pid); err != nil {
 		return
 	}
-	return int64(fi.Sys().(*syscall.Stat_t).Uid), nil
+	stat := fi.Sys().(*syscall.Stat_t)
+	userinfo.uid = int64(stat.Uid)
+	userinfo.gid = int64(stat.Gid)
+
+	return userinfo, nil
 }
 
 func getProcessCmdline(pid string, flags int) (arg0 string, cmdline string, err error) {
@@ -259,7 +354,7 @@ func getProcessCmdline(pid string, flags int) (arg0 string, cmdline string, err 
 
 func getProcessStats(pid string, stat *procStat) {
 	var data []byte
-	if data, stat.err = read2k("/proc/" + pid + "/stat"); stat.err != nil {
+	if data, stat.err = procfs.ReadAll("/proc/" + pid + "/stat"); stat.err != nil {
 		return
 	}
 	var pos int
@@ -316,10 +411,13 @@ func getProcesses(flags int) (processes []*procInfo, err error) {
 			}
 		}
 		if flags&procInfoUser != 0 {
-			if info.userid, tmperr = getProcessUserID(entries[0].Name()); tmperr != nil {
+			var pu processUserInfo
+			pu, tmperr = getProcessUserInfo(entries[0].Name())
+			if tmperr != nil {
 				impl.Debugf("cannot get process %s user id: %s", entries[0].Name(), tmperr)
 				continue
 			}
+			info.userid = pu.uid
 		}
 		if flags&procInfoCmdline != 0 {
 			if info.arg0, info.cmdline, tmperr = getProcessCmdline(entries[0].Name(), flags); tmperr != nil {
@@ -370,7 +468,7 @@ func getThreadIds(pid string) (pids []string, err error) {
 	return getProcfsIds("/proc/" + pid + "/task")
 }
 
-func trimUnit(v string, p *int64) () {
+func trimUnit(v string, p *int64) {
 	var tmperr error
 	var value int64
 	var pos int
@@ -384,7 +482,7 @@ func trimUnit(v string, p *int64) () {
 		return
 	}
 
-	unit := v[pos + 1:]
+	unit := v[pos+1:]
 	switch unit {
 	case "kB":
 		value <<= 10
@@ -401,7 +499,7 @@ func trimUnit(v string, p *int64) () {
 	*p = value
 }
 
-func setInt64(v string, p *int64) () {
+func setInt64(v string, p *int64) {
 	var tmperr error
 	var value int64
 

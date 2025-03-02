@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -25,27 +20,27 @@
 ?>
 
 <script type="text/x-jquery-tmpl" id="tmpl-item-row-<?= GRAPH_TYPE_NORMAL ?>">
-	<tr id="items_#{number}" class="sortable">
+	<tr id="items_#{number}" class="graph-item">
 		<!-- icon + hidden -->
 		<?php if ($readonly): ?>
 			<td>
 		<?php else: ?>
 			<td class="<?= ZBX_STYLE_TD_DRAG_ICON ?>">
 				<div class="<?= ZBX_STYLE_DRAG_ICON ?>"></div>
-				<span class="ui-icon ui-icon-arrowthick-2-n-s move"></span>
 		<?php endif ?>
 			<input type="hidden" id="items_#{number}_gitemid" name="items[#{number}][gitemid]" value="#{gitemid}">
 			<input type="hidden" id="items_#{number}_itemid" name="items[#{number}][itemid]" value="#{itemid}">
 			<input type="hidden" id="items_#{number}_sortorder" name="items[#{number}][sortorder]" value="#{sortorder}">
 			<input type="hidden" id="items_#{number}_flags" name="items[#{number}][flags]" value="#{flags}">
 			<input type="hidden" id="items_#{number}_type" name="items[#{number}][type]" value="<?= GRAPH_ITEM_SIMPLE ?>">
+			<input type="hidden" id="items_#{number}_calc_fnc" name="items[#{number}][calc_fnc]" value="#{calc_fnc}">
 			<input type="hidden" id="items_#{number}_drawtype" name="items[#{number}][drawtype]" value="#{drawtype}">
 			<input type="hidden" id="items_#{number}_yaxisside" name="items[#{number}][yaxisside]" value="#{yaxisside}">
 		</td>
 
 		<!-- row number -->
 		<td>
-			<span id="items_#{number}_number" class="items_number">#{number_nr}:</span>
+			<span class="<?= ZBX_STYLE_LIST_NUMBERED_ITEM ?>">:</span>
 		</td>
 
 		<!-- name -->
@@ -60,30 +55,35 @@
 		<!-- function -->
 		<td>
 			<?= (new CSelect('items[#{number}][calc_fnc]'))
-					->setId('items_#{number}_calc_fnc')
+					->setValue('#{calc_fnc}')
 					->addOptions(CSelect::createOptionsFromArray([
-						CALC_FNC_ALL =>_('all'),
-						CALC_FNC_MIN =>_('min'),
-						CALC_FNC_AVG =>_('avg'),
-						CALC_FNC_MAX =>_('max')
+						CALC_FNC_ALL => _('all'),
+						CALC_FNC_MIN => _('min'),
+						CALC_FNC_AVG => _('avg'),
+						CALC_FNC_MAX => _('max')
 					]))
+					->setReadonly($readonly)
 			?>
 		</td>
 
 		<!-- drawtype -->
 		<td>
 			<?= (new CSelect('items[#{number}][drawtype]'))
+					->setValue('#{drawtype}')
 					->addOptions(CSelect::createOptionsFromArray($graph_item_drawtypes))
+					->setReadonly($readonly)
 			?>
 		</td>
 
 		<!-- yaxisside -->
 		<td>
 			<?= (new CSelect('items[#{number}][yaxisside]'))
+					->setValue('#{yaxisside}')
 					->addOptions(CSelect::createOptionsFromArray([
-						GRAPH_YAXIS_SIDE_LEFT =>_('Left'),
-						GRAPH_YAXIS_SIDE_RIGHT =>_('Right')
+						GRAPH_YAXIS_SIDE_LEFT => _('Left'),
+						GRAPH_YAXIS_SIDE_RIGHT => _('Right')
 					]))
+					->setReadonly($readonly)
 			?>
 		</td>
 
@@ -102,27 +102,27 @@
 </script>
 
 <script type="text/x-jquery-tmpl" id="tmpl-item-row-<?= GRAPH_TYPE_STACKED ?>">
-	<tr id="items_#{number}" class="sortable">
+	<tr id="items_#{number}" class="graph-item">
 		<!-- icon + hidden -->
 		<?php if ($readonly): ?>
 			<td>
 		<?php else: ?>
 			<td class="<?= ZBX_STYLE_TD_DRAG_ICON ?>">
 				<div class="<?= ZBX_STYLE_DRAG_ICON ?>"></div>
-				<span class="ui-icon ui-icon-arrowthick-2-n-s move"></span>
 		<?php endif ?>
 			<input type="hidden" id="items_#{number}_gitemid" name="items[#{number}][gitemid]" value="#{gitemid}">
 			<input type="hidden" id="items_#{number}_itemid" name="items[#{number}][itemid]" value="#{itemid}">
 			<input type="hidden" id="items_#{number}_sortorder" name="items[#{number}][sortorder]" value="#{sortorder}">
 			<input type="hidden" id="items_#{number}_flags" name="items[#{number}][flags]" value="#{flags}">
 			<input type="hidden" id="items_#{number}_type" name="items[#{number}][type]" value="<?= GRAPH_ITEM_SIMPLE ?>">
+			<input type="hidden" id="items_#{number}_calc_fnc" name="items[#{number}][calc_fnc]" value="#{calc_fnc}">
 			<input type="hidden" id="items_#{number}_drawtype" name="items[#{number}][drawtype]" value="#{drawtype}">
 			<input type="hidden" id="items_#{number}_yaxisside" name="items[#{number}][yaxisside]" value="#{yaxisside}">
 		</td>
 
 		<!-- row number -->
 		<td>
-			<span id="items_#{number}_number" class="items_number">#{number_nr}:</span>
+			<span class="<?= ZBX_STYLE_LIST_NUMBERED_ITEM ?>">:</span>
 		</td>
 
 		<!-- name -->
@@ -137,21 +137,25 @@
 		<!-- function -->
 		<td>
 			<?= (new CSelect('items[#{number}][calc_fnc]'))
-				->setId('items_#{number}_calc_fnc')
-				->addOptions(CSelect::createOptionsFromArray([
-					CALC_FNC_MIN =>_('min'),
-					CALC_FNC_AVG =>_('avg'),
-					CALC_FNC_MAX =>_('max')
-				]))
+					->setValue('#{calc_fnc}')
+					->addOptions(CSelect::createOptionsFromArray([
+						CALC_FNC_MIN => _('min'),
+						CALC_FNC_AVG => _('avg'),
+						CALC_FNC_MAX => _('max')
+					]))
+					->setReadonly($readonly)
 			?>
 		</td>
 
 		<!-- yaxisside -->
 		<td>
-			<?= (new CSelect('items[#{number}][yaxisside]'))->addOptions(CSelect::createOptionsFromArray([
-					GRAPH_YAXIS_SIDE_LEFT =>_('Left'),
-					GRAPH_YAXIS_SIDE_RIGHT =>_('Right')
-				]))
+			<?= (new CSelect('items[#{number}][yaxisside]'))
+					->setValue('#{yaxisside}')
+					->addOptions(CSelect::createOptionsFromArray([
+						GRAPH_YAXIS_SIDE_LEFT => _('Left'),
+						GRAPH_YAXIS_SIDE_RIGHT => _('Right')
+					]))
+					->setReadonly($readonly)
 			?>
 		</td>
 
@@ -170,27 +174,27 @@
 </script>
 
 <script type="text/x-jquery-tmpl" id="tmpl-item-row-<?= GRAPH_TYPE_PIE ?>">
-	<tr id="items_#{number}" class="sortable">
+	<tr id="items_#{number}" class="graph-item">
 		<!-- icon + hidden -->
 		<?php if ($readonly): ?>
 			<td>
 		<?php else: ?>
 			<td class="<?= ZBX_STYLE_TD_DRAG_ICON ?>">
 				<div class="<?= ZBX_STYLE_DRAG_ICON ?>"></div>
-				<span class="ui-icon ui-icon-arrowthick-2-n-s move"></span>
 		<?php endif ?>
 			<input type="hidden" id="items_#{number}_gitemid" name="items[#{number}][gitemid]" value="#{gitemid}">
 			<input type="hidden" id="items_#{number}_itemid" name="items[#{number}][itemid]" value="#{itemid}">
 			<input type="hidden" id="items_#{number}_sortorder" name="items[#{number}][sortorder]" value="#{sortorder}">
 			<input type="hidden" id="items_#{number}_flags" name="items[#{number}][flags]" value="#{flags}">
-			<input type="hidden" id="items_#{number}_type" name="items[#{number}][type]" value="<?= GRAPH_ITEM_SIMPLE ?>">
-			<input type="hidden" id="items_#{number}_drawtype" name="items[#{number}][drawtype]" value="#{drawtype}">
-			<input type="hidden" id="items_#{number}_yaxisside" name="items[#{number}][yaxisside]" value="#{yaxisside}">
+			<input type="hidden" id="items_#{number}_type" name="items[#{number}][type]" value="#{type}">
+			<input type="hidden" id="items_#{number}_calc_fnc" name="items[#{number}][calc_fnc]" value="#{calc_fnc}">
+			<input type="hidden" id="items_#{number}_drawtype" name="items[#{number}][drawtype]" value="<?= GRAPH_ITEM_DRAWTYPE_LINE ?>">
+			<input type="hidden" id="items_#{number}_yaxisside" name="items[#{number}][yaxisside]" value="<?= GRAPH_YAXIS_SIDE_LEFT ?>">
 		</td>
 
 		<!-- row number -->
 		<td>
-			<span id="items_#{number}_number" class="items_number">#{number_nr}:</span>
+			<span class="<?= ZBX_STYLE_LIST_NUMBERED_ITEM ?>">:</span>
 		</td>
 
 		<!-- name -->
@@ -204,23 +208,27 @@
 
 		<!-- type -->
 		<td>
-			<?= (new CSelect('items[#{number}][type]'))->addOptions(CSelect::createOptionsFromArray([
-					GRAPH_ITEM_SIMPLE =>_('Simple'),
-					GRAPH_ITEM_SUM =>_('Graph sum')
-				]))
+			<?= (new CSelect('items[#{number}][type]'))
+					->setValue('#{type}')
+					->addOptions(CSelect::createOptionsFromArray([
+						GRAPH_ITEM_SIMPLE =>_('Simple'),
+						GRAPH_ITEM_SUM =>_('Graph sum')
+					]))
+					->setReadonly($readonly)
 			?>
 		</td>
 
 		<!-- function -->
 		<td>
 			<?= (new CSelect('items[#{number}][calc_fnc]'))
-				->setId('items_#{number}_calc_fnc')
-				->addOptions(CSelect::createOptionsFromArray([
-					CALC_FNC_MIN =>_('min'),
-					CALC_FNC_AVG =>_('avg'),
-					CALC_FNC_MAX =>_('max'),
-					CALC_FNC_LST =>_('last')
-				]))
+					->setValue('#{calc_fnc}')
+					->addOptions(CSelect::createOptionsFromArray([
+						CALC_FNC_MIN => _('min'),
+						CALC_FNC_AVG => _('avg'),
+						CALC_FNC_MAX => _('max'),
+						CALC_FNC_LST => _('last')
+					]))
+					->setReadonly($readonly)
 			?>
 		</td>
 
@@ -239,27 +247,27 @@
 </script>
 
 <script type="text/x-jquery-tmpl" id="tmpl-item-row-<?= GRAPH_TYPE_EXPLODED ?>">
-	<tr id="items_#{number}" class="sortable">
+	<tr id="items_#{number}" class="graph-item">
 		<!-- icon + hidden -->
 		<?php if ($readonly): ?>
 			<td>
 		<?php else: ?>
 			<td class="<?= ZBX_STYLE_TD_DRAG_ICON ?>">
 				<div class="<?= ZBX_STYLE_DRAG_ICON ?>"></div>
-				<span class="ui-icon ui-icon-arrowthick-2-n-s move"></span>
 		<?php endif ?>
 			<input type="hidden" id="items_#{number}_gitemid" name="items[#{number}][gitemid]" value="#{gitemid}">
 			<input type="hidden" id="items_#{number}_itemid" name="items[#{number}][itemid]" value="#{itemid}">
 			<input type="hidden" id="items_#{number}_sortorder" name="items[#{number}][sortorder]" value="#{sortorder}">
 			<input type="hidden" id="items_#{number}_flags" name="items[#{number}][flags]" value="#{flags}">
-			<input type="hidden" id="items_#{number}_type" name="items[#{number}][type]" value="<?= GRAPH_ITEM_SIMPLE ?>">
-			<input type="hidden" id="items_#{number}_drawtype" name="items[#{number}][drawtype]" value="#{drawtype}">
-			<input type="hidden" id="items_#{number}_yaxisside" name="items[#{number}][yaxisside]" value="#{yaxisside}">
+			<input type="hidden" id="items_#{number}_type" name="items[#{number}][type]" value="#{type}">
+			<input type="hidden" id="items_#{number}_calc_fnc" name="items[#{number}][calc_fnc]" value="#{calc_fnc}">
+			<input type="hidden" id="items_#{number}_drawtype" name="items[#{number}][drawtype]" value="<?= GRAPH_ITEM_DRAWTYPE_LINE ?>">
+			<input type="hidden" id="items_#{number}_yaxisside" name="items[#{number}][yaxisside]" value="<?= GRAPH_YAXIS_SIDE_LEFT ?>">
 		</td>
 
 		<!-- row number -->
 		<td>
-			<span id="items_#{number}_number" class="items_number">#{number_nr}:</span>
+			<span class="<?= ZBX_STYLE_LIST_NUMBERED_ITEM ?>">:</span>
 		</td>
 
 		<!-- name -->
@@ -273,23 +281,27 @@
 
 		<!-- type -->
 		<td>
-			<?= (new CSelect('items[#{number}][type]'))->addOptions(CSelect::createOptionsFromArray([
-					GRAPH_ITEM_SIMPLE =>_('Simple'),
-					GRAPH_ITEM_SUM =>_('Graph sum')
-				]))
+			<?= (new CSelect('items[#{number}][type]'))
+					->setValue('#{type}')
+					->addOptions(CSelect::createOptionsFromArray([
+						GRAPH_ITEM_SIMPLE => _('Simple'),
+						GRAPH_ITEM_SUM => _('Graph sum')
+					]))
+					->setReadonly($readonly)
 			?>
 		</td>
 
 		<!-- function -->
 		<td>
 			<?= (new CSelect('items[#{number}][calc_fnc]'))
-				->setId('items_#{number}_calc_fnc')
-				->addOptions(CSelect::createOptionsFromArray([
-					CALC_FNC_MIN =>_('min'),
-					CALC_FNC_AVG =>_('avg'),
-					CALC_FNC_MAX =>_('max'),
-					CALC_FNC_LST =>_('last')
-				]))
+					->setValue('#{calc_fnc}')
+					->addOptions(CSelect::createOptionsFromArray([
+						CALC_FNC_MIN => _('min'),
+						CALC_FNC_AVG => _('avg'),
+						CALC_FNC_MAX => _('max'),
+						CALC_FNC_LST => _('last')
+					]))
+					->setReadonly($readonly)
 			?>
 		</td>
 
@@ -311,22 +323,27 @@
 	const view = {
 		form_name: null,
 		graphs: null,
+		context: null,
+		parent_discoveryid: null,
 
-		init({form_name, theme_colors, graphs, items}) {
+		init({form_name, theme_colors, graphs, items, context, parent_discoveryid}) {
 			this.form_name = form_name;
 			colorPalette.setThemeColors(theme_colors);
 			this.graphs = graphs;
+			this.context = context;
+			this.is_discovery = parent_discoveryid !== null;
 
-			for (let i = 0; i < items.length; i++) {
-				const name = items[i].host + '<?= NAME_DELIMITER ?>' + items[i].name;
+			items.forEach((item, i) => {
+				item.number = i;
+				item.name = item.host + '<?= NAME_DELIMITER ?>' + item.name;
 
-				this.loadItem(i, items[i].gitemid, items[i].itemid, name, items[i].type, items[i].calc_fnc,
-					items[i].drawtype, items[i].yaxisside, items[i].color, items[i].flags
-				);
-			}
+				this.loadItem(item);
+			});
 
-			$('#tabs').on('tabsactivate', (event, ui) => {
-				if (ui.newPanel.attr('id') === 'previewTab') {
+			$('#tabs').on('tabscreate tabsactivate', (event, ui) => {
+				const $panel = (event.type === 'tabscreate') ? ui.panel : ui.newPanel;
+
+				if ($panel.attr('id') === 'previewTab') {
 					const $preview_chart = $('#previewChart');
 					const src = new Curl('chart3.php');
 
@@ -340,6 +357,7 @@
 					src.setArgument('height', $('#height').val());
 					src.setArgument('graphtype', $('#graphtype').val());
 					src.setArgument('legend', $('#show_legend').is(':checked') ? 1 : 0);
+					src.setArgument('resolve_macros', this.context === 'template' ? 0 : 1);
 
 					if (this.graphs.graphtype == <?= GRAPH_TYPE_PIE ?>
 							|| this.graphs.graphtype == <?= GRAPH_TYPE_EXPLODED ?>) {
@@ -355,18 +373,33 @@
 						src.setArgument('ymax_type', $('#ymax_type').val());
 						src.setArgument('yaxismin', $('#yaxismin').val());
 						src.setArgument('yaxismax', $('#yaxismax').val());
-						src.setArgument('ymin_itemid', $('#ymin_itemid').val());
-						src.setArgument('ymax_itemid', $('#ymax_itemid').val());
+
+						if ($('#ymin_type').val() == <?= GRAPH_YAXIS_TYPE_ITEM_VALUE ?>) {
+							const ymin_item_data = $('#ymin_itemid').multiSelect('getData');
+
+							if (ymin_item_data.length) {
+								src.setArgument('ymin_itemid', ymin_item_data[0]['id']);
+							}
+						}
+
+						if ($('#ymax_type').val() == <?= GRAPH_YAXIS_TYPE_ITEM_VALUE ?>) {
+							const ymax_item_data = $('#ymax_itemid').multiSelect('getData');
+
+							if (ymax_item_data.length) {
+								src.setArgument('ymax_itemid', ymax_item_data[0]['id']);
+							}
+						}
+
 						src.setArgument('showworkperiod', $('#show_work_period').is(':checked') ? 1 : 0);
 						src.setArgument('showtriggers', $('#show_triggers').is(':checked') ? 1 : 0);
 					}
 
-					$('#itemsTable tr.sortable').each((i, node) => {
+					$('#itemsTable tbody tr.graph-item').each((i, node) => {
 						const short_fmt = [];
 
 						$(node).find('*[name]').each((_, input) => {
 							if (!$.isEmptyObject(input) && input.name != null) {
-								const regex = /items\[[\d+]\]\[([a-zA-Z0-9\-\_\.]+)\]/;
+								const regex = /items\[\d+\]\[([a-zA-Z0-9\-\_\.]+)\]/;
 								const name = input.name.match(regex);
 
 								short_fmt.push((name[1]).substr(0, 2) + ':' + input.value);
@@ -394,14 +427,15 @@
 			});
 
 			if (this.graphs.readonly) {
-				$('#itemsTable').sortable({disabled: true}).find('input').prop('readonly', true);
-				$('z-select', '#itemsTable').prop('disabled', true);
-
-				const size = $('#itemsTable tr.sortable').length;
+				const size = $('#itemsTable tbody tr.graph-item').length;
 
 				for (let i = 0; i < size; i++) {
-					$('#items_' + i + '_color').removeAttr('onchange');
-					$('#lbl_items_' + i + '_color').removeAttr('onclick');
+					$('#items_' + i + '_color')
+						.removeAttr('onchange')
+						.prop('readonly', true);
+					$('#lbl_items_' + i + '_color')
+						.removeAttr('onclick')
+						.prop('readonly', true);
 				}
 			}
 
@@ -451,40 +485,24 @@
 				$('form[name="' + view.form_name + '"]').submit();
 			});
 
-			!this.graphs.readonly && this.initSortable();
+			new CSortable(document.querySelector('#itemsTable tbody'), {
+				selector_handle: 'div.<?= ZBX_STYLE_DRAG_ICON ?>',
+				freeze_end: 1,
+				enable_sorting: !this.graphs.readonly
+			})
+				.on(CSortable.EVENT_SORT, this.recalculateSortOrder);
+
+			!this.graphs.readonly && this.rewriteNameLinks();
+
+			this.initPopupListeners();
 		},
 
-		loadItem(number, gitemid, itemid, name, type, calc_fnc, drawtype, yaxisside, color, flags) {
-			const item = {
-				number: number,
-				number_nr: number + 1,
-				gitemid: gitemid,
-				itemid: itemid,
-				calc_fnc: calc_fnc,
-				color: color,
-				sortorder: number,
-				flags: flags,
-				name: name
-			};
+		loadItem(item) {
 			const itemTpl = new Template($('#tmpl-item-row-' + this.graphs.graphtype).html());
 			const $row = $(itemTpl.evaluate(item));
 
-			$row.find('#items_' + number + '_type').val(type);
-			$row.find('#items_' + number + '_drawtype').val(drawtype);
-			$row.find('#items_' + number + '_yaxisside').val(yaxisside);
-
-			const $calc_fnc = $row.find('#items_' + number + '_calc_fnc');
-
-			$calc_fnc.val(calc_fnc);
-
-			if ($calc_fnc[0].selectedIndex < 0) {
-				$calc_fnc[0].selectedIndex = 0;
-			}
-
 			$('#itemButtonsRow').before($row);
 			$row.find('.<?= ZBX_STYLE_COLOR_PICKER ?> input').colorpicker();
-
-			colorPalette.incrementNextColor();
 
 			!this.graphs.readonly && this.rewriteNameLinks();
 		},
@@ -497,13 +515,21 @@
 				return false;
 			}
 
+			const form = document.getElementsByName(this.form_name)[0];
 			const itemTpl = new Template($('#tmpl-item-row-' + this.graphs.graphtype).html());
 
 			for (let i = 0; i < list.values.length; i++) {
-				const number = $('#itemsTable tr.sortable').length;
+				const used_colors = [];
+
+				for (const color of form.querySelectorAll('.<?= ZBX_STYLE_COLOR_PICKER ?> input')) {
+					if (color.value !== '') {
+						used_colors.push(color.value);
+					}
+				}
+
+				const number = $('#itemsTable tbody tr.graph-item').length;
 				const item = {
 					number: number,
-					number_nr: number + 1,
 					gitemid: null,
 					itemid: list.values[i].itemid,
 					calc_fnc: null,
@@ -511,7 +537,7 @@
 					yaxisside: 0,
 					sortorder: number,
 					flags: (typeof list.values[i].flags === 'undefined') ? 0 : list.values[i].flags,
-					color: colorPalette.getNextColor(),
+					color: colorPalette.getNextColor(used_colors),
 					name: list.values[i].name
 				};
 				const $row = $(itemTpl.evaluate(item));
@@ -521,10 +547,7 @@
 				$(`#items_${number}_color`).colorpicker();
 			}
 
-			if (!this.graphs.readonly) {
-				this.activateSortable();
-				this.rewriteNameLinks();
-			}
+			!this.graphs.readonly && this.rewriteNameLinks();
 		},
 
 		getOnlyHostParam() {
@@ -534,7 +557,7 @@
 		},
 
 		rewriteNameLinks() {
-			const size = $('#itemsTable tr.sortable').length;
+			const size = $('#itemsTable tbody tr.graph-item').length;
 
 			for (let i = 0; i < size; i++) {
 				const parameters = {
@@ -544,7 +567,6 @@
 					dstfld1: 'items_' + i + '_itemid',
 					dstfld2: 'items_' + i + '_name',
 					numeric: 1,
-					with_webitems: 1,
 					writeonly: 1
 				};
 
@@ -568,7 +590,7 @@
 
 				$('#items_' + i + '_name').attr('onclick', 'PopUp("popup.generic", ' +
 					'$.extend(' + JSON.stringify(parameters) + ', view.getOnlyHostParam()),' +
-					'{dialogue_class: "modal-popup-generic", trigger_element: this});'
+					'{dialogue_class: "modal-popup-generic", trigger_element: this.parentNode});'
 				);
 			}
 		},
@@ -580,61 +602,41 @@
 			$('#items_' + number).remove();
 
 			this.recalculateSortOrder();
-			!this.graphs.readonly && this.activateSortable();
 		},
 
 		recalculateSortOrder() {
 			let i = 0;
 
 			// Rewrite IDs, set "tmp" prefix.
-			$('#itemsTable tr.sortable').find('*[id]').each(function() {
+			$('#itemsTable tbody tr.graph-item').find('*[id]').each(function() {
 				const $obj = $(this);
 
 				$obj.attr('id', 'tmp' + $obj.attr('id'));
 			});
 
-			$('#itemsTable tr.sortable').each(function() {
+			$('#itemsTable tbody tr.graph-item').each(function() {
 				const $obj = $(this);
 
 				$obj.attr('id', 'tmp' + $obj.attr('id'));
 			});
 
-			// Rewrite IDs to new order.
-			$('#itemsTable tr.sortable').each(function() {
-				const $obj = $(this);
+			for (const [index, row] of document.querySelectorAll('#itemsTable tbody tr.graph-item').entries()) {
+				row.id = row.id.substring(3).replace(/\d+/, `${index}`);
 
-				// Rewrite IDs in input fields.
-				$obj.find('*[id]').each(function() {
-					const $obj = $(this);
-					const id = $obj.attr('id').substring(3);
-					const part1 = id.substring(0, id.indexOf('items_') + 5);
-					let part2 = id.substring(id.indexOf('items_') + 6);
+				row.querySelectorAll('[id]').forEach(element => {
+					element.id = element.id.substring(3).replace(/\d+/, `${index}`);
 
-					part2 = part2.substring(part2.indexOf('_') + 1);
-
-					$obj.attr('id', part1 + '_' + i + '_' + part2);
-
-					// Set sortorder.
-					if (part2 === 'sortorder') {
-						$obj.val(i);
+					if (element.id.includes('sortorder')) {
+						element.value = index;
 					}
 				});
 
-				// Rewrite IDs in <tr>.
-				const id = $obj.attr('id').substring(3);
-				const part1 = id.substring(0, id.indexOf('items_') + 5);
+				row.querySelectorAll('[name]').forEach(element => {
+					element.name = element.name.replace(/\d+/, `${index}`);
+				});
+			}
 
-				$obj.attr('id', part1 + '_' + i);
-
-				i++;
-			});
-
-			i = 0;
-
-			$('#itemsTable tr.sortable').each(function() {
-				// Set row number.
-				$('.items_number', this).text((i + 1) + ':');
-
+			$('#itemsTable tbody tr.graph-item').each(function() {
 				// Set remove number.
 				$('#items_' + i + '_remove').data('remove', i);
 
@@ -644,106 +646,33 @@
 			!view.graphs.readonly && view.rewriteNameLinks();
 		},
 
-		initSortable() {
-			$('#itemsTable').sortable({
-				disabled: ($('#itemsTable tr.sortable').length < 2),
-				items: 'tbody tr.sortable',
-				axis: 'y',
-				containment: 'parent',
-				cursor: 'grabbing',
-				handle: 'div.<?= ZBX_STYLE_DRAG_ICON ?>',
-				tolerance: 'pointer',
-				opacity: 0.6,
-				update: this.recalculateSortOrder,
-				helper: (e, ui) => {
-					for (const td of ui.find('>td')) {
-						const $td = $(td);
-						$td.attr('width', $td.width())
-					}
-
-					// When dragging element on safari, it jumps out of the table.
-					if (SF) {
-						// Move back draggable element to proper position.
-						ui.css('left', (ui.offset().left - 2) + 'px');
-					}
-
-					return ui;
-				},
-				stop: (e, ui) => {
-					ui.item.find('>td').removeAttr('width');
-				},
-				start: (e, ui) => {
-					$(ui.placeholder).height($(ui.helper).height());
-				}
-			});
-		},
-
-		activateSortable() {
-			$('#itemsTable').sortable({disabled: ($('#itemsTable tr.sortable').length < 2)});
-		},
-
-		editHost(e, hostid) {
-			e.preventDefault();
-			const host_data = {hostid};
-
-			this.openHostPopup(host_data);
-		},
-
-		openHostPopup(host_data) {
-			const original_url = location.href;
-			const overlay = PopUp('popup.host.edit', host_data, {
-				dialogueid: 'host_edit',
-				dialogue_class: 'modal-popup-large',
-				prevent_navigation: true
-			});
-
-			overlay.$dialogue[0].addEventListener('dialogue.create', this.events.hostSuccess, {once: true});
-			overlay.$dialogue[0].addEventListener('dialogue.update', this.events.hostSuccess, {once: true});
-			overlay.$dialogue[0].addEventListener('dialogue.delete', this.events.hostDelete, {once: true});
-			overlay.$dialogue[0].addEventListener('overlay.close', () => {
-				history.replaceState({}, '', original_url);
-			}, {once: true});
-		},
-
 		refresh() {
-			const url = new Curl('', false);
+			const url = new Curl('');
 			const form = document.getElementsByName(this.form_name)[0];
 			const fields = getFormFields(form);
 
 			post(url.getUrl(), fields);
 		},
 
-		events: {
-			hostSuccess(e) {
-				const data = e.detail;
+		initPopupListeners() {
+			ZABBIX.EventHub.subscribe({
+				require: {
+					context: CPopupManager.EVENT_CONTEXT,
+					event: CPopupManagerEvent.EVENT_SUBMIT
+				},
+				callback: ({data, event}) => {
+					if (data.submit.success.action === 'delete') {
+						const url = new URL(this.is_discovery ? 'host_discovery.php' : 'graphs.php', location.href);
 
-				if ('success' in data) {
-					postMessageOk(data.success.title);
+						url.searchParams.set('context', this.context);
 
-					if ('messages' in data.success) {
-						postMessageDetails('success', data.success.messages);
+						event.setRedirectUrl(url.href);
+					}
+					else {
+						this.refresh();
 					}
 				}
-
-				view.refresh();
-			},
-
-			hostDelete(e) {
-				const data = e.detail;
-
-				if ('success' in data) {
-					postMessageOk(data.success.title);
-
-					if ('messages' in data.success) {
-						postMessageDetails('success', data.success.messages);
-					}
-				}
-
-				const curl = new Curl('zabbix.php', false);
-				curl.setArgument('action', 'host.list');
-
-				location.href = curl.getUrl();
-			}
+			});
 		}
 	};
 </script>

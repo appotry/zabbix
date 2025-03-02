@@ -1,27 +1,23 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-#include "common.h"
-#include "sysinfo.h"
-#include "log.h"
+#include "zbxsysinfo.h"
+#include "../sysinfo.h"
 
-int	get_diskstat(const char *devname, zbx_uint64_t *dstat)
+#include "zbxstr.h"
+
+int	zbx_get_diskstat(const char *devname, zbx_uint64_t *dstat)
 {
 	return FAIL;
 }
@@ -29,14 +25,12 @@ int	get_diskstat(const char *devname, zbx_uint64_t *dstat)
 static int	get_disk_stats(const char *devname, zbx_uint64_t *rbytes, zbx_uint64_t *wbytes, zbx_uint64_t *roper,
 		zbx_uint64_t *woper, char **error)
 {
-	int			ret = SYSINFO_RET_FAIL, mib[2], i, drive_count;
-	size_t			len;
+	int			ret = SYSINFO_RET_FAIL, mib[2], drive_count;
+	size_t			len = sizeof(drive_count);
 	struct diskstats	*stats;
 
 	mib[0] = CTL_HW;
 	mib[1] = HW_DISKCOUNT;
-
-	len = sizeof(drive_count);
 
 	if (0 != sysctl(mib, 2, &drive_count, &len, NULL, 0))
 	{
@@ -67,7 +61,7 @@ static int	get_disk_stats(const char *devname, zbx_uint64_t *rbytes, zbx_uint64_
 		return SYSINFO_RET_FAIL;
 	}
 
-	for (i = 0; i < drive_count; i++)
+	for (int i = 0; i < drive_count; i++)
 	{
 		if (NULL == devname || '\0' == *devname || 0 == strcmp(devname, "all") ||
 				0 == strcmp(devname, stats[i].ds_name))
@@ -96,7 +90,7 @@ static int	get_disk_stats(const char *devname, zbx_uint64_t *rbytes, zbx_uint64_
 	return ret;
 }
 
-static int	VFS_DEV_READ_BYTES(const char *devname, AGENT_RESULT *result)
+static int	vfs_dev_read_bytes(const char *devname, AGENT_RESULT *result)
 {
 	zbx_uint64_t	value;
 	char		*error;
@@ -112,7 +106,7 @@ static int	VFS_DEV_READ_BYTES(const char *devname, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-static int	VFS_DEV_READ_OPERATIONS(const char *devname, AGENT_RESULT *result)
+static int	vfs_dev_read_operations(const char *devname, AGENT_RESULT *result)
 {
 	zbx_uint64_t	value;
 	char		*error;
@@ -128,7 +122,7 @@ static int	VFS_DEV_READ_OPERATIONS(const char *devname, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-static int	VFS_DEV_WRITE_BYTES(const char *devname, AGENT_RESULT *result)
+static int	vfs_dev_write_bytes(const char *devname, AGENT_RESULT *result)
 {
 	zbx_uint64_t	value;
 	char		*error;
@@ -144,7 +138,7 @@ static int	VFS_DEV_WRITE_BYTES(const char *devname, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-static int	VFS_DEV_WRITE_OPERATIONS(const char *devname, AGENT_RESULT *result)
+static int	vfs_dev_write_operations(const char *devname, AGENT_RESULT *result)
 {
 	zbx_uint64_t	value;
 	char		*error;
@@ -160,7 +154,7 @@ static int	VFS_DEV_WRITE_OPERATIONS(const char *devname, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-int	VFS_DEV_READ(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	vfs_dev_read(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	char	*devname, *mode;
 	int	ret;
@@ -175,9 +169,9 @@ int	VFS_DEV_READ(AGENT_REQUEST *request, AGENT_RESULT *result)
 	mode = get_rparam(request, 1);
 
 	if (NULL == mode || '\0' == *mode || 0 == strcmp(mode, "operations"))
-		ret = VFS_DEV_READ_OPERATIONS(devname, result);
+		ret = vfs_dev_read_operations(devname, result);
 	else if (0 == strcmp(mode, "bytes"))
-		ret = VFS_DEV_READ_BYTES(devname, result);
+		ret = vfs_dev_read_bytes(devname, result);
 	else
 	{
 		SET_MSG_RESULT(result, zbx_strdup(NULL, "Invalid second parameter."));
@@ -187,7 +181,7 @@ int	VFS_DEV_READ(AGENT_REQUEST *request, AGENT_RESULT *result)
 	return ret;
 }
 
-int	VFS_DEV_WRITE(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	vfs_dev_write(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	char	*devname, *mode;
 	int	ret;
@@ -202,9 +196,9 @@ int	VFS_DEV_WRITE(AGENT_REQUEST *request, AGENT_RESULT *result)
 	mode = get_rparam(request, 1);
 
 	if (NULL == mode || '\0' == *mode || 0 == strcmp(mode, "operations"))
-		ret = VFS_DEV_WRITE_OPERATIONS(devname, result);
+		ret = vfs_dev_write_operations(devname, result);
 	else if (0 == strcmp(mode, "bytes"))
-		ret = VFS_DEV_WRITE_BYTES(devname, result);
+		ret = vfs_dev_write_bytes(devname, result);
 	else
 	{
 		SET_MSG_RESULT(result, zbx_strdup(NULL, "Invalid second parameter."));

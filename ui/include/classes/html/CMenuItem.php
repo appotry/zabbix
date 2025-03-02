@@ -1,21 +1,16 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -188,36 +183,17 @@ class CMenuItem extends CTag {
 	public function setSelectedByAction(string $action_name, array $request_params, bool $expand = false): bool {
 		if (array_key_exists($action_name, $this->aliases)) {
 			foreach ($this->aliases[$action_name] as $alias_params) {
-				$no_unacceptable_params = true;
-				$unacceptable_params = [];
+				$has_mandatory_params = true;
+
 				foreach ($alias_params as $name => $value) {
-					if ($name[0] === '!') {
-						$unacceptable_params[substr($name, 1)] = $value;
-						unset($alias_params[$name]);
+					if (!array_key_exists($name, $request_params)
+							|| ($value !== '*' && $value !== $request_params[$name])) {
+						$has_mandatory_params = false;
+						break;
 					}
 				}
 
-				if ($unacceptable_params) {
-					$unacceptable_params_existing = array_intersect_assoc($unacceptable_params, $request_params);
-					foreach ($unacceptable_params as $name => $value) {
-						if ($value === '*' && array_key_exists($name, $request_params)) {
-							$unacceptable_params_existing[$name] = '*';
-						}
-					}
-
-					$no_unacceptable_params = array_diff_assoc($unacceptable_params, $unacceptable_params_existing)
-						? true
-						: false;
-				}
-
-				$alias_params_diff = array_diff_assoc($alias_params, $request_params);
-				foreach ($alias_params_diff as $name => $value) {
-					if ($value === '*') {
-						unset($alias_params_diff[$name]);
-					}
-				}
-
-				if ($no_unacceptable_params && !$alias_params_diff) {
+				if ($has_mandatory_params) {
 					$this->setSelected();
 
 					return true;
@@ -313,7 +289,7 @@ class CMenuItem extends CTag {
 	 *
 	 * @return CMenuItem
 	 */
-	public function setUrl(CUrl $url, string $action_name = null): self {
+	public function setUrl(CUrl $url, ?string $action_name = null): self {
 		$action = null;
 
 		if ($action_name !== null) {

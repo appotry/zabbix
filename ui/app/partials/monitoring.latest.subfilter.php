@@ -1,21 +1,16 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2021 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -29,19 +24,28 @@ $subfilters = $data['subfilters'];
 
 $subfilter_options = [];
 
-foreach (['hostids', 'tagnames', 'data'] as $key) {
-	if (!array_key_exists($key, $subfilters) || count($subfilters[$key]) <= 1) {
+foreach (['hostids', 'tagnames', 'state', 'data'] as $key) {
+	if (($key === 'hostids' || $key === 'tagnames' || $key === 'state') && count($subfilters[$key]) == 0) {
 		$subfilter_options[$key] = null;
+
 		continue;
 	}
-	else {
-		$subfilter_options[$key] = [];
+
+	$subfilter_options[$key] = [];
+
+	// Remove non-selected filter fields with 0 occurrences (for hosts and tag names).
+	if ($key === 'hostids' || $key === 'tagnames' || $key === 'state') {
+		$subfilters[$key] = array_filter($subfilters[$key], function ($field) {
+			return $field['selected'] || $field['count'] > 0;
+		});
 	}
 
-	// Remove non-selected filter fields with 0 occurrences.
-	$subfilters[$key] = array_filter($subfilters[$key], function ($field) {
-		return ($field['selected'] || $field['count'] != 0);
-	});
+	if ($key === 'state'
+			&& (!$subfilters[$key] || (count($subfilters[$key]) == 1 && !current($subfilters[$key])['selected']))) {
+		$subfilter_options[$key] = null;
+
+		continue;
+	}
 
 	$subfilter_used = (bool) array_filter($subfilters[$key], function ($field) {
 		return $field['selected'];
@@ -64,21 +68,24 @@ foreach (['hostids', 'tagnames', 'data'] as $key) {
 				->addClass(ZBX_STYLE_SUBFILTER_ENABLED);
 		}
 		else {
-			if ($element['count'] == 0) {
-				$subfilter_options[$key][] = (new CSpan([
-					(new CSpan($element['name']))->addClass(ZBX_STYLE_GREY),
-					' ',
-					new CSup($element['count'])
-				]))->addClass(ZBX_STYLE_SUBFILTER);
-			}
-			else {
+			if ($element['count'] > 0 || $key === 'data') {
+				// Data subfilter counters are only known when the filter is in use.
+				$count_text = $key !== 'data' || $subfilter_used ? $element['count'] : '';
+
 				$subfilter_options[$key][] = (new CSpan([
 					(new CLinkAction($element['name']))
 						->setAttribute('data-key', $key)
 						->setAttribute('data-value', $value)
 						->onClick('view.setSubfilter([`subfilter_${this.dataset.key}[]`, this.dataset.value]);'),
 					' ',
-					new CSup(($subfilter_used ? '+' : '').$element['count'])
+					new CSup(($subfilter_used ? '+' : '').$count_text)
+				]))->addClass(ZBX_STYLE_SUBFILTER);
+			}
+			else {
+				$subfilter_options[$key][] = (new CSpan([
+					(new CSpan($element['name']))->addClass(ZBX_STYLE_GREY),
+					' ',
+					new CSup($element['count'])
 				]))->addClass(ZBX_STYLE_SUBFILTER);
 			}
 		}
@@ -118,7 +125,9 @@ if (count($subfilters['tags']) > 0) {
 						->setAttribute('data-key', $tag)
 						->setAttribute('data-value', $element['name'])
 						->onClick(
-							'view.unsetSubfilter([`subfilter_tags[${this.dataset.key}][]`, this.dataset.value]);'
+							'view.unsetSubfilter([`subfilter_tags[${encodeURIComponent(this.dataset.key)}][]`,'.
+								'this.dataset.value]'.
+							');'
 						),
 					' ',
 					new CSup($element['count'])
@@ -126,17 +135,20 @@ if (count($subfilters['tags']) > 0) {
 					->addClass(ZBX_STYLE_SUBFILTER)
 					->addClass(ZBX_STYLE_SUBFILTER_ENABLED);
 			}
-			else {
-				return (new CSpan([
-					(new CLinkAction($element_name))
-						->addStyle($element_style)
-						->setAttribute('data-key', $tag)
-						->setAttribute('data-value', $element['name'])
-						->onClick('view.setSubfilter([`subfilter_tags[${this.dataset.key}][]`, this.dataset.value]);'),
-					' ',
-					new CSup(($subfilter_used ? '+' : '').$element['count'])
-				]))->addClass(ZBX_STYLE_SUBFILTER);
-			}
+
+			return (new CSpan([
+				(new CLinkAction($element_name))
+					->addStyle($element_style)
+					->setAttribute('data-key', $tag)
+					->setAttribute('data-value', $element['name'])
+					->onClick(
+						'view.setSubfilter([`subfilter_tags[${encodeURIComponent(this.dataset.key)}][]`,'.
+							'this.dataset.value]'.
+						');'
+					),
+				' ',
+				new CSup(($subfilter_used ? '+' : '').$element['count'])
+			]))->addClass(ZBX_STYLE_SUBFILTER);
 		}, $tags_group['values']);
 
 		$tag_values = $tags_group['trimmed'] ? [$tag_values, new CSpan('...')] : $tag_values;
@@ -156,7 +168,8 @@ if (count($subfilters['tags']) > 0) {
 	if (!$tags_expanded && count($subfilter_options['tags']) > CControllerLatest::SUBFILTERS_TAG_VALUE_ROWS) {
 		$subfilter_options['tags'][] = (new CButton('expand_tag_values'))
 			->setAttribute('data-name', 'tags')
-			->addClass(ZBX_STYLE_ICON_WIZARD_ACTION);
+			->addClass(ZBX_STYLE_BTN_ICON)
+			->addClass(ZBX_ICON_MORE);
 	}
 }
 else {
@@ -170,7 +183,7 @@ else {
 		])
 	]], ZBX_STYLE_HOVER_NOBG)
 	->addRow(
-		$subfilter_options['hostids']
+		$subfilter_options['hostids'] !== null
 			? [[
 				new CTag('h3', true, _('Hosts')),
 				(new CExpandableSubfilter('hostids', $subfilter_options['hostids'],
@@ -180,7 +193,7 @@ else {
 			: null
 	)
 	->addRow(
-		$subfilter_options['tagnames']
+		$subfilter_options['tagnames'] !== null
 			? [[
 				new CTag('h3', true, _('Tags')),
 				(new CExpandableSubfilter('tagnames', $subfilter_options['tagnames'],
@@ -190,7 +203,7 @@ else {
 			: null
 	)
 	->addRow(
-		$subfilter_options['tags']
+		$subfilter_options['tags'] !== null
 			? [[
 				new CTag('h3', true, _('Tag values')),
 				$subfilter_options['tags']
@@ -198,7 +211,15 @@ else {
 			: null
 	)
 	->addRow(
-		$subfilter_options['data']
+		$subfilter_options['state'] !== null
+			? [[
+				new CTag('h3', true, _('State')),
+				$subfilter_options['state']
+			]]
+			: null
+	)
+	->addRow(
+		$subfilter_options['data'] !== null
 			? [[
 				new CTag('h3', true, _('Data')),
 				$subfilter_options['data']

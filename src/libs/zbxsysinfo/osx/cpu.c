@@ -1,26 +1,21 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-#include "common.h"
-#include "sysinfo.h"
-#include "stats.h"
-#include "log.h"
+#include "zbxsysinfo.h"
+#include "../sysinfo.h"
+
+#include "../common/stats.h"
 
 static int	get_cpu_num(int online)
 {
@@ -36,7 +31,7 @@ static int	get_cpu_num(int online)
 	return cpu_num;
 }
 
-int	SYSTEM_CPU_NUM(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	system_cpu_num(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	char	*tmp;
 	int	cpu_num, online = 0;
@@ -68,7 +63,7 @@ int	SYSTEM_CPU_NUM(AGENT_REQUEST *request, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-int	SYSTEM_CPU_LOAD(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	system_cpu_load(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	char	*tmp;
 	int	mode, per_cpu = 1, cpu_num;

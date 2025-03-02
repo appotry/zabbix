@@ -1,7 +1,10 @@
 ## Process this file with automake to produce Makefile.in
 
-noinst_LIBRARIES = libzbxserver_proxy.a
+noinst_LIBRARIES = libzbxstats_proxy.a
 
-libzbxserver_proxy_a_SOURCES = \
-	zabbix_stats.h \
-	zabbix_stats_proxy.c
+libzbxstats_proxy_a_SOURCES = \
+	stats_proxy.h \
+	stats_proxy.c
+
+libzbxstats_proxy_a_CFLAGS = \
+	$(TLS_CFLAGS)

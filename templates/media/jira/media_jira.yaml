@@ -1,62 +1,44 @@
 zabbix_export:
-  version: '5.4'
-  date: '2020-10-16T09:33:48Z'
+  version: '7.4'
   media_types:
-    -
-      name: Jira
+    - name: Jira
       type: WEBHOOK
       parameters:
-        -
-          name: alert_message
+        - name: alert_message
           value: '{ALERT.MESSAGE}'
-        -
-          name: alert_subject
+        - name: alert_subject
           value: '{ALERT.SUBJECT}'
-        -
-          name: event_recovery_value
+        - name: event_recovery_value
           value: '{EVENT.RECOVERY.VALUE}'
-        -
-          name: event_source
+        - name: event_source
           value: '{EVENT.SOURCE}'
-        -
-          name: event_tags_json
+        - name: event_tags_json
           value: '{EVENT.TAGSJSON}'
-        -
-          name: event_update_action
+        - name: event_update_action
           value: '{EVENT.UPDATE.ACTION}'
-        -
-          name: event_update_message
+        - name: event_update_message
           value: '{EVENT.UPDATE.MESSAGE}'
-        -
-          name: event_update_status
+        - name: event_update_status
           value: '{EVENT.UPDATE.STATUS}'
-        -
-          name: event_update_user
+        - name: event_update_user
           value: '{USER.FULLNAME}'
-        -
-          name: event_value
+        - name: event_value
           value: '{EVENT.VALUE}'
-        -
-          name: jira_issue_key
+        - name: jira_issue_key
           value: '{EVENT.TAGS.__zbx_jira_issuekey}'
-        -
-          name: jira_issue_type
+        - name: jira_issue_type
           value: '<PLACE ISSUETYPE NAME>'
-        -
-          name: jira_password
+        - name: jira_password
           value: '<PLACE PASSWORD OR TOKEN>'
-        -
-          name: jira_project_key
+        - name: jira_project_key
           value: '<PLACE PROJECT KEY>'
-        -
-          name: jira_url
+        - name: jira_url
           value: '<PLACE YOUR JIRA URL>'
-        -
-          name: jira_user
+        - name: jira_user
           value: '<PLACE LOGIN>'
-        -
-          name: trigger_description
+        - name: trigger_description
           value: '{TRIGGER.DESCRIPTION}'
+      status: DISABLED
       script: |
         var Jira = {
             params: {},
@@ -80,7 +62,7 @@ zabbix_export:
                 Jira.HTTPProxy = HTTPProxy;
             },
         
-            setTags: function(event_tags_json) {
+            setTags: function (event_tags_json) {
                 if (typeof event_tags_json !== 'undefined' && event_tags_json !== ''
                     && event_tags_json !== '{EVENT.TAGSJSON}') {
                     try {
@@ -121,64 +103,54 @@ zabbix_export:
         
             addCustomFields: function (data, fields) {
                 if (typeof fields === 'object' && Object.keys(fields).length) {
-                    var schema = Jira.getSchema(),
-                        path = ['projects', 0, 'issuetypes', 0, 'fields'],
-                        field;
+                    var schemaData = Jira.request('get', 'field/').response,
+                        schema = {};
         
-                    while ((field = path.shift()) !== undefined) {
-                        schema = schema[field];
-                        if (typeof schema === 'undefined') {
-                            schema = null;
-                            break;
-                        }
-                    }
+                    schemaData.forEach(function (item) {
+                        schema[item.id] = item.schema;
+                    });
         
-                    if (schema) {
-                        Object.keys(fields)
-                            .forEach(function(field) {
-                                if (typeof schema[field] === 'object' && typeof schema[field].schema === 'object') {
-                                    switch (schema[field].schema.type) {
-                                        case 'number':
-                                            data.fields[field] = parseInt(fields[field]);
-                                            break;
+                    Object.keys(fields).forEach(function (field) {
+                        if (typeof schema[field] === 'object' && schema[field].type) {
+                            switch (schema[field].type) {
+                                case 'number':
+                                    data.fields[field] = parseInt(fields[field]);
+                                    break;
         
-                                        case 'datetime':
-                                            if (fields[field].match(/\d+[.-]\d+[.-]\d+T\d+:\d+:\d+/) !== null) {
-                                                data.fields[field] = fields[field].replace(/\./g, '-');
-                                            }
-                                            break;
-        
-                                        case 'option':
-                                            data.fields[field] = {value: fields[field]};
-                                            break;
-        
-                                        case 'array':
-                                            if (schema[field].schema.items === 'option') {
-                                                data.fields[field] = [{value: fields[field]}];
-                                            }
-                                            else {
-                                                data.fields[field] = [fields[field]];
-                                            }
-                                            break;
-        
-                                        default:
-                                            data.fields[field] = fields[field];
+                                case 'datetime':
+                                    if (fields[field].match(/\d+[.-]\d+[.-]\d+T\d+:\d+:\d+/) !== null) {
+                                        data.fields[field] = fields[field].replace(/\./g, '-');
                                     }
-                                }
-                            });
-                    }
-                    else {
-                        Zabbix.log(4, '[ Jira Webhook ] Failed to retrieve field schema.');
-                    }
-                }
+                                    break;
         
+                                case 'option':
+                                    data.fields[field] = { value: fields[field] };
+                                    break;
+        
+                                case 'array':
+                                    if (schema[field].items === 'option') {
+                                        data.fields[field] = [{ value: fields[field] }];
+                                    } else {
+                                        data.fields[field] = [fields[field]];
+                                    }
+                                    break;
+        
+                                default:
+                                    data.fields[field] = fields[field];
+                            }
+                        }
+                    });
+                }
+                else {
+                    Zabbix.log(4, '[ Jira Webhook ] Failed to retrieve field schema.');
+                }
                 return data;
             },
         
             request: function (method, query, data) {
                 ['url', 'user', 'password', 'project_key', 'issue_type'].forEach(function (field) {
                     if (typeof Jira.params !== 'object' || typeof Jira.params[field] === 'undefined'
-                        || Jira.params[field] === '' ) {
+                        || Jira.params[field] === '') {
                         throw 'Required Jira param is not set: "' + field + '".';
                     }
                 });
@@ -250,15 +222,7 @@ zabbix_export:
                 };
             },
         
-            getSchema: function() {
-                var result = Jira.request('get', 'issue/createmeta?expand=projects.issuetypes.fields&projectKeys=' +
-                    encodeURIComponent(Jira.params.project_key) + '&issuetypeNames=' +
-                    encodeURIComponent(Jira.params.issue_type));
-        
-                return result.response;
-            },
-        
-            createIssue: function(summary, description, fields) {
+            createIssue: function (summary, description, fields) {
                 var data = {
                     fields: {
                         project: {
@@ -284,8 +248,8 @@ zabbix_export:
                 return result.response.key;
             },
         
-            updateIssue: function(summary, fields, update) {
-                var data = {fields: {}};
+            updateIssue: function (summary, fields, update) {
+                var data = { fields: {} };
         
                 if (summary) {
                     data.fields.summary = summary;
@@ -295,7 +259,7 @@ zabbix_export:
                 Jira.commentIssue(update);
             },
         
-            commentIssue: function(update) {
+            commentIssue: function (update) {
                 var data = {};
         
                 if (typeof update === 'string') {
@@ -319,7 +283,7 @@ zabbix_export:
                 fields = {},
                 jira = {},
                 update = {},
-                result = {tags: {}},
+                result = { tags: {} },
                 required_params = ['alert_subject', 'summary', 'event_recovery_value', 'event_source', 'event_value'];
         
             Object.keys(params)
@@ -396,8 +360,7 @@ zabbix_export:
       event_menu_url: '{EVENT.TAGS.__zbx_jira_issuelink}'
       event_menu_name: 'Jira: {EVENT.TAGS.__zbx_jira_issuekey}'
       message_templates:
-        -
-          event_source: TRIGGERS
+        - event_source: TRIGGERS
           operation_mode: PROBLEM
           subject: '[{EVENT.STATUS}] {EVENT.NAME}'
           message: |
@@ -408,8 +371,7 @@ zabbix_export:
             Operational data: {EVENT.OPDATA}
             Original problem ID: {EVENT.ID}
             {TRIGGER.URL}
-        -
-          event_source: TRIGGERS
+        - event_source: TRIGGERS
           operation_mode: RECOVERY
           subject: '[{EVENT.STATUS}] {EVENT.NAME}'
           message: |
@@ -419,8 +381,7 @@ zabbix_export:
             Severity: {EVENT.SEVERITY}
             Original problem ID: {EVENT.ID}
             {TRIGGER.URL}
-        -
-          event_source: TRIGGERS
+        - event_source: TRIGGERS
           operation_mode: UPDATE
           subject: '[{EVENT.STATUS}] {EVENT.NAME}'
           message: |
@@ -428,8 +389,7 @@ zabbix_export:
             {EVENT.UPDATE.MESSAGE}
             
             Current problem status is {EVENT.STATUS}, acknowledged: {EVENT.ACK.STATUS}.
-        -
-          event_source: DISCOVERY
+        - event_source: DISCOVERY
           operation_mode: PROBLEM
           subject: 'Discovery: {DISCOVERY.DEVICE.STATUS} {DISCOVERY.DEVICE.IPADDRESS}'
           message: |
@@ -444,8 +404,7 @@ zabbix_export:
             Device service port: {DISCOVERY.SERVICE.PORT}
             Device service status: {DISCOVERY.SERVICE.STATUS}
             Device service uptime: {DISCOVERY.SERVICE.UPTIME}
-        -
-          event_source: AUTOREGISTRATION
+        - event_source: AUTOREGISTRATION
           operation_mode: PROBLEM
           subject: 'Autoregistration: {HOST.HOST}'
           message: |

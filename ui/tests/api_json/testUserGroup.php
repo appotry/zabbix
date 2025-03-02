@@ -1,32 +1,143 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
 require_once dirname(__FILE__).'/../include/CAPITest.php';
+require_once __DIR__.'/../include/helpers/CTestDataHelper.php';
 
 /**
  * @onBefore  prepareTestData
+ * @onAfter   cleanTestData
  *
- * @backup usrgrp
+ * @backup usrgrp, userdirectory, mfa
  */
 class testUserGroup extends CAPITest {
+
+	public static $data = [
+		'usrgrpid' => [],
+		'userdirectoryid' => [],
+		'mfaid' => []
+	];
+
+	/**
+	 * Create data to be used in tests.
+	 */
+	public function prepareTestData(): void {
+		$response = CDataHelper::call('userdirectory.create', [[
+			'name' => 'API LDAP #1',
+			'idp_type' => IDP_TYPE_LDAP,
+			'host' => 'ldap.forumsys.com',
+			'port' => 389,
+			'base_dn' => 'dc=example,dc=com',
+			'search_attribute' => 'uid'
+		]]);
+
+		$this->assertArrayHasKey('userdirectoryids', $response);
+		self::$data['userdirectoryid'] = array_combine(['API LDAP #1'], $response['userdirectoryids']);
+
+		$mfa = CDataHelper::call('mfa.create', [[
+			'type' => MFA_TYPE_TOTP,
+			'name' => 'MFA TOTP method',
+			'hash_function' => TOTP_HASH_SHA1,
+			'code_length' => TOTP_CODE_LENGTH_8
+		]]);
+
+		$this->assertArrayHasKey('mfaids', $mfa);
+		self::$data['mfaid'] = array_combine(['MFA TOTP method'], $mfa['mfaids']);
+
+		// usergroup.update
+		CTestDataHelper::createObjects([
+			'user_groups' => [
+				['name' => 'user group 1']
+			],
+			'roles' => [
+				['name' => 'api admin role', 'type' => USER_TYPE_ZABBIX_ADMIN]
+			],
+			'users' => [
+				[
+					'username' => 'single_group_user',
+					'roleid' => ':role:api admin role',
+					'passwd' => 'zabbix123456',
+					'usrgrps' => [
+						['usrgrpid' => ':user_group:user group 1']
+					]
+				]
+			]
+		]);
+
+		// usergroup.delete
+		CTestDataHelper::createObjects([
+			'user_groups' => [
+				['name' => 'user group 2'],
+				['name' => 'ldap provision group'],
+				['name' => 'saml provision group']
+			],
+			'users' => [
+				[
+					'username' => 'usergroup_delete_single_group_user',
+					'roleid' => ':role:api admin role',
+					'passwd' => 'zabbix123456',
+					'usrgrps' => [
+						['usrgrpid' => ':user_group:user group 2']
+					]
+				]
+			]
+		]);
+		CDataHelper::call('userdirectory.create', [
+			[
+				'name' => 'ldap provision',
+				'idp_type' => IDP_TYPE_LDAP,
+				'host' => 'provision',
+				'port' => 389,
+				'base_dn' => 'provision',
+				'search_attribute' => 'provision',
+				'provision_status' => JIT_PROVISIONING_ENABLED,
+				'provision_groups' => [
+					[
+						'name' => '*',
+						'roleid' => CTestDataHelper::getConvertedValueReference(':role:api admin role'),
+						'user_groups' => [
+							['usrgrpid' => CTestDataHelper::getConvertedValueReference(':user_group:ldap provision group')]
+						]
+					]
+				]
+			],
+			[
+				'idp_type' => IDP_TYPE_SAML,
+				'idp_entityid' => 'provision',
+				'sso_url' => 'http://127.0.0.1',
+				'username_attribute' => 'provision',
+				'group_name' => 'provision',
+				'sp_entityid' => 'provision',
+				'provision_status' => JIT_PROVISIONING_ENABLED,
+				'provision_groups' => [
+					[
+						'name' => '*',
+						'roleid' => CTestDataHelper::getConvertedValueReference(':role:api admin role'),
+						'user_groups' => [
+							['usrgrpid' => CTestDataHelper::getConvertedValueReference(':user_group:saml provision group')]
+						]
+					]
+				]
+			]
+		]);
+	}
+
+	public static function cleanTestData(): void {
+		CTestDataHelper::cleanUp();
+	}
 
 	public static function usergroup_create() {
 		return [
@@ -85,7 +196,7 @@ class testUserGroup extends CAPITest {
 					'gui_access' => GROUP_GUI_ACCESS_DISABLED,
 					'users' => ['userid' => 1]
 				],
-				'expected_error' => 'User cannot add himself to a disabled group or a group with disabled GUI access.'
+				'expected_error' => 'User cannot add oneself to a disabled group or a group with disabled GUI access.'
 			],
 			[
 				'group' => [
@@ -93,7 +204,7 @@ class testUserGroup extends CAPITest {
 					'users_status' => 1,
 					'users' => ['userid' => 1]
 				],
-				'expected_error' => 'User cannot add himself to a disabled group or a group with disabled GUI access.'
+				'expected_error' => 'User cannot add oneself to a disabled group or a group with disabled GUI access.'
 			],
 			// Check successfully creation of user group.
 			[
@@ -125,9 +236,11 @@ class testUserGroup extends CAPITest {
 		$result = $this->call('usergroup.create', $group, $expected_error);
 
 		if ($expected_error === null) {
-			foreach ($result['result']['usrgrpids'] as $key => $id) {
-				$dbResult = DBSelect('select * from usrgrp where usrgrpid='.zbx_dbstr($id));
-				$dbRow = DBFetch($dbResult);
+			foreach ($result['result']['usrgrpids'] as $key => $usrgrpid) {
+				$dbRow = CDBHelper::getRow(
+					'SELECT name,gui_access,users_status,debug_mode'.
+					' FROM usrgrp'.
+					' WHERE usrgrpid='.$usrgrpid);
 				$this->assertEquals($dbRow['name'], $group[$key]['name']);
 				$this->assertEquals($dbRow['gui_access'], GROUP_GUI_ACCESS_SYSTEM);
 				$this->assertEquals($dbRow['users_status'], 0);
@@ -140,7 +253,7 @@ class testUserGroup extends CAPITest {
 		return [
 			[
 				'group' => [[
-					'usrgrpid' => '13',
+					'usrgrpid' => '23',
 					'name' => 'API update with non existent parameter',
 					'value' => '4'
 				]],
@@ -156,14 +269,14 @@ class testUserGroup extends CAPITest {
 			[
 				'group' => [[
 					'usrgrpid' => '',
-					'name' => 'API user group udated'
+					'name' => 'API user group updated'
 				]],
 				'expected_error' => 'Invalid parameter "/1/usrgrpid": a number is expected.'
 			],
 			[
 				'group' => [[
 					'usrgrpid' => '123456',
-					'name' => 'API user group udated'
+					'name' => 'API user group updated'
 				]],
 				'expected_error' => 'No permissions to referred object or it does not exist!'
 			],
@@ -177,21 +290,21 @@ class testUserGroup extends CAPITest {
 			[
 				'group' => [[
 					'usrgrpid' => '1.1',
-					'name' => 'API user group udated'
+					'name' => 'API user group updated'
 				]],
 				'expected_error' => 'Invalid parameter "/1/usrgrpid": a number is expected.'
 			],
 			// Check user group name.
 			[
 				'group' => [[
-					'usrgrpid' => '13',
+					'usrgrpid' => '23',
 					'name' => ''
 				]],
 				'expected_error' => 'Invalid parameter "/1/name": cannot be empty.'
 			],
 			[
 				'group' => [[
-					'usrgrpid' => '13',
+					'usrgrpid' => '23',
 					'name' => 'Zabbix administrators'
 				]],
 				'expected_error' => 'User group "Zabbix administrators" already exists.'
@@ -203,7 +316,7 @@ class testUserGroup extends CAPITest {
 					'usrgrpid' => '7',
 					'users_status' => 1
 				]],
-				'expected_error' => 'User cannot add himself to a disabled group or a group with disabled GUI access.'
+				'expected_error' => 'User cannot add oneself to a disabled group or a group with disabled GUI access.'
 			],
 			[
 				'group' => [[
@@ -211,7 +324,7 @@ class testUserGroup extends CAPITest {
 					'usrgrpid' => '7',
 					'gui_access' => GROUP_GUI_ACCESS_DISABLED
 				]],
-				'expected_error' => 'User cannot add himself to a disabled group or a group with disabled GUI access.'
+				'expected_error' => 'User cannot add oneself to a disabled group or a group with disabled GUI access.'
 			],
 			[
 				'group' => [[
@@ -220,7 +333,7 @@ class testUserGroup extends CAPITest {
 					'gui_access' => GROUP_GUI_ACCESS_DISABLED,
 					'users' => ['userid' => 1]
 				]],
-				'expected_error' => 'User cannot add himself to a disabled group or a group with disabled GUI access.'
+				'expected_error' => 'User cannot add oneself to a disabled group or a group with disabled GUI access.'
 			],
 			[
 				'group' => [[
@@ -229,21 +342,21 @@ class testUserGroup extends CAPITest {
 					'users_status' => 1,
 					'users' => ['userid' => 1]
 				]],
-				'expected_error' => 'User cannot add himself to a disabled group or a group with disabled GUI access.'
+				'expected_error' => 'User cannot add oneself to a disabled group or a group with disabled GUI access.'
 			],
-			[
+			'Can remove user with one group from group users' => [
 				'group' => [[
-					'usrgrpid' => '15',
+					'usrgrpid' => ':user_group:user group 1',
 					'name' => 'User without user group',
 					'users' => ['userid' => 1]
 				]],
-				'expected_error' => 'User "user-in-one-group" cannot be without user group.'
+				'expected_error' => null
 			],
 			// Check two user group for update.
 			[
 				'group' => [
 					[
-						'usrgrpid' => '13',
+						'usrgrpid' => '23',
 						'name' => 'User group with the same names'
 					],
 					[
@@ -256,21 +369,21 @@ class testUserGroup extends CAPITest {
 			[
 				'group' => [
 					[
-						'usrgrpid' => '13',
+						'usrgrpid' => '23',
 						'name' => 'API user group with the same ids1'
 					],
 					[
-						'usrgrpid' => '13',
+						'usrgrpid' => '23',
 						'name' => 'API user group with the same ids2'
 					]
 				],
-				'expected_error' => 'Invalid parameter "/2": value (usrgrpid)=(13) already exists.'
+				'expected_error' => 'Invalid parameter "/2": value (usrgrpid)=(23) already exists.'
 			],
 			// Check successfully update of user group.
 			[
 				'group' => [
 					[
-						'usrgrpid' => '13',
+						'usrgrpid' => '23',
 						'name' => 'Апи группа пользователей обновленна УТФ-8'
 					]
 				],
@@ -281,7 +394,7 @@ class testUserGroup extends CAPITest {
 					[
 						'usrgrpid' => '14',
 						'name' => 'API user group updated with rights',
-						'rights' =>[
+						'templategroup_rights' =>[
 							[
 								'id' => '50013',
 								'permission' => '2'
@@ -294,9 +407,9 @@ class testUserGroup extends CAPITest {
 			[
 				'group' => [
 					[
-					'usrgrpid' => '13',
+					'usrgrpid' => '23',
 					'name' => 'API update user group one',
-						'rights' =>[
+						'templategroup_rights' =>[
 							[
 								'id' => '50013',
 								'permission' => '2'
@@ -306,7 +419,7 @@ class testUserGroup extends CAPITest {
 					[
 					'usrgrpid' => '14',
 					'name' => 'API update user group two',
-						'rights' =>[
+						'hostgroup_rights' =>[
 							[
 								'id' => '50012',
 								'permission' => '0'
@@ -323,23 +436,46 @@ class testUserGroup extends CAPITest {
 	* @dataProvider usergroup_update
 	*/
 	public function testUserGroup_Update($groups, $expected_error) {
+		CTestDataHelper::convertUserGroupReferences($groups);
 		$result = $this->call('usergroup.update', $groups, $expected_error);
 
 		if ($expected_error === null) {
-			foreach ($result['result']['usrgrpids'] as $key => $id) {
-				$dbResult = DBSelect('select * from usrgrp where usrgrpid='.zbx_dbstr($id));
-				$dbRow = DBFetch($dbResult);
-				$this->assertEquals($dbRow['name'], $groups[$key]['name']);
-				$this->assertEquals($dbRow['gui_access'], GROUP_GUI_ACCESS_SYSTEM);
-				$this->assertEquals($dbRow['users_status'], 0);
-				$this->assertEquals($dbRow['debug_mode'], 0);
+			foreach ($result['result']['usrgrpids'] as $key => $usrgrpid) {
+				$db_usrgrp = CDBHelper::getRow(
+					'SELECT name,gui_access,users_status,debug_mode'.
+					' FROM usrgrp'.
+					' WHERE usrgrpid='.$usrgrpid
+				);
+				$this->assertSame($db_usrgrp['name'], $groups[$key]['name']);
+				$this->assertSame($db_usrgrp['gui_access'], (string) GROUP_GUI_ACCESS_SYSTEM);
+				$this->assertSame($db_usrgrp['users_status'], '0');
+				$this->assertSame($db_usrgrp['debug_mode'], '0');
 
-				if (array_key_exists('rights', $groups[$key])){
-					foreach ($groups[$key]['rights'] as $rights) {
-						$dbRight = DBSelect('select * from rights where groupid='.zbx_dbstr($id));
-						$dbRowRight = DBFetch($dbRight);
-						$this->assertEquals($dbRowRight['id'], $rights['id']);
-						$this->assertEquals($dbRowRight['permission'], $rights['permission']);
+				if (array_key_exists('hostgroup_rights', $groups[$key])){
+					foreach ($groups[$key]['hostgroup_rights'] as $rights) {
+						$db_right = CDBHelper::getRow(
+							'SELECT r.id,r.permission'.
+							' FROM rights r,hstgrp hg'.
+							' WHERE r.id=hg.groupid'.
+								' AND r.groupid='.$usrgrpid.
+								' AND hg.type='.HOST_GROUP_TYPE_HOST_GROUP
+						);
+						$this->assertSame($db_right['id'], $rights['id']);
+						$this->assertSame($db_right['permission'], $rights['permission']);
+					}
+				}
+
+				if (array_key_exists('templategroup_rights', $groups[$key])){
+					foreach ($groups[$key]['templategroup_rights'] as $rights) {
+						$db_right = CDBHelper::getRow(
+							'SELECT r.id,r.permission'.
+							' FROM rights r,hstgrp hg'.
+							' WHERE r.id=hg.groupid'.
+								' AND r.groupid='.$usrgrpid.
+								' AND hg.type='.HOST_GROUP_TYPE_TEMPLATE_GROUP
+						);
+						$this->assertSame($db_right['id'], $rights['id']);
+						$this->assertSame($db_right['permission'], $rights['permission']);
 					}
 				}
 			}
@@ -347,8 +483,9 @@ class testUserGroup extends CAPITest {
 		else {
 			foreach ($groups as $group) {
 				if (array_key_exists('name', $group) && $group['name'] != 'Zabbix administrators'){
-					$dbResult = 'select * from usrgrp where name='.zbx_dbstr($group['name']);
-					$this->assertEquals(0, CDBHelper::getCount($dbResult));
+					$this->assertEquals(0,
+						CDBHelper::getCount('SELECT * FROM usrgrp WHERE name='.zbx_dbstr($group['name']))
+					);
 				}
 			}
 		}
@@ -425,52 +562,71 @@ class testUserGroup extends CAPITest {
 						'userid' => '123456'
 					]
 				],
-				'expected_error' => 'User with ID "123456" is not available.'
+				'expected_error' => 'Invalid parameter "/1/users/1/userid": object does not exist.'
 			],
 			// Check user group permissions, host group id.
 			[
 				'group' => [
 					'name' => 'Check rights, without host group id',
-					'rights' => [
+					'hostgroup_rights' => [
 						'permission' => '0'
 					]
 				],
-				'expected_error' => 'Invalid parameter "/1/rights/1": the parameter "id" is missing.'
+				'expected_error' => 'Invalid parameter "/1/hostgroup_rights/1": the parameter "id" is missing.'
+			],
+			[
+				'group' => [
+					'name' => 'Check rights, without host group id',
+					'templategroup_rights' => [
+						'permission' => '0'
+					]
+				],
+				'expected_error' => 'Invalid parameter "/1/templategroup_rights/1": the parameter "id" is missing.'
 			],
 			[
 				'group' => [
 					'name' => 'Check rights, with empty host group id',
-					'rights' => [
+					'hostgroup_rights' => [
 						'id' => '',
 						'permission' => '0'
 					]
 				],
-				'expected_error' => 'Invalid parameter "/1/rights/1/id": a number is expected.'
+				'expected_error' => 'Invalid parameter "/1/hostgroup_rights/1/id": a number is expected.'
+			],
+			[
+				'group' => [
+					'name' => 'Check rights, with empty host group id',
+					'templategroup_rights' => [
+						'id' => '',
+						'permission' => '0'
+					]
+				],
+				'expected_error' => 'Invalid parameter "/1/templategroup_rights/1/id": a number is expected.'
 			],
 			[
 				'group' => [
 					'name' => 'Check rights, id not number',
-					'rights' => [
+					'hostgroup_rights' => [
 						'id' => 'abc',
 						'permission' => '0'
 					]
 				],
-				'expected_error' => 'Invalid parameter "/1/rights/1/id": a number is expected.'
+				'expected_error' => 'Invalid parameter "/1/hostgroup_rights/1/id": a number is expected.'
 			],
 			[
 				'group' => [
 					'name' => 'Check rights, id not valid',
-					'rights' => [
+					'hostgroup_rights' => [
 						'id' => '1.1',
 						'permission' => '0'
 					]
 				],
-				'expected_error' => 'Invalid parameter "/1/rights/1/id": a number is expected.'
+				'expected_error' => 'Invalid parameter "/1/hostgroup_rights/1/id": a number is expected.'
 			],
 			[
 				'group' => [
 					'name' => 'Check rights, non existen host group id',
-					'rights' => [
+					'hostgroup_rights' => [
 						'id' => '123456',
 						'permission' => '0'
 					]
@@ -480,63 +636,63 @@ class testUserGroup extends CAPITest {
 			[
 				'group' => [
 					'name' => 'Check rights, unexpected parameter',
-					'rights' => [
+					'hostgroup_rights' => [
 						'id' => '4',
 						'permission' => '0',
 						'usrgrpid' => '7'
 					]
 				],
-				'expected_error' => 'Invalid parameter "/1/rights/1": unexpected parameter "usrgrpid".'
+				'expected_error' => 'Invalid parameter "/1/hostgroup_rights/1": unexpected parameter "usrgrpid".'
 			],
 			// Check user group permissions, host group permission.
 			[
 				'group' => [
 					'name' => 'Check rights, without permission',
-					'rights' => [
+					'hostgroup_rights' => [
 						'id' => '4'
 					]
 				],
-				'expected_error' => 'Invalid parameter "/1/rights/1": the parameter "permission" is missing.'
+				'expected_error' => 'Invalid parameter "/1/hostgroup_rights/1": the parameter "permission" is missing.'
 			],
 			[
 				'group' => [
 					'name' => 'Check rights, with empty permission',
-					'rights' => [
+					'hostgroup_rights' => [
 						'id' => '4',
 						'permission' => ''
 					]
 				],
-				'expected_error' => 'Invalid parameter "/1/rights/1/permission": an integer is expected.'
+				'expected_error' => 'Invalid parameter "/1/hostgroup_rights/1/permission": an integer is expected.'
 			],
 			[
 				'group' => [
 					'name' => 'Check rights, permission not valid number',
-					'rights' => [
+					'hostgroup_rights' => [
 						'id' => '4',
 						'permission' => '1.1'
 					]
 				],
-				'expected_error' => 'Invalid parameter "/1/rights/1/permission": an integer is expected.'
+				'expected_error' => 'Invalid parameter "/1/hostgroup_rights/1/permission": an integer is expected.'
 			],
 			[
 				'group' => [
 					'name' => 'Check rights, incorrect permission value',
-					'rights' => [
+					'hostgroup_rights' => [
 						'id' => '4',
 						'permission' => '1'
 					]
 				],
-				'expected_error' => 'Invalid parameter "/1/rights/1/permission": value must be one of 0, 2, 3.'
+				'expected_error' => 'Invalid parameter "/1/hostgroup_rights/1/permission": value must be one of 0, 2, 3.'
 			],
 			[
 				'group' => [
 					'name' => 'Check rights, incorrect permission value',
-					'rights' => [
+					'templategroup_rights' => [
 						'id' => '4',
 						'permission' => '4'
 					]
 				],
-				'expected_error' => 'Invalid parameter "/1/rights/1/permission": value must be one of 0, 2, 3.'
+				'expected_error' => 'Invalid parameter "/1/templategroup_rights/1/permission": value must be one of 0, 2, 3.'
 			]
 		];
 	}
@@ -556,7 +712,7 @@ class testUserGroup extends CAPITest {
 
 			if ($expected_error === null) {
 				$db_group = CDBHelper::getRow(
-					'SELECT * FROM usrgrp WHERE usrgrpid='.zbx_dbstr($result['result']['usrgrpids'][0])
+					'SELECT * FROM usrgrp WHERE usrgrpid='.$result['result']['usrgrpids'][0]
 				);
 				$this->assertSame($group['name'], $db_group['name']);
 				$this->assertEquals($group['gui_access'], $db_group['gui_access']);
@@ -566,7 +722,7 @@ class testUserGroup extends CAPITest {
 				$this->assertEquals(count($group['users']), CDBHelper::getCount(
 					'SELECT NULL'.
 					' FROM users_groups'.
-					' WHERE usrgrpid='.zbx_dbstr($result['result']['usrgrpids'][0])
+					' WHERE usrgrpid='.$result['result']['usrgrpids'][0]
 				));
 
 				$db_right = CDBHelper::getRow('SELECT * FROM rights WHERE groupid='.$result['result']['usrgrpids'][0]);
@@ -578,7 +734,7 @@ class testUserGroup extends CAPITest {
 					$this->assertEquals(0, CDBHelper::getCount(
 						'SELECT NULL'.
 						' FROM usrgrp'.
-						' WHERE usrgrpid='.zbx_dbstr($group['usrgrpid']).
+						' WHERE usrgrpid='.$group['usrgrpid'].
 							' AND name='.zbx_dbstr($group['name'])
 					));
 				}
@@ -622,15 +778,6 @@ class testUserGroup extends CAPITest {
 				'usergroup' => ['16', '16'],
 				'expected_error' => 'Invalid parameter "/2": value (16) already exists.'
 			],
-			// Check users without groups
-			[
-				'usergroup' => ['15'],
-				'expected_error' => 'User "user-in-one-group" cannot be without user group.'
-			],
-			[
-				'usergroup' => ['16','17'],
-				'expected_error' => 'User "user-in-two-groups" cannot be without user group.'
-			],
 			// Check user group used in actions
 			[
 				'usergroup' => ['20'],
@@ -646,13 +793,23 @@ class testUserGroup extends CAPITest {
 				'usergroup' => ['22'],
 				'expected_error' => 'User group "API user group in configuration" is used in configuration for database down messages.'
 			],
+			// Check user group used in LDAP userdirectory provision
+			[
+				'usergroup'	=> [':user_group:ldap provision group'],
+				'expected_error' => 'Cannot delete user group "ldap provision group", because it is used by LDAP userdirectory "ldap provision".'
+			],
+			// Check user group used in SAML userdirectory provision
+			[
+				'usergroup'	=> [':user_group:saml provision group'],
+				'expected_error' => 'Cannot delete user group "saml provision group", because it is used by SAML userdirectory.'
+			],
 			// Check successfully delete of user group.
 			[
-				'usergroup' => ['17'],
+				'usergroup' => ['18', '19'],
 				'expected_error' => null
 			],
-			[
-				'usergroup' => ['18', '19'],
+			'Can delete group havig user with single group' => [
+				'usergroup' => [':user_group:user group 2'],
 				'expected_error' => null
 			]
 		];
@@ -661,13 +818,13 @@ class testUserGroup extends CAPITest {
 	/**
 	* @dataProvider usergroup_delete
 	*/
-	public function testUserGroup_Delete($group, $expected_error) {
-		$result = $this->call('usergroup.delete', $group, $expected_error);
+	public function testUserGroup_Delete($groupids, $expected_error) {
+		$groupids = CTestDataHelper::getConvertedValueReferences($groupids);
+		$result = $this->call('usergroup.delete', $groupids, $expected_error);
 
 		if ($expected_error === null) {
-			foreach ($result['result']['usrgrpids'] as $id) {
-				$dbResult = 'select * from usrgrp where usrgrpid='.zbx_dbstr($id);
-				$this->assertEquals(0, CDBHelper::getCount($dbResult));
+			foreach ($result['result']['usrgrpids'] as $usrgrpid) {
+				$this->assertEquals(0, CDBHelper::getCount('SELECT * FROM usrgrp WHERE usrgrpid='.$usrgrpid));
 			}
 		}
 	}
@@ -684,8 +841,8 @@ class testUserGroup extends CAPITest {
 				'method' => 'usergroup.update',
 				'user' => ['user' => 'zabbix-admin', 'password' => 'zabbix'],
 				'usergroup' => [
-					'usrgrpid' => '13',
-					'name' => 'API user group update as admin user without peremissions'
+					'usrgrpid' => '23',
+					'name' => 'API user group update as admin user without permissions'
 				],
 				'expected_error' => 'No permissions to call "usergroup.update".'
 			],
@@ -705,8 +862,8 @@ class testUserGroup extends CAPITest {
 				'method' => 'usergroup.update',
 				'user' => ['user' => 'zabbix-user', 'password' => 'zabbix'],
 				'usergroup' => [
-					'usrgrpid' => '13',
-					'name' => 'API user group update as zabbix user without peremissions'
+					'usrgrpid' => '23',
+					'name' => 'API user group update as zabbix user without permissions'
 				],
 				'expected_error' => 'No permissions to call "usergroup.update".'
 			],
@@ -867,10 +1024,106 @@ class testUserGroup extends CAPITest {
 		$this->call('usergroup.update', self::resolveIds($groups), $expected_error);
 	}
 
-	public static $data = [
-		'usrgrpid' => [],
-		'userdirectoryid' => []
-	];
+	public static function crateValidMfaDataProvider(): array {
+		return [
+			'Create group with a specific MFA method' => [
+				'group' => [
+					[
+						'name' => 'API group mfa #1',
+						'mfa_status' => GROUP_MFA_ENABLED,
+						'mfaid' => 'MFA TOTP method'
+					]
+				],
+				'expected_error' => null
+			],
+			'Create group with default MFA method' => [
+				'group' => [
+					[
+						'name' => 'API group mfa #2',
+						'mfa_status' => GROUP_MFA_ENABLED,
+						'mfaid' => 0
+					]
+				],
+				'expected_error' => null
+			]
+		];
+	}
+
+	public static function crateInvalidMfaDataProvider(): array {
+		return [
+			'Create group with invalid MFA method' => [
+				'group' => [
+					[
+						'name' => 'API group mfa #3',
+						'mfa_status' => GROUP_MFA_ENABLED,
+						'mfaid' => 999
+					]
+				],
+				'expected_error' => 'Invalid parameter "/1/mfaid": object does not exist.'
+			]
+		];
+	}
+
+	/**
+	 * @dataProvider crateValidMfaDataProvider
+	 * @dataProvider crateInvalidMfaDataProvider
+	 */
+	public function testCreateWithMfaMethod(array $groups, $expected_error): void {
+		$response = $this->call('usergroup.create', self::resolveIds($groups), $expected_error);
+
+		if ($expected_error === null) {
+			$this->assertArrayHasKey('usrgrpids', $response['result']);
+			self::$data['mfaid'] += array_combine(array_column($groups, 'name'), $response['result']['usrgrpids']);
+		}
+	}
+
+	public static function updateValidMfaDataProvider(): array {
+		return [
+			'Update group to specific mfa method ' => [
+				'group' => [
+					[
+						'usrgrpid' => 'API group ldap #1',
+						'mfa_status' => GROUP_MFA_ENABLED,
+						'mfaid' => 'MFA TOTP method'
+					]
+				],
+				'expected_error' => null
+			],
+			'Update group to default mfa method ' => [
+				'group' => [
+					[
+						'usrgrpid' => 'API group ldap #2',
+						'mfa_status' => GROUP_MFA_ENABLED,
+						'mfaid' => 0
+					]
+				],
+				'expected_error' => null
+			]
+		];
+	}
+
+	public static function updateInvalidMfaDataProvider(): array {
+		return [
+			'Update group with invalid mfaid' => [
+				'group' => [
+					[
+						'usrgrpid' => 'API group ldap #3',
+						'mfa_status' => GROUP_MFA_ENABLED,
+						'mfaid' => 999
+					]
+				],
+				'expected_error' => 'Invalid parameter "/1/mfaid": object does not exist.'
+			]
+		];
+	}
+
+	/**
+	 * @dataProvider updateValidMfaDataProvider
+	 * @dataProvider updateInvalidMfaDataProvider
+	 */
+	public function testUpdateWithMfaMethod(array $groups, $expected_error): void {
+		$this->call('usergroup.update', self::resolveIds($groups), $expected_error);
+	}
 
 	/**
 	 * Replace name by value for property names in self::$data.
@@ -891,16 +1144,5 @@ class testUserGroup extends CAPITest {
 		}
 
 		return $result;
-	}
-
-	/**
-	 * Create data to be used in tests.
-	 */
-	public function prepareTestData() {
-		$response = CDataHelper::call('userdirectory.create', [
-			['name' => 'API LDAP #1', 'host' => 'ldap.forumsys.com', 'port' => 389, 'base_dn' => 'dc=example,dc=com', 'search_attribute' => 'uid']
-		]);
-		$this->assertArrayHasKey('userdirectoryids', $response);
-		self::$data['userdirectoryid'] = array_combine(['API LDAP #1'], $response['userdirectoryids']);
 	}
 }

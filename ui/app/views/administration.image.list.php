@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -26,13 +21,12 @@
 $this->includeJsFile('administration.image.list.js.php');
 
 $page_url = (new CUrl('zabbix.php'))->setArgument('action', 'image.list');
-$widget = (new CWidget())
+$html_page = (new CHtmlPage())
 	->setTitle(_('Images'))
 	->setTitleSubmenu(getAdministrationGeneralSubmenu())
 	->setDocUrl(CDocHelper::getUrl(CDocHelper::ADMINISTRATION_IMAGE_LIST))
 	->setControls((new CTag('nav', true,
 		(new CForm())
-			->cleanItems()
 			->setAction($page_url->getUrl())
 			->addItem((new CList())
 				->addItem([
@@ -57,13 +51,12 @@ $widget = (new CWidget())
 						)
 				])
 				->addItem(
-					(new CButton(null, ($data['imagetype'] == IMAGE_TYPE_ICON)
-						? _('Create icon')
-						: _('Create background')
+					(new CSimpleButton(
+						$data['imagetype'] == IMAGE_TYPE_ICON ? _('Create icon') : _('Create background')
 					))->onClick(sprintf('javascript: document.location="%s";', (new CUrl('zabbix.php'))
-							->setArgument('action', 'image.edit')
-							->setArgument('imagetype', $data['imagetype'])
-							->getUrl()
+						->setArgument('action', 'image.edit')
+						->setArgument('imagetype', $data['imagetype'])
+						->getUrl()
 					))
 				)
 			)
@@ -72,7 +65,7 @@ $widget = (new CWidget())
 	);
 
 if (!$data['images']) {
-	$widget->addItem(new CTableInfo());
+	$html_page->addItem(new CTableInfo());
 }
 else {
 	$image_table = (new CDiv())
@@ -100,7 +93,11 @@ else {
 			(new CDiv())
 				->addClass(ZBX_STYLE_CELL)
 				->addClass('lazyload-image')
-				->addItem([$img, BR(), new CLink($image['name'], $edit_url->getUrl())])
+				->addItem([
+					$img,
+					BR(),
+					(new CLink($image['name'], $edit_url->getUrl()))->addClass(ZBX_STYLE_WORDBREAK)
+				])
 		);
 
 		if ((++$count % 5) == 0) {
@@ -113,14 +110,15 @@ else {
 		$image_table->addItem($image_row);
 	}
 
-	$widget->addItem(
-		(new CForm())->addItem(
-			(new CTabView())->addTab('image', null, $image_table)
-		)
+	$html_page->addItem(
+		(new CForm())
+			->addItem(
+				(new CTabView())->addTab('image', null, $image_table)
+			)
 	);
 }
 
-$widget->show();
+$html_page->show();
 
 (new CScriptTag('
 	view.init('.json_encode([

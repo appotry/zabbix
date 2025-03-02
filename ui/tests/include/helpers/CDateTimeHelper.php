@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 /**
@@ -76,6 +71,28 @@ class CDateTimeHelper {
 	 * @return int
 	 */
 	public static function countDays($date = 'now', $period = 'P1Y') {
-		return (new DateTime($date))->diff((new DateTime($date))->sub(new DateInterval($period)))->days;
+		$to = new DateTime($date);
+		$from = (clone $to)->sub(new DateInterval($period));
+
+		return $from->diff($to)->days;
+	}
+
+	/**
+	 * Get the time difference in months between two moments in time.
+	 *
+	 * @param string|int	$from		timestamp or string that represents the oldest moments in time
+	 * @param string|int	$to			timestamp or string that represents the newest moments in time
+	 *
+	 * @return int
+	 */
+	public static function countMonthsBetweenDates($from, $to = 'now') {
+		foreach ([&$from, &$to] as &$moment) {
+			if (is_string($moment)) {
+				$moment = strtotime($moment);
+			}
+		}
+		unset($moment);
+
+		return ((date('Y', $to) - date('Y', $from)) * 12) + ((date('m', $to) - date('m', $from)));
 	}
 }

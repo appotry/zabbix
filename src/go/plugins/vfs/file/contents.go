@@ -1,20 +1,15 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 package file
@@ -23,18 +18,20 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 func (p *Plugin) exportContents(params []string) (result interface{}, err error) {
+	const maxFileLen = 16 * 1024 * 1024
 
 	if len(params) != 1 && len(params) != 2 {
 		return nil, errors.New("Wrong number of parameters")
 	}
 
-	var encoder string
+	var encoding string
 
 	if len(params) == 2 {
-		encoder = params[1]
+		encoding = params[1]
 	}
 
 	f, err := stdOs.Stat(params[0])
@@ -43,8 +40,7 @@ func (p *Plugin) exportContents(params []string) (result interface{}, err error)
 	}
 	filelen := f.Size()
 
-	bnum := 64 * 1024
-	if filelen > int64(bnum) {
+	if filelen > int64(maxFileLen) {
 		return nil, errors.New("File is too large for this check")
 	}
 
@@ -54,13 +50,17 @@ func (p *Plugin) exportContents(params []string) (result interface{}, err error)
 	}
 	defer file.Close()
 
-	buf := bytes.Buffer{}
-	if _, err = buf.ReadFrom(file); err != nil {
+	undecodedBuf := bytes.Buffer{}
+	if _, err = undecodedBuf.ReadFrom(file); err != nil {
 		return nil, fmt.Errorf("Cannot read from file: %s", err)
 	}
+	encoding = findEncodingFromBOM(encoding, undecodedBuf.Bytes(), len(undecodedBuf.Bytes()))
+	utf8_buf, utf8_bufNumBytes, err := decodeToUTF8(encoding, undecodedBuf.Bytes(), len(undecodedBuf.Bytes()))
+	if err != nil {
+		return nil, fmt.Errorf("Failed to convert from encoding to utf8: %w", err)
+	}
 
-	outbuf := decode(encoder, buf.Bytes())
+	utf8_bufStr := string(utf8_buf[:utf8_bufNumBytes])
 
-	return string(bytes.TrimRight(outbuf, "\n\r")), nil
-
+	return strings.TrimRight(utf8_bufStr, "\n\r"), nil
 }

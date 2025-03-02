@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -27,6 +22,8 @@ class CGraphPrototype extends CGraphGeneral {
 	protected $tableName = 'graphs';
 	protected $tableAlias = 'g';
 	protected $sortColumns = ['graphid', 'name', 'graphtype', 'discover'];
+
+	protected const FLAGS = ZBX_FLAG_DISCOVERY_PROTOTYPE;
 
 	public function __construct() {
 		parent::__construct();
@@ -79,7 +76,8 @@ class CGraphPrototype extends CGraphGeneral {
 			'searchWildcardsEnabled'	=> null,
 			// output
 			'output'					=> API_OUTPUT_EXTEND,
-			'selectGroups'				=> null,
+			'selectHostGroups'			=> null,
+			'selectTemplateGroups'		=> null,
 			'selectTemplates'			=> null,
 			'selectHosts'				=> null,
 			'selectItems'				=> null,
@@ -96,54 +94,34 @@ class CGraphPrototype extends CGraphGeneral {
 
 		// editable + PERMISSION CHECK
 		if (self::$userData['type'] != USER_TYPE_SUPER_ADMIN && !$options['nopermissions']) {
-			$permission = $options['editable'] ? PERM_READ_WRITE : PERM_READ;
-			$userGroups = getUserGroupsByUserId(self::$userData['userid']);
+			if (self::$userData['ugsetid'] == 0) {
+				return $options['countOutput'] ? '0' : [];
+			}
 
-			// check permissions by graph items
+			$sqlParts['from']['graphs_items'] = 'graphs_items gi';
+			$sqlParts['from']['items'] = 'items i';
+			$sqlParts['from'][] = 'host_hgset hh';
+			$sqlParts['from'][] = 'permission p';
+			$sqlParts['where']['gig'] = 'gi.graphid=g.graphid';
+			$sqlParts['where']['igi'] = 'i.itemid=gi.itemid';
+			$sqlParts['where'][] = 'i.hostid=hh.hostid';
+			$sqlParts['where'][] = 'hh.hgsetid=p.hgsetid';
+			$sqlParts['where'][] = 'p.ugsetid='.self::$userData['ugsetid'];
+
+			if ($options['editable']) {
+				$sqlParts['where'][] = 'p.permission='.PERM_READ_WRITE;
+			}
+
 			$sqlParts['where'][] = 'NOT EXISTS ('.
 				'SELECT NULL'.
-				' FROM graphs_items gi,items i,hosts_groups hgg'.
-					' LEFT JOIN rights r'.
-						' ON r.id=hgg.groupid'.
-							' AND '.dbConditionInt('r.groupid', $userGroups).
-				' WHERE g.graphid=gi.graphid'.
-					' AND gi.itemid=i.itemid'.
-					' AND i.hostid=hgg.hostid'.
-				' GROUP BY i.hostid'.
-				' HAVING MAX(permission)<'.zbx_dbstr($permission).
-					' OR MIN(permission) IS NULL'.
-					' OR MIN(permission)='.PERM_DENY.
-				')';
-			// check permissions by Y min item
-			$sqlParts['where'][] = 'NOT EXISTS ('.
-				'SELECT NULL'.
-				' FROM items i,hosts_groups hgg'.
-					' LEFT JOIN rights r'.
-						' ON r.id=hgg.groupid'.
-							' AND '.dbConditionInt('r.groupid', $userGroups).
-				' WHERE g.ymin_type='.GRAPH_YAXIS_TYPE_ITEM_VALUE.
-					' AND g.ymin_itemid=i.itemid'.
-					' AND i.hostid=hgg.hostid'.
-				' GROUP BY i.hostid'.
-				' HAVING MAX(permission)<'.$permission.
-					' OR MIN(permission) IS NULL'.
-					' OR MIN(permission)='.PERM_DENY.
-				')';
-			// check permissions by Y max item
-			$sqlParts['where'][] = 'NOT EXISTS ('.
-				'SELECT NULL'.
-				' FROM items i,hosts_groups hgg'.
-					' LEFT JOIN rights r'.
-						' ON r.id=hgg.groupid'.
-							' AND '.dbConditionInt('r.groupid', $userGroups).
-				' WHERE g.ymax_type='.GRAPH_YAXIS_TYPE_ITEM_VALUE.
-					' AND g.ymax_itemid=i.itemid'.
-					' AND i.hostid=hgg.hostid'.
-				' GROUP BY i.hostid'.
-				' HAVING MAX(permission)<'.$permission.
-					' OR MIN(permission) IS NULL'.
-					' OR MIN(permission)='.PERM_DENY.
-				')';
+				' FROM graphs_items gi1'.
+				' JOIN items i1 ON gi1.itemid=i1.itemid'.
+				' JOIN host_hgset hh1 ON i1.hostid=hh1.hostid'.
+				' LEFT JOIN permission p1 ON hh1.hgsetid=p1.hgsetid'.
+					' AND p1.ugsetid=p.ugsetid'.
+				' WHERE g.graphid=gi1.graphid'.
+					' AND p1.permission IS NULL'.
+			')';
 		}
 
 		// groupids
@@ -315,11 +293,10 @@ class CGraphPrototype extends CGraphGeneral {
 
 		if ($result) {
 			$result = $this->addRelatedObjects($options, $result);
-		}
 
-		// removing keys (hash -> array)
-		if (!$options['preservekeys']) {
-			$result = zbx_cleanHashes($result);
+			if (!$options['preservekeys']) {
+				$result = array_values($result);
+			}
 		}
 
 		return $result;
@@ -350,7 +327,7 @@ class CGraphPrototype extends CGraphGeneral {
 	 *
 	 * @throws APIException if the input is invalid.
 	 */
-	private function validateDelete(array &$graphids, array &$db_graphs = null) {
+	private function validateDelete(array &$graphids, ?array &$db_graphs = null) {
 		$api_input_rules = ['type' => API_IDS, 'flags' => API_NOT_EMPTY, 'uniq' => true];
 		if (!CApiInputValidator::validate($api_input_rules, $graphids, '/', $error)) {
 			self::exception(ZBX_API_ERROR_PARAMETERS, $error);
@@ -431,149 +408,72 @@ class CGraphPrototype extends CGraphGeneral {
 	}
 
 	/**
-	 * Validate graph prototype specific data on Create method.
-	 * Get allowed item ID's, check permissions, check if items have at least one prototype, do all general validation,
-	 * and check for numeric item types.
-	 *
-	 * @param array $graphs
+	 * @inheritdoc
 	 */
-	protected function validateCreate(array &$graphs) {
-		$itemIds = $this->validateItemsCreate($graphs);
+	protected static function checkDuplicates(array $graphs): void {
+		$_graph_indexes = [];
 
-		$allowedItems = API::Item()->get([
-			'itemids' => $itemIds,
-			'webitems' => true,
-			'editable' => true,
-			'output' => ['name', 'value_type', 'flags'],
-			'selectItemDiscovery' => ['parent_itemid'],
-			'preservekeys' => true,
-			'filter' => [
-				'flags' => [ZBX_FLAG_DISCOVERY_NORMAL, ZBX_FLAG_DISCOVERY_PROTOTYPE, ZBX_FLAG_DISCOVERY_CREATED]
-			]
-		]);
-
-		foreach ($itemIds as $itemid) {
-			if (!isset($allowedItems[$itemid])) {
-				self::exception(ZBX_API_ERROR_PARAMETERS, _('No permissions to referred object or it does not exist!'));
-			}
-		}
-
-		$this->checkDiscoveryRuleCount($graphs, $allowedItems);
-
-		parent::validateCreate($graphs);
-
-		$allowedValueTypes = [ITEM_VALUE_TYPE_FLOAT, ITEM_VALUE_TYPE_UINT64];
-
-		foreach ($graphs as $graph) {
+		foreach ($graphs as $i => $graph) {
 			foreach ($graph['gitems'] as $gitem) {
-				if (!in_array($allowedItems[$gitem['itemid']]['value_type'], $allowedValueTypes)) {
-					self::exception(ZBX_API_ERROR_PARAMETERS, _s(
-						'Cannot add a non-numeric item "%1$s" to graph prototype "%2$s".',
-						$allowedItems[$gitem['itemid']]['name'],
-						$graph['name']
+				$_graph_indexes[$gitem['itemid']][] = $i;
+			}
+		}
+
+		$result = DBselect(
+			'SELECT i.itemid,id.parent_itemid'.
+			' FROM items i,item_discovery id'.
+			' WHERE i.itemid=id.itemid'.
+				' AND '.dbConditionId('i.itemid', array_keys($_graph_indexes)).
+				' AND '.dbConditionInt('i.flags', [ZBX_FLAG_DISCOVERY_PROTOTYPE])
+		);
+
+		$graph_indexes = [];
+
+		while ($row = DBfetch($result)) {
+			foreach ($_graph_indexes[$row['itemid']] as $i) {
+				if (array_key_exists($row['parent_itemid'], $graph_indexes)
+						&& array_key_exists($graphs[$i]['name'], $graph_indexes[$row['parent_itemid']])
+						&& $graph_indexes[$row['parent_itemid']][$graphs[$i]['name']] != $i) {
+					self::exception(ZBX_API_ERROR_PARAMETERS, _s('Invalid parameter "%1$s": %2$s.', '/'.($i + 1),
+						_s('value %1$s already exists', '(name)=('.$graphs[$i]['name'].')')
 					));
 				}
-			}
-		}
-	}
 
-	/**
-	 * Validate graph prototype specific data on Update method.
-	 * Get allowed item ID's, check permissions, check if items have at least one prototype, do all general validation,
-	 * and check for numeric item types.
-	 *
-	 * @param array $graphs
-	 * @param array $dbGraphs
-	 */
-	protected function validateUpdate(array $graphs, array $dbGraphs) {
-		// check for "itemid" when updating graph prototype with only "gitemid" passed
-		foreach ($graphs as &$graph) {
-			if (isset($graph['gitems'])) {
-				foreach ($graph['gitems'] as &$gitem) {
-					if (isset($gitem['gitemid']) && !isset($gitem['itemid'])) {
-						$dbGitems = zbx_toHash($dbGraphs[$graph['graphid']]['gitems'], 'gitemid');
-						$gitem['itemid'] = $dbGitems[$gitem['gitemid']]['itemid'];
-					}
-				}
-				unset($gitem);
-			}
-		}
-		unset($graph);
-
-		$itemIds = $this->validateItemsUpdate($graphs);
-
-		$allowedItems = API::Item()->get([
-			'itemids' => $itemIds,
-			'webitems' => true,
-			'editable' => true,
-			'output' => ['itemid', 'name', 'value_type', 'flags'],
-			'selectItemDiscovery' => ['parent_itemid'],
-			'preservekeys' => true,
-			'filter' => [
-				'flags' => [ZBX_FLAG_DISCOVERY_NORMAL, ZBX_FLAG_DISCOVERY_PROTOTYPE, ZBX_FLAG_DISCOVERY_CREATED]
-			]
-		]);
-
-		foreach ($itemIds as $itemId) {
-			if (!isset($allowedItems[$itemId])) {
-				self::exception(ZBX_API_ERROR_PARAMETERS, _('No permissions to referred object or it does not exist!'));
+				$graph_indexes[$row['parent_itemid']][$graphs[$i]['name']] = $i;
 			}
 		}
 
-		$this->checkDiscoveryRuleCount($graphs, $allowedItems);
+		$result = DBselect(
+			'SELECT DISTINCT g.graphid,g.name,id.parent_itemid'.
+			' FROM graphs g,graphs_items gi,items i,item_discovery id'.
+			' WHERE g.graphid=gi.graphid'.
+				' AND gi.itemid=i.itemid'.
+				' AND i.itemid=id.itemid'.
+				' AND '.dbConditionString('g.name', array_unique(array_column($graphs, 'name'))).
+				' AND '.dbConditionInt('g.flags', [ZBX_FLAG_DISCOVERY_PROTOTYPE]).
+				' AND '.dbConditionId('id.parent_itemid', array_keys($graph_indexes))
+		);
 
-		parent::validateUpdate($graphs, $dbGraphs);
+		while ($row = DBfetch($result)) {
+			if (array_key_exists($row['parent_itemid'], $graph_indexes)
+					&& array_key_exists($row['name'], $graph_indexes[$row['parent_itemid']])) {
+				$graph = $graphs[$graph_indexes[$row['parent_itemid']][$row['name']]];
 
-		$allowedValueTypes = [ITEM_VALUE_TYPE_FLOAT, ITEM_VALUE_TYPE_UINT64];
-
-		foreach ($allowedItems as $item) {
-			if (!in_array($item['value_type'], $allowedValueTypes)) {
-				foreach ($dbGraphs as $dbGraph) {
-					$itemIdsInGraphItems = zbx_objectValues($dbGraph['gitems'], 'itemid');
-					if (in_array($item['itemid'], $itemIdsInGraphItems)) {
-						self::exception(ZBX_API_ERROR_PARAMETERS, _s(
-							'Cannot add a non-numeric item "%1$s" to graph prototype "%2$s".',
-							$item['name'], $dbGraph['name']
-						));
-					}
-				}
-			}
-		}
-	}
-
-	/**
-	 * Check if graph prototype has at least one item prototype and belongs to one discovery rule.
-	 *
-	 * @throws APIException if graph prototype has no item prototype or items belong to multiple discovery rules.
-	 *
-	 * @param array  $graphs				array of graphs
-	 * @param array  $graphs['gitems']		array of graphs items
-	 * @param string $graphs['name']		graph name
-	 * @param array  $items					array of existing graph items and ones that user has permission to access
-	 */
-	protected function checkDiscoveryRuleCount(array $graphs, array $items) {
-		foreach ($graphs as $graph) {
-			// for update method we will skip this step, if no items are set
-			if (isset($graph['gitems'])) {
-				$itemDiscoveryIds = [];
-
-				foreach ($graph['gitems'] as $gitem) {
-					if ($items[$gitem['itemid']]['flags'] == ZBX_FLAG_DISCOVERY_PROTOTYPE) {
-						$itemDiscoveryIds[$items[$gitem['itemid']]['itemDiscovery']['parent_itemid']] = true;
-					}
-				}
-
-				if (count($itemDiscoveryIds) > 1) {
-					self::exception(ZBX_API_ERROR_PARAMETERS, _s(
-						'Graph prototype "%1$s" contains item prototypes from multiple discovery rules.',
-						$graph['name']
+				if (!array_key_exists('graphid', $graph) || bccomp($row['graphid'], $graph['graphid']) != 0) {
+					$data = DBfetch(DBselect(
+						'SELECT i.key_,h.host,h.status'.
+						' FROM items i,hosts h'.
+						' WHERE i.hostid=h.hostid'.
+							' AND '.dbConditionId('i.itemid', [$row['parent_itemid']])
 					));
-				}
-				elseif (!$itemDiscoveryIds) {
-					self::exception(ZBX_API_ERROR_PARAMETERS, _s(
-						'Graph prototype "%1$s" must have at least one item prototype.',
-						$graph['name']
-					));
+
+					$error = in_array($data['status'], [HOST_STATUS_MONITORED, HOST_STATUS_NOT_MONITORED])
+						? _('Graph prototype "%1$s" already exists on the LLD rule with key "%2$s" of the host "%3$s".')
+						: _('Graph prototype "%1$s" already exists on the LLD rule with key "%2$s" of the template "%3$s".');
+
+					self::exception(ZBX_API_ERROR_PARAMETERS,
+						sprintf($error, $graph['name'], $data['key_'], $data['host'])
+					);
 				}
 			}
 		}

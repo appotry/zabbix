@@ -1,21 +1,16 @@
 ﻿<?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -148,6 +143,20 @@ class CDnsParserTest extends TestCase {
 				]
 			],
 			[
+				'{{$M}.regsub("^([0-9]+)", \1)}', 0, ['usermacros' => true],
+				[
+					'rc' => CParser::PARSE_SUCCESS,
+					'match' => '{{$M}.regsub("^([0-9]+)", \1)}'
+				]
+			],
+			[
+				'{{$M: "context"}.regsub("^([0-9]+)", \1)}', 0, ['usermacros' => true],
+				[
+					'rc' => CParser::PARSE_SUCCESS,
+					'match' => '{{$M: "context"}.regsub("^([0-9]+)", \1)}'
+				]
+			],
+			[
 				'&&&&zabbix.com{$MACRO2}', 4, ['usermacros' => true],
 				[
 					'rc' => CParser::PARSE_SUCCESS,
@@ -232,6 +241,13 @@ class CDnsParserTest extends TestCase {
 				]
 			],
 			[
+				'{{HOST.HOST}.func()}', 0, ['macros' => true],
+				[
+					'rc' => CParser::PARSE_SUCCESS,
+					'match' => '{{HOST.HOST}.func()}'
+				]
+			],
+			[
 				'{HOST.HOST}', 0, ['macros' => false],
 				[
 					'rc' => CParser::PARSE_FAIL,
@@ -257,6 +273,13 @@ class CDnsParserTest extends TestCase {
 				[
 					'rc' => CParser::PARSE_SUCCESS,
 					'match' => 'zabbix.com{HOST.HOST}'
+				]
+			],
+			[
+				'zabbix.com{{HOST.HOST}.regsub("(\d+)", \1)}', 0, ['macros' => ['{HOST.HOST}']],
+				[
+					'rc' => CParser::PARSE_SUCCESS,
+					'match' => 'zabbix.com{{HOST.HOST}.regsub("(\d+)", \1)}'
 				]
 			],
 			[

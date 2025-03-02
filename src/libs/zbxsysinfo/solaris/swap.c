@@ -1,29 +1,23 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-#include "common.h"
-#include "sysinfo.h"
-#include "log.h"
+#include "zbxsysinfo.h"
+#include "../sysinfo.h"
 
 /******************************************************************************
  *                                                                            *
- * Purpose: get swap usage statistics                                         *
+ * Purpose: gets swap usage statistics                                        *
  *                                                                            *
  * Return value: SUCCEED if swap usage statistics retrieved successfully      *
  *               FAIL otherwise                                               *
@@ -105,7 +99,7 @@ finish:
 	return ret;
 }
 
-static int	SYSTEM_SWAP_TOTAL(AGENT_REQUEST *request, AGENT_RESULT *result)
+static int	system_swap_total(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	zbx_uint64_t	total, free1;
 	char		*error;
@@ -121,7 +115,7 @@ static int	SYSTEM_SWAP_TOTAL(AGENT_REQUEST *request, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-static int	SYSTEM_SWAP_USED(AGENT_REQUEST *request, AGENT_RESULT *result)
+static int	system_swap_used(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	zbx_uint64_t	total, free1;
 	char		*error;
@@ -137,7 +131,7 @@ static int	SYSTEM_SWAP_USED(AGENT_REQUEST *request, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-static int	SYSTEM_SWAP_FREE(AGENT_REQUEST *request, AGENT_RESULT *result)
+static int	system_swap_free(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	zbx_uint64_t	total, free1;
 	char		*error;
@@ -153,7 +147,7 @@ static int	SYSTEM_SWAP_FREE(AGENT_REQUEST *request, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-static int	SYSTEM_SWAP_PUSED(AGENT_REQUEST *request, AGENT_RESULT *result)
+static int	system_swap_pused(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	zbx_uint64_t	total, free1;
 	char		*error;
@@ -172,7 +166,7 @@ static int	SYSTEM_SWAP_PUSED(AGENT_REQUEST *request, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-static int	SYSTEM_SWAP_PFREE(AGENT_REQUEST *request, AGENT_RESULT *result)
+static int	system_swap_pfree(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	zbx_uint64_t	total, free1;
 	char		*error;
@@ -191,7 +185,7 @@ static int	SYSTEM_SWAP_PFREE(AGENT_REQUEST *request, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-int	SYSTEM_SWAP_SIZE(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	system_swap_size(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	char	*tmp;
 	int	ret;
@@ -213,15 +207,15 @@ int	SYSTEM_SWAP_SIZE(AGENT_REQUEST *request, AGENT_RESULT *result)
 	tmp = get_rparam(request, 1);
 
 	if (NULL == tmp || '\0' == *tmp || 0 == strcmp(tmp, "free"))	/* default parameter */
-		ret = SYSTEM_SWAP_FREE(request, result);
+		ret = system_swap_free(request, result);
 	else if (0 == strcmp(tmp, "total"))
-		ret = SYSTEM_SWAP_TOTAL(request, result);
+		ret = system_swap_total(request, result);
 	else if (0 == strcmp(tmp, "used"))
-		ret = SYSTEM_SWAP_USED(request, result);
+		ret = system_swap_used(request, result);
 	else if (0 == strcmp(tmp, "pfree"))
-		ret = SYSTEM_SWAP_PFREE(request, result);
+		ret = system_swap_pfree(request, result);
 	else if (0 == strcmp(tmp, "pused"))
-		ret = SYSTEM_SWAP_PUSED(request, result);
+		ret = system_swap_pused(request, result);
 	else
 	{
 		SET_MSG_RESULT(result, zbx_strdup(NULL, "Invalid second parameter."));
@@ -299,7 +293,7 @@ clean:
 	return SYSINFO_RET_OK;
 }
 
-int	SYSTEM_SWAP_IN(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	system_swap_in(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	int		ret;
 	char		*tmp, *error;
@@ -339,7 +333,7 @@ int	SYSTEM_SWAP_IN(AGENT_REQUEST *request, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-int	SYSTEM_SWAP_OUT(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	system_swap_out(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	int		ret;
 	char		*tmp, *error;

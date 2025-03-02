@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -34,10 +29,10 @@ $fields = [
 	'sort' =>		[T_ZBX_STR, O_OPT, P_SYS, IN('"host_count","inventory_field"'),		null],
 	'sortorder' =>	[T_ZBX_STR, O_OPT, P_SYS, IN('"'.ZBX_SORT_DOWN.'","'.ZBX_SORT_UP.'"'),	null],
 	// filter
-	'filter_set' =>			[T_ZBX_STR, O_OPT, P_SYS,		null,	null],
-	'filter_rst' =>			[T_ZBX_STR, O_OPT, P_SYS,		null,	null],
-	'filter_groups' =>		[T_ZBX_INT, O_OPT, null,		DB_ID,	null],
-	'filter_groupby' =>		[T_ZBX_STR, O_OPT, P_SYS,		null,	null]
+	'filter_set' =>			[T_ZBX_STR, O_OPT, P_SYS,			null,	null],
+	'filter_rst' =>			[T_ZBX_STR, O_OPT, P_SYS,			null,	null],
+	'filter_groups' =>		[T_ZBX_INT, O_OPT, P_ONLY_ARRAY,	DB_ID,	null],
+	'filter_groupby' =>		[T_ZBX_STR, O_OPT, P_SYS,			null,	null]
 ];
 check_fields($fields);
 
@@ -68,10 +63,6 @@ $filter = [
 
 $ms_groups = [];
 $filter_groupids = $filter['groups'] ? getSubGroups($filter['groups'], $ms_groups) : null;
-
-if (count($ms_groups) != count($filter['groups'])) {
-	show_error_message(_('No permissions to referred object or it does not exist!'));
-}
 
 $inventories = [];
 foreach (getHostInventories() as $inventory) {
@@ -124,7 +115,7 @@ if ($filter['groupby'] !== '') {
 	$allowed_ui_inventory = CWebUser::checkAccess(CRoleHelper::UI_INVENTORY_HOSTS);
 	foreach ($report as $rep) {
 		$table->addRow([
-			zbx_str2links($rep['inventory_field']),
+			(new CCol(zbx_str2links($rep['inventory_field'])))->addClass(ZBX_STYLE_WORDBREAK),
 			$allowed_ui_inventory
 				? new CLink($rep['host_count'],
 					(new CUrl('hostinventories.php'))
@@ -146,7 +137,7 @@ $select_groupby = (new CSelect('filter_groupby'))
 	->addOption(new CSelectOption('', _('not selected')))
 	->addOptions(CSelect::createOptionsFromArray($inventories));
 
-(new CWidget())
+(new CHtmlPage())
 	->setTitle(_('Host inventory overview'))
 	->setDocUrl(CDocHelper::getUrl(CDocHelper::INVENTORY_HOST_OVERVIEW))
 	->addItem(
@@ -168,7 +159,7 @@ $select_groupby = (new CSelect('filter_groupby'))
 									'srcfld1' => 'groupid',
 									'dstfrm' => 'zbx_filter',
 									'dstfld1' => 'filter_groups_',
-									'real_hosts' => 1,
+									'with_hosts' => true,
 									'enrich_parent_groups' => true
 								]
 							]
