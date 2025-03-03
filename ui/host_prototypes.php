@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -34,23 +29,23 @@ require_once dirname(__FILE__).'/include/page_header.php';
 $fields = [
 	'hostid' =>					[T_ZBX_INT, O_NO,	P_SYS,	DB_ID, '(isset({form}) && ({form} == "update")) || (isset({action}) && {action} == "hostprototype.updatediscover")'],
 	'parent_discoveryid' =>		[T_ZBX_INT, O_MAND, P_SYS,	DB_ID, null],
-	'host' =>					[T_ZBX_STR, O_OPT, null,		NOT_EMPTY,	'isset({add}) || isset({update})', _('Host name')],
-	'name' =>					[T_ZBX_STR, O_OPT, null,		null,		'isset({add}) || isset({update})'],
-	'status' =>					[T_ZBX_INT, O_OPT, null,		IN([HOST_STATUS_NOT_MONITORED, HOST_STATUS_MONITORED]), null],
-	'discover' =>				[T_ZBX_INT, O_OPT, null, IN([ZBX_PROTOTYPE_DISCOVER, ZBX_PROTOTYPE_NO_DISCOVER]), null],
-	'inventory_mode' =>			[T_ZBX_INT, O_OPT, null, IN([HOST_INVENTORY_DISABLED, HOST_INVENTORY_MANUAL, HOST_INVENTORY_AUTOMATIC]), null],
-	'templates' =>				[T_ZBX_STR, O_OPT, null, NOT_EMPTY,	null],
-	'add_templates' =>			[T_ZBX_STR, O_OPT, null, NOT_EMPTY,	null],
-	'group_links' =>			[T_ZBX_STR, O_OPT, null, NOT_EMPTY,	null],
-	'group_prototypes' =>		[T_ZBX_STR, O_OPT, null, NOT_EMPTY,	null],
-	'unlink' =>					[T_ZBX_STR, O_OPT, P_SYS|P_ACT,	null,		null],
-	'group_hostid' =>			[T_ZBX_INT, O_OPT, null,	DB_ID,		null],
+	'host' =>					[T_ZBX_STR, O_OPT, null,	NOT_EMPTY,	'isset({add}) || isset({update})', _('Host name')],
+	'name' =>					[T_ZBX_STR, O_OPT, null,	null,		'isset({add}) || isset({update})'],
+	'status' =>					[T_ZBX_INT, O_OPT, null,	IN([HOST_STATUS_NOT_MONITORED, HOST_STATUS_MONITORED]), null],
+	'discover' =>				[T_ZBX_INT, O_OPT, null,	IN([ZBX_PROTOTYPE_DISCOVER, ZBX_PROTOTYPE_NO_DISCOVER]), null],
+	'inventory_mode' =>			[T_ZBX_INT, O_OPT, null,	IN([HOST_INVENTORY_DISABLED, HOST_INVENTORY_MANUAL, HOST_INVENTORY_AUTOMATIC]), null],
+	'templates' =>				[T_ZBX_STR, O_OPT, P_ONLY_ARRAY, NOT_EMPTY,		null],
+	'add_templates' =>			[T_ZBX_STR, O_OPT, P_ONLY_ARRAY, NOT_EMPTY,		null],
+	'group_links' =>			[T_ZBX_STR, O_OPT, P_ONLY_ARRAY, NOT_EMPTY,		null],
+	'group_prototypes' =>		[T_ZBX_STR, O_OPT, P_ONLY_TD_ARRAY, NOT_EMPTY,	null],
+	'unlink' =>					[T_ZBX_STR, O_OPT, P_SYS|P_ACT|P_ONLY_ARRAY,	null,	null],
+	'group_hostid' =>			[T_ZBX_INT, O_OPT, P_ONLY_ARRAY,	DB_ID,		null],
 	'show_inherited_macros' =>	[T_ZBX_INT, O_OPT, null, IN([0,1]), null],
-	'tags' =>					[T_ZBX_STR, O_OPT, P_SYS,			null,		null],
-	'macros' =>					[T_ZBX_STR, O_OPT, P_SYS,			null,		null],
+	'tags' =>					[T_ZBX_STR, O_OPT, P_SYS|P_ONLY_TD_ARRAY,	null,	null],
+	'macros' =>					[null,      O_OPT, P_SYS|P_ONLY_TD_ARRAY,	null,	null],
 	'custom_interfaces' =>		[T_ZBX_INT, O_OPT, null, IN([HOST_PROT_INTERFACES_INHERIT, HOST_PROT_INTERFACES_CUSTOM]), null],
-	'interfaces' =>				[T_ZBX_STR, O_OPT, null, null,		null],
-	'mainInterfaces' =>			[T_ZBX_INT, O_OPT, null, DB_ID,		null],
+	'interfaces' =>				[null,      O_OPT, P_ONLY_TD_ARRAY,	null,	null],
+	'mainInterfaces' =>			[T_ZBX_INT, O_OPT, P_ONLY_ARRAY,	DB_ID,	null],
 	'context' =>				[T_ZBX_STR, O_MAND, P_SYS,	IN('"host", "template"'),	null],
 	// actions
 	'action' =>					[T_ZBX_STR, O_OPT, P_SYS|P_ACT,
@@ -65,10 +60,11 @@ $fields = [
 	'delete' =>					[T_ZBX_STR, O_OPT, P_SYS|P_ACT, null,	null],
 	'cancel' =>					[T_ZBX_STR, O_OPT, P_SYS,	null,		null],
 	'form' =>					[T_ZBX_STR, O_OPT, P_SYS,	null,		null],
-	'form_refresh' =>			[T_ZBX_INT, O_OPT, null,	null,		null],
+	'form_refresh' =>			[T_ZBX_INT, O_OPT, P_SYS,	null,		null],
+	'backurl' =>				[T_ZBX_STR, O_OPT, null,	null,		null],
 	// sort and sortorder
-	'sort' =>					[T_ZBX_STR, O_OPT, P_SYS, IN('"name","status","discover"'),						null],
-	'sortorder' =>				[T_ZBX_STR, O_OPT, P_SYS, IN('"'.ZBX_SORT_DOWN.'","'.ZBX_SORT_UP.'"'),	null]
+	'sort' =>					[T_ZBX_STR, O_OPT, P_SYS,	IN('"name","status","discover"'),				null],
+	'sortorder' =>				[T_ZBX_STR, O_OPT, P_SYS,	IN('"'.ZBX_SORT_DOWN.'","'.ZBX_SORT_UP.'"'),	null]
 ];
 check_fields($fields);
 
@@ -91,7 +87,7 @@ if (getRequest('parent_discoveryid')) {
 		$hostPrototype = API::HostPrototype()->get([
 			'output' => API_OUTPUT_EXTEND,
 			'selectGroupLinks' => ['groupid'],
-			'selectGroupPrototypes' => ['name'],
+			'selectGroupPrototypes' => ['group_prototypeid', 'name'],
 			'selectTemplates' => ['templateid', 'name'],
 			'selectParentHost' => ['hostid'],
 			'selectMacros' => ['hostmacroid', 'macro', 'value', 'type', 'description'],
@@ -110,12 +106,9 @@ else {
 	access_deny();
 }
 
-$tags = getRequest('tags', []);
-foreach ($tags as $key => $tag) {
-	// remove empty new tag lines
-	if ($tag['tag'] === '' && $tag['value'] === '') {
-		unset($tags[$key]);
-	}
+// Validate backurl.
+if (hasRequest('backurl') && !CHtmlUrlValidator::validateSameSite(getRequest('backurl'))) {
+	access_deny();
 }
 
 // Remove inherited macros data (actions: 'add', 'update' and 'form').
@@ -151,164 +144,132 @@ elseif (isset($_REQUEST['delete']) && isset($_REQUEST['hostid'])) {
 elseif (isset($_REQUEST['clone']) && isset($_REQUEST['hostid'])) {
 	unset($_REQUEST['hostid']);
 
-	if ($macros && in_array(ZBX_MACRO_TYPE_SECRET, array_column($macros, 'type'))) {
-		// Reset macro type and value.
-		$macros = array_map(function($value) {
-			return ($value['type'] == ZBX_MACRO_TYPE_SECRET)
-				? ['value' => '', 'type' => ZBX_MACRO_TYPE_TEXT] + $value
-				: $value;
-		}, $macros);
+	if (hasRequest('group_prototypes')) {
+		foreach ($_REQUEST['group_prototypes'] as &$group_prototype) {
+			unset($group_prototype['group_prototypeid']);
+		}
+		unset($group_prototype);
+	}
 
-		warning(_('The cloned host prototype contains user defined macros with type "Secret text". The value and type of these macros were reset.'));
+	$warnings = [];
+
+	// Reset macro type and value.
+	$secret_macro_reset = false;
+
+	foreach ($macros as &$macro) {
+		if (array_key_exists('allow_revert', $macro) && array_key_exists('value', $macro)) {
+			$macro['deny_revert'] = true;
+
+			unset($macro['allow_revert']);
+		}
+	}
+	unset($macro);
+
+	foreach ($macros as &$macro) {
+		if ($macro['type'] == ZBX_MACRO_TYPE_SECRET && !array_key_exists('value', $macro)) {
+			$macro = [
+				'type' => ZBX_MACRO_TYPE_TEXT,
+				'value' => ''
+			] + $macro;
+
+			$secret_macro_reset = true;
+
+			unset($macro['allow_revert']);
+		}
+	}
+	unset($macro);
+
+	if ($secret_macro_reset) {
+		$warnings[] = _('The cloned host prototype contains user defined macros with type "Secret text". The value and type of these macros were reset.');
 	}
 
 	$macros = array_map(function(array $macro): array {
 		return array_diff_key($macro, array_flip(['hostmacroid']));
 	}, $macros);
 
+	if (CWebUser::getType() != USER_TYPE_SUPER_ADMIN && getRequest('group_links')) {
+		$editable_groups_count = API::HostGroup()->get([
+			'countOutput' => true,
+			'groupids' => getRequest('group_links'),
+			'editable' => true
+		]);
+
+		if ($editable_groups_count != count(getRequest('group_links'))) {
+			$warnings[] = _("The host being cloned belongs to a host group you don't have write permissions to. Non-writable group has been removed from the new host.");
+		}
+	}
+
+	if ($warnings) {
+		if (count($warnings) > 1) {
+			CMessageHelper::setWarningTitle(_('Cloned host parameter values have been modified.'));
+		}
+
+		array_map('CMessageHelper::addWarning', $warnings);
+	}
+
 	$_REQUEST['form'] = 'clone';
 }
 elseif (hasRequest('add') || hasRequest('update')) {
-	DBstart();
-
-	if ($hostid == 0 || $hostPrototype['templateid'] == 0) {
-		$newHostPrototype = [
-			'host' => getRequest('host', ''),
-			'name' => (getRequest('name', '') === '') ? getRequest('host', '') : getRequest('name', ''),
+	try {
+		$input = [
+			'host' => getRequest('host', DB::getDefault('hosts', 'host')),
+			'name' => getRequest(getRequest('name', '') === '' ? 'host' : 'name', DB::getDefault('hosts', 'name')),
+			'custom_interfaces' => getRequest('custom_interfaces', DB::getDefault('hosts', 'custom_interfaces')),
 			'status' => getRequest('status', HOST_STATUS_NOT_MONITORED),
 			'discover' => getRequest('discover', DB::getDefault('hosts', 'discover')),
-			'groupLinks' => [],
-			'groupPrototypes' => [],
-			'tags' => $tags,
-			'macros' => $macros,
-			'templates' => array_merge(getRequest('templates', []), getRequest('add_templates', [])),
-			'custom_interfaces' => getRequest('custom_interfaces', DB::getDefault('hosts', 'custom_interfaces'))
+			'interfaces' => prepareHostPrototypeInterfaces(
+				getRequest('interfaces', []), getRequest('mainInterfaces', [])
+			),
+			'groupLinks' => prepareHostPrototypeGroupLinks(getRequest('group_links', [])),
+			'groupPrototypes' => prepareHostPrototypeGroupPrototypes(getRequest('group_prototypes', [])),
+			'templates' => zbx_toObject(
+				array_merge(getRequest('templates', []), getRequest('add_templates', [])),
+				'templateid'
+			),
+			'tags' => prepareHostPrototypeTags(getRequest('tags', [])),
+			'macros' => prepareHostPrototypeMacros($macros),
+			'inventory_mode' => getRequest('inventory_mode', HOST_INVENTORY_DISABLED)
 		];
 
-		if (hasRequest('inventory_mode')) {
-			$newHostPrototype['inventory_mode'] = getRequest('inventory_mode');
-		}
+		$result = true;
 
-		// API requires 'templateid' property.
-		if ($newHostPrototype['templates']) {
-			$newHostPrototype['templates'] = zbx_toObject($newHostPrototype['templates'], 'templateid');
-		}
+		if (hasRequest('add')) {
+			$host = ['ruleid' => getRequest('parent_discoveryid')] + getSanitizedHostPrototypeFields(
+				['templateid' => 0] + $input
+			);
 
-		// add custom group prototypes
-		foreach (getRequest('group_prototypes', []) as $groupPrototype) {
-			if ($groupPrototype['name'] !== '') {
-				$newHostPrototype['groupPrototypes'][] = $groupPrototype;
+			$response = API::HostPrototype()->create($host);
+
+			if ($response === false) {
+				throw new Exception();
 			}
 		}
 
-		if ($newHostPrototype['custom_interfaces'] == HOST_PROT_INTERFACES_CUSTOM) {
-			$interfaces = getRequest('interfaces', []);
+		if (hasRequest('update')) {
+			$host = ['hostid' => $hostid] + getSanitizedHostPrototypeFields(
+				['templateid' => $hostPrototype['templateid']] + $input
+			);
 
-			foreach ($interfaces as &$interface) {
-				// Process SNMP interface fields.
-				if ($interface['type'] == INTERFACE_TYPE_SNMP) {
-					$interface['details']['bulk'] = array_key_exists('bulk', $interface['details'])
-						? SNMP_BULK_ENABLED
-						: SNMP_BULK_DISABLED;
+			$response = API::HostPrototype()->update($host);
 
-					switch ($interface['details']['version']) {
-						case SNMP_V1:
-						case SNMP_V2C:
-							$interface['details'] = array_intersect_key($interface['details'],
-								array_flip(['version', 'bulk', 'community'])
-							);
-							break;
-
-						case SNMP_V3:
-							$field_names = array_flip(['version', 'bulk', 'contextname', 'securityname',
-								'securitylevel'
-							]);
-
-							if ($interface['details']['securitylevel'] == ITEM_SNMPV3_SECURITYLEVEL_AUTHNOPRIV) {
-								$field_names += array_flip(['authprotocol', 'authpassphrase']);
-							}
-							elseif ($interface['details']['securitylevel'] == ITEM_SNMPV3_SECURITYLEVEL_AUTHPRIV) {
-								$field_names +=
-									array_flip(['authprotocol', 'authpassphrase', 'privprotocol', 'privpassphrase']);
-							}
-
-							$interface['details'] = array_intersect_key($interface['details'], $field_names);
-							break;
-					}
-				}
-
-				unset($interface['isNew'], $interface['items'], $interface['interfaceid']);
-				$interface['main'] = 0;
+			if ($response === false) {
+				throw new Exception();
 			}
-			unset($interface);
-
-			$main_interfaces = getRequest('mainInterfaces', []);
-
-			foreach (CItem::INTERFACE_TYPES_BY_PRIORITY as $type) {
-				if (array_key_exists($type, $main_interfaces)
-						&& array_key_exists($main_interfaces[$type], $interfaces)) {
-					$interfaces[$main_interfaces[$type]]['main'] = INTERFACE_PRIMARY;
-				}
-			}
-
-			$newHostPrototype['interfaces'] = $interfaces;
 		}
-	}
-	else {
-		$newHostPrototype = [
-			'status' => getRequest('status', HOST_STATUS_NOT_MONITORED),
-			'discover' => getRequest('discover', DB::getDefault('hosts', 'discover'))
-		];
+	} catch (Exception $e) {
+		$result = false;
 	}
 
-	if ($hostid != 0) {
-		$newHostPrototype['hostid'] = $hostid;
-
-		if (!$hostPrototype['templateid']) {
-			// add group prototypes based on existing host groups
-			$groupPrototypesByGroupId = zbx_toHash($hostPrototype['groupLinks'], 'groupid');
-			unset($groupPrototypesByGroupId[0]);
-			foreach (getRequest('group_links', []) as $groupId) {
-				$newHostPrototype['groupLinks'][] = [
-					'groupid' => array_key_exists($groupId, $groupPrototypesByGroupId)
-						? $groupPrototypesByGroupId[$groupId]['groupid']
-						: $groupId
-				];
-
-			}
-		}
-		else {
-			unset($newHostPrototype['groupPrototypes'], $newHostPrototype['groupLinks']);
-		}
-
-		$result = API::HostPrototype()->update($newHostPrototype);
-
-		show_messages($result, _('Host prototype updated'), _('Cannot update host prototype'));
-	}
-	else {
-		$newHostPrototype['ruleid'] = getRequest('parent_discoveryid');
-
-		// add group prototypes based on existing host groups
-		foreach (getRequest('group_links', []) as $groupId) {
-			$newHostPrototype['groupLinks'][] = [
-				'groupid' => $groupId
-			];
-		}
-
-		if (count($newHostPrototype['groupPrototypes']) === 0) {
-			unset($newHostPrototype['groupPrototypes']);
-		}
-
-		$result = API::HostPrototype()->create($newHostPrototype);
-
+	if (hasRequest('add')) {
 		show_messages($result, _('Host prototype added'), _('Cannot add host prototype'));
 	}
-
-	$result = DBend($result);
+	else {
+		show_messages($result, _('Host prototype updated'), _('Cannot update host prototype'));
+	}
 
 	if ($result) {
-		uncheckTableRows($discoveryRule['itemid']);
 		unset($_REQUEST['itemid'], $_REQUEST['form']);
+		uncheckTableRows($discoveryRule['itemid']);
 	}
 }
 elseif ($hostid != 0 && getRequest('action', '') === 'hostprototype.updatediscover') {
@@ -317,14 +278,23 @@ elseif ($hostid != 0 && getRequest('action', '') === 'hostprototype.updatediscov
 		'discover' => getRequest('discover', DB::getDefault('hosts', 'discover'))
 	]);
 
-	show_messages($result, _('Host prototype updated'), _('Cannot update host prototype'));
+	if ($result) {
+		CMessageHelper::setSuccessTitle(_('Host prototype updated'));
+	}
+	else {
+		CMessageHelper::setErrorTitle(_('Cannot update host prototype'));
+	}
+
+	if (hasRequest('backurl')) {
+		$response = new CControllerResponseRedirect(new CUrl(getRequest('backurl')));
+		$response->redirect();
+	}
 }
 // GO
 elseif (hasRequest('action') && str_in_array(getRequest('action'), ['hostprototype.massenable', 'hostprototype.massdisable']) && hasRequest('group_hostid')) {
 	$status = (getRequest('action') == 'hostprototype.massenable') ? HOST_STATUS_MONITORED : HOST_STATUS_NOT_MONITORED;
 	$update = [];
 
-	DBstart();
 	foreach ((array) getRequest('group_hostid') as $hostPrototypeId) {
 		$update[] = [
 			'hostid' => $hostPrototypeId,
@@ -332,18 +302,23 @@ elseif (hasRequest('action') && str_in_array(getRequest('action'), ['hostprototy
 		];
 	}
 
-	$result = API::HostPrototype()->update($update);
-	$result = DBend($result);
+	$result = (bool) API::HostPrototype()->update($update);
 
 	$updated = count($update);
 
-	$messageSuccess = _n('Host prototype updated', 'Host prototypes updated', $updated);
-	$messageFailed = _n('Cannot update host prototype', 'Cannot update host prototypes', $updated);
-
 	if ($result) {
 		uncheckTableRows($discoveryRule['itemid']);
+
+		CMessageHelper::setSuccessTitle(_n('Host prototype updated', 'Host prototypes updated', $updated));
 	}
-	show_messages($result, $messageSuccess, $messageFailed);
+	else {
+		CMessageHelper::setErrorTitle(_n('Cannot update host prototype', 'Cannot update host prototypes', $updated));
+	}
+
+	if (hasRequest('backurl')) {
+		$response = new CControllerResponseRedirect(new CUrl(getRequest('backurl')));
+		$response->redirect();
+	}
 }
 elseif (hasRequest('action') && getRequest('action') == 'hostprototype.massdelete' && getRequest('group_hostid')) {
 	DBstart();
@@ -353,7 +328,12 @@ elseif (hasRequest('action') && getRequest('action') == 'hostprototype.massdelet
 	if ($result) {
 		uncheckTableRows($discoveryRule['itemid']);
 	}
-	show_messages($result, _('Host prototypes deleted'), _('Cannot delete host prototypes'));
+
+	$host_prototypes_count = count(getRequest('group_hostid'));
+	$messageSuccess = _n('Host prototype deleted', 'Host prototypes deleted', $host_prototypes_count);
+	$messageFailed = _n('Cannot delete host prototype', 'Cannot delete host prototypes', $host_prototypes_count);
+
+	show_messages($result, $messageSuccess, $messageFailed);
 }
 
 if (hasRequest('action') && hasRequest('group_hostid') && !$result) {
@@ -373,6 +353,7 @@ if (hasRequest('form')) {
 	$hostid = getRequest('hostid', 0);
 
 	$data = [
+		'form_refresh' => getRequest('form_refresh', 0),
 		'discovery_rule' => $discoveryRule,
 		'host_prototype' => [
 			'hostid' => $hostid,
@@ -395,7 +376,7 @@ if (hasRequest('form')) {
 		'show_inherited_macros' => getRequest('show_inherited_macros', 0),
 		'readonly' => ($hostid != 0 && $hostPrototype['templateid']),
 		'groups' => [],
-		'tags' => $tags,
+		'tags' => getRequest('tags', []),
 		'context' => getRequest('context'),
 		// Parent discovery rules.
 		'templates' => []
@@ -426,8 +407,9 @@ if (hasRequest('form')) {
 
 	// add parent host
 	$parentHost = API::Host()->get([
-		'output' => API_OUTPUT_EXTEND,
-		'selectGroups' => ['groupid', 'name'],
+		'output' => ['hostid', 'monitored_by', 'proxyid', 'proxy_groupid', 'status', 'ipmi_authtype', 'ipmi_privilege',
+			'ipmi_username', 'ipmi_password', 'tls_accept', 'tls_connect', 'tls_issuer', 'tls_subject'
+		],
 		'selectInterfaces' => API_OUTPUT_EXTEND,
 		'hostids' => $discoveryRule['hostid'],
 		'templated_hosts' => true
@@ -445,19 +427,34 @@ if (hasRequest('form')) {
 		]);
 	}
 
-	if ($parentHost['proxy_hostid']) {
-		$proxy = API::Proxy()->get([
-			'output' => ['host', 'proxyid'],
-			'proxyids' => $parentHost['proxy_hostid'],
-			'limit' => 1
-		]);
-		$data['proxy'] = reset($proxy);
+	$data['ms_proxy'] = [];
+	$data['ms_proxy_group'] = [];
+
+	if ($parentHost['monitored_by'] == ZBX_MONITORED_BY_PROXY) {
+		$data['ms_proxy'] = CArrayHelper::renameObjectsKeys(API::Proxy()->get([
+			'output' => ['proxyid', 'name'],
+			'proxyids' => $parentHost['proxyid']
+		]), ['proxyid' => 'id']);
+	}
+	elseif ($parentHost['monitored_by'] == ZBX_MONITORED_BY_PROXY_GROUP) {
+		$data['ms_proxy_group'] = CArrayHelper::renameObjectsKeys(API::ProxyGroup()->get([
+			'output' => ['proxy_groupid', 'name'],
+			'proxy_groupids' => $parentHost['proxy_groupid']
+		]), ['proxy_groupid' => 'id']);
 	}
 
 	if (!hasRequest('form_refresh')) {
 		if ($data['host_prototype']['hostid'] != 0) {
 			// When opening existing host prototype, display all values from database.
 			$data['host_prototype'] = array_merge($data['host_prototype'], $hostPrototype);
+
+			foreach ($data['host_prototype']['macros'] as &$macro) {
+				if ($macro['type'] == ZBX_MACRO_TYPE_SECRET
+						&& !array_key_exists('deny_revert', $macro) && !array_key_exists('value', $macro)) {
+					$macro['allow_revert'] = true;
+				}
+			}
+			unset($macro);
 
 			$groupids = zbx_objectValues($data['host_prototype']['groupLinks'], 'groupid');
 			$data['groups'] = API::HostGroup()->get([
@@ -540,11 +537,25 @@ if (hasRequest('form')) {
 		$data['macros'][] = $macro;
 	}
 
-	// This data is used in common.template.edit.js.php.
+	foreach ($data['macros'] as &$macro) {
+		$macro['discovery_state'] = CControllerHostMacrosList::DISCOVERY_STATE_MANUAL;
+	}
+	unset($macro);
+
 	$data['macros_tab'] = [
 		'linked_templates' => array_map('strval', $templateids),
 		'add_templates' => array_map('strval', array_keys($data['host_prototype']['add_templates']))
 	];
+
+	// Editable host groups.
+	$groups_rw = ($data['groups'] && CWebUser::getType() != USER_TYPE_SUPER_ADMIN)
+		? API::HostGroup()->get([
+			'output' => [],
+			'groupids' => array_keys($data['groups']),
+			'editable' => true,
+			'preservekeys' => true
+		])
+		: [];
 
 	$data['groups_ms'] = [];
 
@@ -552,7 +563,9 @@ if (hasRequest('form')) {
 		$data['groups_ms'][] = [
 			'id' => $group['groupid'],
 			'name' => $group['name'],
-			'inaccessible' => (array_key_exists('inaccessible', $group) && $group['inaccessible'])
+			'inaccessible' => array_key_exists('inaccessible', $group) && $group['inaccessible'],
+			'disabled' => CWebUser::getType() != USER_TYPE_SUPER_ADMIN
+					&& !array_key_exists($group['groupid'], $groups_rw)
 		];
 	}
 

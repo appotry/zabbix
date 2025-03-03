@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -38,7 +33,7 @@ class CHostImporter extends CImporter {
 		$hosts_to_update = [];
 		$valuemaps = [];
 		$template_linkage = [];
-		$templates_to_clear = [];
+		$templates_to_unlink = [];
 
 		foreach ($hosts as $host) {
 			/*
@@ -85,7 +80,7 @@ class CHostImporter extends CImporter {
 				// Get already linked templates.
 				$db_template_links = API::Host()->get([
 					'output' => ['hostids'],
-					'selectParentTemplates' => ['hostid'],
+					'selectParentTemplates' => ['templateid'],
 					'hostids' => array_column($hosts_to_update, 'hostid'),
 					'preservekeys' => true
 				]);
@@ -97,13 +92,13 @@ class CHostImporter extends CImporter {
 
 				foreach ($hosts_to_update as $host) {
 					if (array_key_exists($host['host'], $template_linkage)) {
-						$templates_to_clear[$host['hostid']] = array_diff(
+						$templates_to_unlink[$host['hostid']] = array_diff(
 							$db_template_links[$host['hostid']],
 							array_column($template_linkage[$host['host']], 'templateid')
 						);
 					}
 					else {
-						$templates_to_clear[$host['hostid']] = $db_template_links[$host['hostid']];
+						$templates_to_unlink[$host['hostid']] = $db_template_links[$host['hostid']];
 					}
 				}
 			}
@@ -118,18 +113,17 @@ class CHostImporter extends CImporter {
 				$this->processedHostIds[$host['host']] = $host['hostid'];
 
 				// Drop existing template linkages if 'delete missing' selected.
-				if (array_key_exists($host['hostid'], $templates_to_clear) && $templates_to_clear[$host['hostid']]) {
-					API::Host()->massRemove([
-						'hostids' => [$host['hostid']],
-						'templateids_clear' => $templates_to_clear[$host['hostid']]
-					]);
+				if (array_key_exists($host['hostid'], $templates_to_unlink) && $templates_to_unlink[$host['hostid']]) {
+					$host['templates'] = [];
+
+					API::Host()->update($host);
 				}
 
 				// Make new template linkages.
 				if ($this->options['templateLinkage']['createMissing']
 						&& array_key_exists($host['host'], $template_linkage)) {
 					API::Host()->massAdd([
-						'hosts' => $host,
+						'hosts' => ['hostid' => $host['hostid']],
 						'templates' => $template_linkage[$host['host']]
 					]);
 				}
@@ -292,31 +286,6 @@ class CHostImporter extends CImporter {
 	 * @throws Exception
 	 */
 	protected function resolveHostReferences(array $host): array {
-		foreach ($host['groups'] as $index => $group) {
-			$groupid = $this->referencer->findGroupidByName($group['name']);
-
-			if ($groupid === null) {
-				throw new Exception(_s('Group "%1$s" for host "%2$s" does not exist.', $group['name'], $host['host']));
-			}
-
-			$host['groups'][$index] = ['groupid' => $groupid];
-		}
-
-		if (array_key_exists('proxy', $host)) {
-			if (!$host['proxy']) {
-				$proxyid = 0;
-			}
-			else {
-				$proxyid = $this->referencer->findProxyidByHost($host['proxy']['name']);
-
-				if ($proxyid === null) {
-					throw new Exception(_s('Proxy "%1$s" for host "%2$s" does not exist.', $host['proxy']['name'], $host['host']));
-				}
-			}
-
-			$host['proxy_hostid'] = $proxyid;
-		}
-
 		$hostid = $this->referencer->findHostidByHost($host['host']);
 
 		if ($hostid !== null) {
@@ -332,6 +301,52 @@ class CHostImporter extends CImporter {
 				}
 				unset($macro);
 			}
+		}
+
+		if (!$this->options['hosts']['createMissing'] && !$this->options['hosts']['updateExisting']) {
+			return $host;
+		}
+
+		foreach ($host['groups'] as $index => $group) {
+			$groupid = $this->referencer->findHostGroupidByName($group['name']);
+
+			if ($groupid === null) {
+				throw new Exception(_s('Group "%1$s" for host "%2$s" does not exist.', $group['name'], $host['host']));
+			}
+
+			$host['groups'][$index] = ['groupid' => $groupid];
+		}
+
+		if (array_key_exists('proxy', $host)) {
+			if (!$host['proxy']) {
+				$proxyid = 0;
+			}
+			else {
+				$proxyid = $this->referencer->findProxyidByName($host['proxy']['name']);
+
+				if ($proxyid === null) {
+					throw new Exception(_s('Proxy "%1$s" for host "%2$s" does not exist.', $host['proxy']['name'], $host['host']));
+				}
+			}
+
+			$host['proxyid'] = $proxyid;
+		}
+
+		if (array_key_exists('proxy_group', $host)) {
+			if (!$host['proxy_group']) {
+				$proxy_groupid = 0;
+			}
+			else {
+				$proxy_groupid = $this->referencer->findProxyGroupIdByName($host['proxy_group']['name']);
+
+				if ($proxy_groupid === null) {
+					throw new Exception(_s('Proxy group "%1$s" for host "%2$s" does not exist.',
+						$host['proxy_group']['name'], $host['host']
+					));
+				}
+			}
+
+			$host['proxy_groupid'] = $proxy_groupid;
 		}
 
 		return $host;

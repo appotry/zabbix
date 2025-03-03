@@ -1,37 +1,46 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
+
 
 require_once dirname(__FILE__).'/../../include/CWebTest.php';
 require_once dirname(__FILE__).'/../../../include/items.inc.php';
-require_once dirname(__FILE__).'/../traits/PreprocessingTrait.php';
+require_once dirname(__FILE__).'/../behaviors/CPreprocessingBehavior.php';
 
 /**
  * @backup items
+ *
+ * @dataSource GlobalMacros
+ *
+ * TODO: remove ignoreBrowserErrors after DEV-4233
+ * @ignoreBrowserErrors
  */
 class testFormPreprocessingTest extends CWebTest {
+
+	/**
+	 * Attach PreprocessingBehavior to the test.
+	 *
+	 * @return array
+	 */
+	public function getBehaviors() {
+		return [CPreprocessingBehavior::class];
+	}
 
 	const HOST_ID = 40001;		//'Simple form test host'
 
 	private static $key;
-
-	use PreprocessingTrait;
+	private static $name;
 
 	public $change_types = [
 		'Discard unchanged with heartbeat',
@@ -162,9 +171,7 @@ class testFormPreprocessingTest extends CWebTest {
 						['type' => 'Left trim', 'parameter_1' => ''],
 						['type' => 'XML XPath', 'parameter_1' => ''],
 						['type' => 'JSONPath', 'parameter_1' => ''],
-						['type' => 'Custom multiplier', 'parameter_1' => ''],
 						['type' => 'JavaScript', 'parameter_1' => ''],
-						['type' => 'In range', 'parameter_1' => '', 'parameter_2' => ''],
 						['type' => 'Matches regular expression', 'parameter_1' => ''],
 						['type' => 'Does not match regular expression', 'parameter_1' => ''],
 						['type' => 'Check for error in JSON', 'parameter_1' => ''],
@@ -173,7 +180,27 @@ class testFormPreprocessingTest extends CWebTest {
 						['type' => 'Discard unchanged with heartbeat', 'parameter_1' => ''],
 						['type' => 'Prometheus pattern', 'parameter_1' => '', 'parameter_2' => 'value']
 					],
-					'error' => 'Incorrect value for field "params":'
+					'error' => 'Invalid parameter "/1/params/1": cannot be empty.'
+				]
+			],
+			[
+				[
+					'expected' => TEST_BAD,
+					'preprocessing' => [
+						['type' => 'In range', 'parameter_1' => '', 'parameter_2' => '']
+
+					],
+					'error' => 'Invalid parameter "/1/params": cannot be empty.'
+				]
+			],
+			[
+				[
+					'expected' => TEST_BAD,
+					'preprocessing' => [
+						['type' => 'Custom multiplier', 'parameter_1' => '']
+
+					],
+					'error' => 'Invalid parameter "/1/params/1": a floating point value is expected.'
 				]
 			],
 			[
@@ -184,7 +211,7 @@ class testFormPreprocessingTest extends CWebTest {
 						['type' => 'Check for error using regular expression', 'parameter_1' => 'path']
 
 					],
-					'error' => 'Incorrect value for field "params": second parameter is expected.'
+					'error' => 'Invalid parameter "/1/params/2": cannot be empty.'
 				]
 			],
 			[
@@ -195,7 +222,7 @@ class testFormPreprocessingTest extends CWebTest {
 						['type' => 'Regular expression', 'parameter_1' => '', 'parameter_2' => '1'],
 						['type' => 'Prometheus pattern', 'parameter_1' => '', 'parameter_2' => 'label', 'parameter_3' => 'label']
 					],
-					'error' => 'Incorrect value for field "params": first parameter is expected.'
+					'error' => 'Invalid parameter "/1/params/1": cannot be empty.'
 				]
 			]
 		];
@@ -211,6 +238,7 @@ class testFormPreprocessingTest extends CWebTest {
 			$this->addPreprocessingSteps([$step]);
 			$this->checkTestOverlay($data, 'name:preprocessing['.$i.'][test]', in_array($step['type'], $this->change_types), $i);
 		}
+		COverlayDialogElement::find()->one()->close();
 	}
 
 	public static function getTestAllStepsData() {
@@ -331,7 +359,8 @@ class testFormPreprocessingTest extends CWebTest {
 						['type' => 'Simple change'],
 						['type' => 'Change per second']
 					],
-					'error' => 'Only one change step is allowed.'
+					'error' => 'Invalid parameter "/2": only one object can exist within '.
+							'the combinations of (type)=((9, 10)).'
 				]
 			],
 			[
@@ -341,7 +370,7 @@ class testFormPreprocessingTest extends CWebTest {
 						['type' => 'Discard unchanged'],
 						['type' => 'Discard unchanged with heartbeat', 'parameter_1' => '1']
 					],
-					'error' => 'Only one throttling step is allowed.'
+					'error' => 'Invalid parameter "/2": only one object can exist within the combinations of (type)=((19, 20)).'
 				]
 			],
 			[
@@ -352,7 +381,7 @@ class testFormPreprocessingTest extends CWebTest {
 								'parameter_3' => 'label_name'],
 						['type' => 'Prometheus to JSON', 'parameter_1' => '']
 					],
-					'error' => 'Only one Prometheus step is allowed.'
+					'error' => 'Invalid parameter "/2": only one object can exist within the combinations of (type)=((22, 23)).'
 				]
 			],
 			[
@@ -376,7 +405,7 @@ class testFormPreprocessingTest extends CWebTest {
 						['type' => 'Discard unchanged with heartbeat', 'parameter_1' => ''],
 						['type' => 'Prometheus pattern', 'parameter_1' => '', 'parameter_2' => 'value']
 					],
-					'error' => 'Incorrect value for field "params":'
+					'error' => 'Invalid parameter "/1/params/1": cannot be empty.'
 				]
 			],
 			[
@@ -386,7 +415,7 @@ class testFormPreprocessingTest extends CWebTest {
 						['type' => 'Regular expression', 'parameter_1' => 'expr', 'parameter_2' => 'output'],
 						['type' => 'Trim', 'parameter_1' => '']
 					],
-					'error' => 'Incorrect value for field "params":'
+					'error' => 'Invalid parameter "/2/params/1": cannot be empty.'
 				]
 			],
 						[
@@ -399,7 +428,7 @@ class testFormPreprocessingTest extends CWebTest {
 						['type' => 'JavaScript', 'parameter_1' => 'Script'],
 						['type' => 'Check for error in XML', 'parameter_1' => '']
 					],
-					'error' => 'Incorrect value for field "params":'
+					'error' => 'Invalid parameter "/5/params/1": cannot be empty.'
 				]
 			]
 		];
@@ -423,6 +452,8 @@ class testFormPreprocessingTest extends CWebTest {
 			}
 		}
 		$this->checkTestOverlay($data, 'button:Test all steps', $prev_enabled);
+
+		COverlayDialogElement::find()->one()->close();
 	}
 
 	public static function getSortingData() {
@@ -465,7 +496,7 @@ class testFormPreprocessingTest extends CWebTest {
 	 *
 	 * @dataProvider getSortingData
 	 */
-	public function testFormItemPreprocessingTest_Sorting($data) {
+	public function testFormPreprocessingTest_Sorting($data) {
 		// Result order of steps.
 		$preprocessing = [
 			['type' => 'Check for not supported value'],
@@ -482,8 +513,7 @@ class testFormPreprocessingTest extends CWebTest {
 
 		// Test all steps right away after adding.
 		$this->query('button:Test all steps')->waitUntilPresent()->one()->click();
-
-		$dialog = COverlayDialogElement::find()->one()->waitUntilReady();
+		$dialog = COverlayDialogElement::find()->all()->last()->waitUntilReady();
 		$table = $dialog->query('id:preprocessing-steps')->asTable()->waitUntilPresent()->one();
 
 		foreach ($preprocessing as $i => $step) {
@@ -491,22 +521,26 @@ class testFormPreprocessingTest extends CWebTest {
 		}
 
 		$dialog->close();
-
 		$form->submit();
+		COverlayDialogElement::ensureNotPresent();
 
 		// Assert right steps order after item saving.
-		$id = CDBHelper::getValue('SELECT itemid FROM items WHERE key_='.zbx_dbstr(self::$key));
-		$this->page->open('items.php?form=update&context=host&hostid='.self::HOST_ID.'&itemid='.$id);
+		$this->page->open('zabbix.php?action=item.list&context=host&filter_set=1&filter_hostids%5B0%5D='.self::HOST_ID);
+		$this->query('link', self::$name)->one()->click();
 		$form->selectTab('Preprocessing');
 		$this->assertPreprocessingSteps($preprocessing);
+
+		COverlayDialogElement::find()->one()->close();
 	}
 
 	private function openPreprocessing($data) {
-		$this->page->login()->open('items.php?form=create&context=host&hostid='.self::HOST_ID);
-		$form = $this->query('name:itemForm')->waitUntilPresent()->asForm()->one();
+		$this->page->login()->open('zabbix.php?action=item.list&context=host&filter_set=1&filter_hostids%5B0%5D='.self::HOST_ID);
+		$this->query('button:Create item')->one()->click();
+		$form = COverlayDialogElement::find()->one()->waitUntilReady()->asForm();
 		self::$key = CTestArrayHelper::get($data, 'Key', false) ? $data['Key'] : 'test.key'.time();
+		self::$name = 'Test name'.time();
 
-		$form->fill(['Name' => 'Test name', 'Key' => self::$key]);
+		$form->fill(['Name' => self::$name, 'Key' => self::$key]);
 		$form->selectTab('Preprocessing');
 
 		return $form;
@@ -522,21 +556,12 @@ class testFormPreprocessingTest extends CWebTest {
 	 */
 	private function checkTestOverlay($data, $selector, $prev_enabled, $id = null) {
 		$this->query($selector)->waitUntilPresent()->one()->click();
-		$dialog = COverlayDialogElement::find()->one()->waitUntilReady();
+		$dialog = COverlayDialogElement::find()->all()->last()->waitUntilReady();
 
 		switch ($data['expected']) {
 			case TEST_BAD:
 				$message = $dialog->query('tag:output')->asMessage()->waitUntilPresent()->one();
 				$this->assertTrue($message->isBad());
-
-				// Workaround for single step which has different message.
-				$this->assertTrue($message->hasLine(
-						($id !== null && $data['preprocessing'][$id]['type'] === 'Discard unchanged with heartbeat')
-						? 'Invalid parameter "params":'
-						: $data['error']
-					)
-				);
-
 				$dialog->close();
 				break;
 
@@ -607,7 +632,7 @@ class testFormPreprocessingTest extends CWebTest {
 	}
 
 	private function chooseDialogActions($data) {
-		$dialog = COverlayDialogElement::find()->one()->waitUntilReady();
+		$dialog = COverlayDialogElement::find()->all()->last()->waitUntilReady();
 		$form = $this->query('id:preprocessing-test-form')->asForm()->waitUntilPresent()->one();
 		switch ($data['action']) {
 			case 'Test':
@@ -629,13 +654,12 @@ class testFormPreprocessingTest extends CWebTest {
 				// Check Zabbix server down message.
 				$message = $form->getOverlayMessage();
 				$this->assertTrue($message->isBad());
-				$this->assertTrue($message->hasLine('Connection to Zabbix server "localhost" refused. Possible reasons:'));
+				$this->assertTrue($message->hasLine('Connection to Zabbix server "localhost:10051" refused. Possible reasons:'));
 				$dialog->close();
 				break;
 
 			case 'Cancel':
 				$dialog->query('button:Cancel')->one()->click();
-				$dialog->waitUntilNotPresent();
 				break;
 
 			default:

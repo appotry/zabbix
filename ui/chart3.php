@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 require_once dirname(__FILE__).'/include/config.inc.php';
@@ -32,7 +27,7 @@ $fields = [
 	'to' =>				[T_ZBX_RANGE_TIME,	O_OPT, P_SYS,		null,				null],
 	'profileIdx' =>		[T_ZBX_STR,			O_OPT, null,		null,				null],
 	'profileIdx2' =>	[T_ZBX_STR,			O_OPT, null,		null,				null],
-	'httptestid' =>		[T_ZBX_INT,			O_OPT, P_NZERO,	null,				null],
+	'httptestid' =>		[T_ZBX_INT,			O_OPT, P_NZERO,		null,				null],
 	'http_item_type' =>	[T_ZBX_INT,			O_OPT, null,		null,				null],
 	'name' =>			[T_ZBX_STR,			O_OPT, null,		null,				null],
 	'width' =>			[T_ZBX_INT,			O_OPT, null,	BETWEEN(CLineGraphDraw::GRAPH_WIDTH_MIN, 65535),	null],
@@ -50,12 +45,14 @@ $fields = [
 	'percent_left' =>	[T_ZBX_DBL,			O_OPT, null,		BETWEEN_DBL(0, 100, 4),	null],
 	'percent_right' =>	[T_ZBX_DBL,			O_OPT, null,		BETWEEN_DBL(0, 100, 4),	null],
 	'outer' =>			[T_ZBX_INT,			O_OPT, null,		IN('0,1'),			null],
-	'items' =>			[T_ZBX_STR,			O_OPT, null,		null,				null],
-	'i' =>				[T_ZBX_STR,			O_OPT, null,		null,				null],
+	'items' =>			[T_ZBX_STR,			O_OPT, P_ONLY_TD_ARRAY,	null,			null],
+	'i' =>				[T_ZBX_STR,			O_OPT, P_ONLY_ARRAY,	null,			null],
 	'onlyHeight' =>		[T_ZBX_INT,			O_OPT, null,		IN('0,1'),			null],
-	'widget_view' =>	[T_ZBX_INT,			O_OPT, null,		IN('0,1'),			null]
+	'widget_view' =>	[T_ZBX_INT,			O_OPT, null,		IN('0,1'),			null],
+	'resolve_macros' =>	[T_ZBX_INT,			O_OPT, null,		IN('0,1'),			null]
 ];
 if (!check_fields($fields)) {
+	session_write_close();
 	exit();
 }
 validateTimeSelectorPeriod(getRequest('from'), getRequest('to'));
@@ -81,9 +78,11 @@ if ($httptestid = getRequest('httptestid', false)) {
 	$hosts = zbx_toHash($httptests[0]['hosts'], 'hostid');
 
 	$dbItems = DBselect(
-		'SELECT i.itemid,i.type,i.name,i.delay,i.units,i.hostid,i.history,i.trends,i.value_type,i.key_'.
-		' FROM httpstepitem hi,items i,httpstep hs'.
+		'SELECT i.itemid,i.type,ir.name_resolved AS name,i.delay,i.units,i.hostid,i.history,i.trends,i.value_type,'.
+			'i.key_'.
+		' FROM httpstepitem hi,items i,item_rtname ir,httpstep hs'.
 		' WHERE i.itemid=hi.itemid'.
+			' AND i.itemid=ir.itemid'.
 			' AND hs.httptestid='.zbx_dbstr($httptestid).
 			' AND hs.httpstepid=hi.httpstepid'.
 			' AND hi.type='.zbx_dbstr(getRequest('http_item_type', HTTPSTEP_ITEM_TYPE_TIME)).
@@ -102,33 +101,50 @@ if ($httptestid = getRequest('httptestid', false)) {
 }
 elseif (hasRequest('i') || hasRequest('items')) {
 	if (hasRequest('i')) {
-		$items = array_map('expandShortGraphItem', getRequest('i', []));
+		$items = array_map('expandShortGraphItem', getRequest('i'));
 	}
 	else {
-		$items = getRequest('items', []);
+		$items = getRequest('items');
 	}
 
 	CArrayHelper::sort($items, ['sortorder']);
 
-	$dbItems = API::Item()->get([
-		'itemids' => zbx_objectValues($items, 'itemid'),
-		'output' => ['itemid', 'type', 'master_itemid', 'name', 'delay', 'units', 'hostid', 'history', 'trends',
-			'value_type', 'key_'
+	$resolve_macros = (bool) getRequest('resolve_macros', 0);
+
+	$options = [
+		'output' => ['itemid', 'type', 'name', 'master_itemid', 'delay', 'units', 'hostid', 'history', 'trends',
+			'value_type', 'key_', 'flags'
 		],
 		'selectHosts' => ['hostid', 'name', 'host'],
+		'itemids' => array_column($items, 'itemid'),
 		'filter' => [
 			'flags' => [ZBX_FLAG_DISCOVERY_NORMAL, ZBX_FLAG_DISCOVERY_PROTOTYPE, ZBX_FLAG_DISCOVERY_CREATED]
 		],
 		'webitems' => true,
 		'preservekeys' => true
-	]);
+	];
+
+	if ($resolve_macros) {
+		$options['output'][] = 'name_resolved';
+	}
+
+	$db_items = API::Item()->get($options);
+
+	if ($resolve_macros) {
+		foreach ($db_items as &$item) {
+			if ($item['flags'] == ZBX_FLAG_DISCOVERY_NORMAL || $item['flags'] == ZBX_FLAG_DISCOVERY_CREATED) {
+				$item = CArrayHelper::renameKeys($item, ['name_resolved' => 'name']);
+			}
+		}
+		unset($item);
+	}
 
 	foreach ($items as $item) {
-		if (!array_key_exists($item['itemid'], $dbItems)) {
+		if (!array_key_exists($item['itemid'], $db_items)) {
 			access_deny();
 		}
-		$host = reset($dbItems[$item['itemid']]['hosts']);
-		$graph_items[] = $dbItems[$item['itemid']] + $item + [
+		$host = reset($db_items[$item['itemid']]['hosts']);
+		$graph_items[] = $db_items[$item['itemid']] + $item + [
 			'host' => $host['host'],
 			'hostname' => $host['name']
 		];
@@ -143,7 +159,8 @@ elseif (hasRequest('i') || hasRequest('items')) {
 }
 else {
 	show_error_message(_('No items defined.'));
-	exit;
+	session_write_close();
+	exit();
 }
 
 /*
@@ -167,12 +184,41 @@ $graph->setHeight(getRequest('height', 200));
 $graph->showLegend(getRequest('legend', 1));
 $graph->showWorkPeriod(getRequest('showworkperiod', 1));
 $graph->showTriggers(getRequest('showtriggers', 1));
-$graph->setYMinAxisType(getRequest('ymin_type', GRAPH_YAXIS_TYPE_CALCULATED));
-$graph->setYMaxAxisType(getRequest('ymax_type', GRAPH_YAXIS_TYPE_CALCULATED));
 $graph->setYAxisMin(getRequest('yaxismin', 0.00));
 $graph->setYAxisMax(getRequest('yaxismax', 100.00));
-$graph->setYMinItemId(getRequest('ymin_itemid', 0));
-$graph->setYMaxItemId(getRequest('ymax_itemid', 0));
+
+$yaxis_items = [
+	'ymin_type' => getRequest('ymin_type', GRAPH_YAXIS_TYPE_CALCULATED),
+	'ymax_type' => getRequest('ymax_type', GRAPH_YAXIS_TYPE_CALCULATED),
+	'ymin_itemid' => getRequest('ymin_itemid', 0),
+	'ymax_itemid' => getRequest('ymax_itemid', 0)
+];
+
+$graph->setYMinAxisType($yaxis_items['ymin_type']);
+$graph->setYMaxAxisType($yaxis_items['ymax_type']);
+
+$yaxis_items = array_intersect_key($yaxis_items, array_filter([
+	'ymin_itemid' => $yaxis_items['ymin_type'] == GRAPH_YAXIS_TYPE_ITEM_VALUE && $yaxis_items['ymin_itemid'] != 0,
+	'ymax_itemid' => $yaxis_items['ymax_type'] == GRAPH_YAXIS_TYPE_ITEM_VALUE && $yaxis_items['ymax_itemid'] != 0
+]));
+
+if ($yaxis_items) {
+	$db_items = API::Item()->get([
+		'itemids' => array_values($yaxis_items),
+		'filter' => ['value_type' => [ITEM_VALUE_TYPE_FLOAT, ITEM_VALUE_TYPE_UINT64]],
+		'webitems' => true,
+		'preservekeys' => true
+	]);
+
+	if (array_key_exists('ymin_itemid', $yaxis_items) && array_key_exists($yaxis_items['ymin_itemid'], $db_items)) {
+		$graph->setYMinItemId($yaxis_items['ymin_itemid']);
+	}
+
+	if (array_key_exists('ymax_itemid', $yaxis_items) && array_key_exists($yaxis_items['ymax_itemid'], $db_items)) {
+		$graph->setYMaxItemId($yaxis_items['ymax_itemid']);
+	}
+}
+
 $graph->setLeftPercentage(getRequest('percent_left', 0));
 $graph->setRightPercentage(getRequest('percent_right', 0));
 $graph->setOuter(getRequest('outer', 0));
@@ -194,4 +240,4 @@ else {
 	$graph->draw();
 }
 
-require_once dirname(__FILE__).'/include/page_footer.php';
+require_once __DIR__.'/include/page_footer.php';

@@ -1,35 +1,31 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 package proc
 
 import (
-	"fmt"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"syscall"
 	"unsafe"
 
-	"git.zabbix.com/ap/plugin-support/plugin"
 	"golang.org/x/sys/windows"
-	"zabbix.com/pkg/win32"
+	"golang.zabbix.com/agent2/pkg/win32"
+	"golang.zabbix.com/sdk/errs"
+	"golang.zabbix.com/sdk/plugin"
 )
 
 const maxName = 256
@@ -41,7 +37,19 @@ type Plugin struct {
 
 var impl Plugin
 
-func getProcessUsername(pid uint32) (result string, err error) {
+func init() {
+	err := plugin.RegisterMetrics(
+		&impl, "Proc",
+		"proc.num", "The number of processes.",
+		"proc_info", "Various information about specific process(es).",
+		"proc.get", "List of OS processes with statistics.",
+	)
+	if err != nil {
+		panic(errs.Wrap(err, "failed to register metrics"))
+	}
+}
+
+func getProcessUsername(pid uint32, wsid bool) (result, sidStr string, err error) {
 	h, err := syscall.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
 	if err != nil {
 		return
@@ -74,7 +82,14 @@ func getProcessUsername(pid uint32) (result string, err error) {
 	if err = syscall.LookupAccountSid(nil, sid, &name[0], &nameLen, &domain[0], &domainLen, &use); err != nil {
 		return
 	}
-	return windows.UTF16ToString(name), nil
+
+	result = windows.UTF16ToString(name)
+
+	if wsid == true {
+		sidStr, err = sid.String()
+	}
+
+	return
 }
 
 type processEnumerator interface {
@@ -112,7 +127,8 @@ type numEnumerator struct {
 
 func (e *numEnumerator) inspect(p *syscall.ProcessEntry32) {
 	if e.user != "" {
-		if procUser, err := getProcessUsername(p.ProcessID); err != nil || e.user != strings.ToUpper(procUser) {
+		if procUser, _, err := getProcessUsername(p.ProcessID, false); err != nil ||
+			e.user != strings.ToUpper(procUser) {
 			return
 		}
 	}
@@ -157,16 +173,18 @@ const (
 )
 
 type procStatus struct {
-	Pid           uint32   `json:"pid"`
-	PPid          uint32   `json:"ppid"`
-	Name          string   `json:"name"`
-	Vmsize        float64  `json:"vmsize"`
-	Wkset         float64  `json:"wkset"`
-	CpuTimeUser   float64  `json:"cputime_user"`
-	CpuTimeSystem float64  `json:"cputime_system"`
-	Threads       uint32   `json:"threads"`
+	Pid           uint32  `json:"pid"`
+	PPid          uint32  `json:"ppid"`
+	Name          string  `json:"name"`
+	User          string  `json:"user"`
+	Sid           string  `json:"sid"`
+	Vmsize        float64 `json:"vmsize"`
+	Wkset         float64 `json:"wkset"`
+	CpuTimeUser   float64 `json:"cputime_user"`
+	CpuTimeSystem float64 `json:"cputime_system"`
+	Threads       uint32  `json:"threads"`
 	PageFaults    int64   `json:"page_faults"`
-	Handles       int64    `json:"handles"`
+	Handles       int64   `json:"handles"`
 	IoReadsB      int64   `json:"io_read_b"`
 	IoWritesB     int64   `json:"io_write_b"`
 	IoReadsOp     int64   `json:"io_read_op"`
@@ -176,28 +194,30 @@ type procStatus struct {
 }
 
 type procSummary struct {
-	Name	      string  `json:"name"`
+	Name          string  `json:"name"`
 	Processes     int     `json:"processes"`
-	Vmsize	      float64 `json:"vmsize"`
-	Wkset	      float64 `json:"wkset"`
+	Vmsize        float64 `json:"vmsize"`
+	Wkset         float64 `json:"wkset"`
 	CpuTimeUser   float64 `json:"cputime_user"`
 	CpuTimeSystem float64 `json:"cputime_system"`
 	Threads       uint32  `json:"threads"`
-	PageFaults    int64  `json:"page_faults"`
+	PageFaults    int64   `json:"page_faults"`
 	Handles       int64   `json:"handles"`
-	IoReadsB      int64  `json:"io_read_b"`
-	IoWritesB     int64  `json:"io_write_b"`
-	IoReadsOp     int64  `json:"io_read_op"`
-	IoWritesOp    int64  `json:"io_write_op"`
-	IoOtherB      int64  `json:"io_other_b"`
-	IoOtherOp     int64  `json:"io_other_op"`
+	IoReadsB      int64   `json:"io_read_b"`
+	IoWritesB     int64   `json:"io_write_b"`
+	IoReadsOp     int64   `json:"io_read_op"`
+	IoWritesOp    int64   `json:"io_write_op"`
+	IoOtherB      int64   `json:"io_other_b"`
+	IoOtherOp     int64   `json:"io_other_op"`
 }
 
 type thread struct {
-	Pid           uint32  `json:"pid"`
-	PPid          uint32  `json:"ppid"`
-	Name          string  `json:"name"`
-	Tid           uint32  `json:"tid"`
+	Pid  uint32 `json:"pid"`
+	PPid uint32 `json:"ppid"`
+	Name string `json:"name"`
+	User string `json:"user"`
+	Sid  string `json:"sid"`
+	Tid  uint32 `json:"tid"`
 }
 
 var attrMap map[string]infoAttr = map[string]infoAttr{
@@ -418,16 +438,23 @@ func (p *Plugin) exportProcGet(params []string) (interface{}, error) {
 		if name != "" && procName != name {
 			continue
 		}
+		var uname string
+		var sid string
+		uname, sid, err = getProcessUsername(pe.ProcessID, true)
 
-		if userName != "" {
-			var uname string
-			uname, err = getProcessUsername(pe.ProcessID)
-			if strings.ToUpper(uname) != userName {
-				continue
-			}
+		if userName != "" && (err != nil || strings.ToUpper(uname) != userName) {
+			continue
 		}
 
-		proc := procStatus{Pid: pe.ProcessID, PPid: pe.ParentProcessID, Name: procName, Threads: pe.Threads}
+		if err != nil {
+			uname = "-1"
+			sid = "-1"
+		}
+
+		proc := procStatus{
+			Pid: pe.ProcessID, PPid: pe.ParentProcessID, Name: procName, Threads: pe.Threads,
+			User: uname, Sid: sid,
+		}
 
 		// process might not exist anymore already, skipping silently
 		h, err := syscall.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pe.ProcessID)
@@ -470,8 +497,8 @@ func (p *Plugin) exportProcGet(params []string) (interface{}, error) {
 
 		var creationTime, exitTime, kernelTime, userTime syscall.Filetime
 		if err = syscall.GetProcessTimes(h, &creationTime, &exitTime, &kernelTime, &userTime); err == nil {
-			proc.CpuTimeUser = float64(uint64(userTime.HighDateTime)<<32 | uint64(userTime.LowDateTime)) / 1e7
-			proc.CpuTimeSystem = float64(uint64(kernelTime.HighDateTime)<<32 | uint64(kernelTime.LowDateTime)) / 1e7
+			proc.CpuTimeUser = float64(uint64(userTime.HighDateTime)<<32|uint64(userTime.LowDateTime)) / 1e7
+			proc.CpuTimeSystem = float64(uint64(kernelTime.HighDateTime)<<32|uint64(kernelTime.LowDateTime)) / 1e7
 		} else {
 			proc.CpuTimeUser = -1
 			proc.CpuTimeSystem = -1
@@ -492,11 +519,14 @@ func (p *Plugin) exportProcGet(params []string) (interface{}, error) {
 		for procerr = windows.Thread32First(ht, &te); procerr == nil; procerr = windows.Thread32Next(ht, &te) {
 			for _, proc := range array {
 				if te.OwnerProcessID == proc.Pid {
-					threadArray = append(threadArray, thread{proc.Pid, proc.PPid, proc.Name, te.ThreadID})
+					threadArray = append(threadArray, thread{
+						proc.Pid, proc.PPid, proc.Name,
+						proc.User, proc.Sid, te.ThreadID,
+					})
 					break
 				}
 			}
-                }
+		}
 		defer windows.CloseHandle(ht)
 	}
 
@@ -504,7 +534,7 @@ func (p *Plugin) exportProcGet(params []string) (interface{}, error) {
 	switch mode {
 	case "summary":
 		var processed []string
-		processes:
+	processes:
 		for i, proc := range array {
 			for _, j := range processed {
 				if j == proc.Name {
@@ -512,14 +542,16 @@ func (p *Plugin) exportProcGet(params []string) (interface{}, error) {
 				}
 			}
 
-			procSum := procSummary{proc.Name, 1, proc.Vmsize, proc.Wkset,
+			procSum := procSummary{
+				proc.Name, 1, proc.Vmsize, proc.Wkset,
 				proc.CpuTimeUser, proc.CpuTimeSystem, proc.Threads,
 				proc.PageFaults, proc.Handles, proc.IoReadsB,
 				proc.IoWritesB, proc.IoReadsOp, proc.IoWritesOp,
-				proc.IoOtherB, proc.IoOtherOp}
+				proc.IoOtherB, proc.IoOtherOp,
+			}
 
-			if len(array) > i + 1 {
-				for _, procCmp := range array[i + 1:] {
+			if len(array) > i+1 {
+				for _, procCmp := range array[i+1:] {
 					if procCmp.Name != proc.Name {
 						continue
 					}
@@ -568,12 +600,4 @@ func (p *Plugin) Export(key string, params []string, ctx plugin.ContextProvider)
 	default:
 		return nil, plugin.UnsupportedMetricError
 	}
-}
-
-func init() {
-	plugin.RegisterMetrics(&impl, "Proc",
-		"proc.num", "The number of processes.",
-		"proc_info", "Various information about specific process(es).",
-		"proc.get", "List of OS processes with statistics.",
-	)
 }

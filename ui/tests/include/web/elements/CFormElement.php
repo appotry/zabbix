@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 require_once 'vendor/autoload.php';
@@ -46,12 +41,19 @@ class CFormElement extends CElement {
 	protected $filter = null;
 
 	/**
+	 * Class for required label.
+	 *
+	 * @var string
+	 */
+	protected $required_label = 'form-label-asterisk';
+
+	/**
 	 * @inheritdoc
 	 */
 	public static function createInstance(RemoteWebElement $element, $options = []) {
 		$instance = parent::createInstance($element, $options);
 
-		if (get_class($instance) !== CGridFormElement::class) {
+		if (!$instance->normalized && get_class($instance) !== CGridFormElement::class) {
 			$grid = $instance->query('xpath:.//div[contains(@class, "form-grid")]')->one(false);
 			if ($grid->isValid() && !$grid->parents('xpath:*[contains(@class, "table-forms-td-right")]')->exists()) {
 				return $instance->asGridForm($options);
@@ -73,14 +75,44 @@ class CFormElement extends CElement {
 	/**
 	 * Set filter conditions.
 	 *
-	 * @param mixed $filter		conditions to be filtered by
+	 * @param mixed $filter				conditions to be filtered by
+	 * @param array	$filter_params		filter parameters
 	 *
 	 * @return $this
 	 */
-	public function setFilter($filter) {
-		$this->filter = $filter;
+	public function setFilter($filter, $filter_params = []) {
+		if ($filter === null) {
+			$this->filter = null;
+		}
+		elseif ($filter instanceof CElementFilter) {
+			$this->filter = $filter;
+		}
+		else {
+			$this->filter = new CElementFilter($filter, $filter_params);
+		}
 
 		return $this;
+	}
+
+	/**
+	 * Set filter for element collection.
+	 *
+	 * @param CElementCollection $elements		collection of elements
+	 * @param CElementFilter	 $filter		condition to be filtered
+	 * @param array				 $filter_params	filter parameters
+	 *
+	 * @return CElementCollection
+	 */
+	protected function filterCollection($elements, $filter, $filter_params = []) {
+		if ($this->filter !== null) {
+			$elements = $elements->filter($this->filter);
+		}
+
+		if ($filter !== null) {
+			$elements = $elements->filter($filter, $filter_params);
+		}
+
+		return $elements;
 	}
 
 	/**
@@ -107,14 +139,19 @@ class CFormElement extends CElement {
 		parent::invalidate();
 
 		$this->fields = new CElementCollection([]);
+
+		return $this;
 	}
 
 	/**
 	 * Get collection of form label elements.
 	 *
+	 * @param CElementFilter $filter        condition to be filtered
+	 * @param array          $filter_params filter parameters
+	 *
 	 * @return CElementCollection
 	 */
-	public function getLabels() {
+	public function getLabels($filter = null, $filter_params = []) {
 		$labels = $this->query('xpath:.//'.self::TABLE_FORM.'/li/'.self::TABLE_FORM_LEFT.'/label')->all();
 
 		foreach ($labels as $key => $label) {
@@ -126,11 +163,7 @@ class CFormElement extends CElement {
 			}
 		}
 
-		if ($this->filter !== null) {
-			return $labels->filter($this->filter);
-		}
-
-		return $labels;
+		return $this->filterCollection($labels, $filter, $filter_params);
 	}
 
 	/**
@@ -203,23 +236,23 @@ class CFormElement extends CElement {
 	/**
 	 * Get collection of element fields indexed by label name.
 	 *
+	 * @param CElementFilter $filter            condition to be filtered by
+	 * @param array          $filter_params     condition parameters to be set
+	 *
 	 * @return CElementCollection
 	 */
-	public function getFields() {
+	public function getFields($filter = null, $filter_params = []) {
 		$fields = [];
 
 		foreach ($this->getLabels() as $label) {
 			$element = $this->getFieldByLabelElement($label);
-			if ($this->filter !== null && !$this->filter->match($element)) {
-				$element = new CNullElement();
-			}
 
 			if ($element->isValid()) {
 				$fields[$label->getText()] = $element;
 			}
 		}
 
-		$this->fields = new CElementCollection($fields);
+		$this->fields = $this->filterCollection(new CElementCollection($fields), $filter, $filter_params);
 
 		return $this->fields;
 	}
@@ -370,7 +403,7 @@ class CFormElement extends CElement {
 
 				foreach ($values as $name => $value) {
 					$xpath = './/*[@id='.CXPathHelper::escapeQuotes($name).' or @name='.CXPathHelper::escapeQuotes($name).']';
-					$this->setUTFValue($container->query('xpath', $xpath)->one()->detect(), $value);
+					$container->query('xpath', $xpath)->one()->detect()->fill($value);
 				}
 			}
 
@@ -386,24 +419,9 @@ class CFormElement extends CElement {
 			return $this;
 		}
 
-		$this->setUTFValue($element, $values);
+		$element->fill($values);
 
 		return $this;
-	}
-
-	/**
-	 * Function for utf8mb4 values detection and filling.
-	 *
-	 * @param CElement $element   element to be filled
-	 * @param string   $value     value to be filled in
-	 */
-	protected function setUTFValue($element, $value) {
-		if (!is_array($value) && preg_match('/[\x{10000}-\x{10FFFF}]/u', $value) === 1) {
-			CElementQuery::getDriver()->executeScript('arguments[0].value = '.json_encode($value).';', [$element]);
-		}
-		else {
-			$element->fill($value);
-		}
 	}
 
 	/**
@@ -436,11 +454,17 @@ class CFormElement extends CElement {
 	}
 
 	/**
-	* @inheritdoc
-	*/
+	 * @inheritdoc
+	 */
 	public function checkValue($expected, $raise_exception = true) {
 		if ($expected && is_array($expected)) {
 			foreach ($expected as $field => $value) {
+				if ($value instanceof \Closure) {
+					$function = new ReflectionFunction($value);
+					$variables = $function->getStaticVariables();
+					$value = $variables['value'];
+				}
+
 				if ($this->checkFieldValue($field, $value, $raise_exception) === false) {
 					return false;
 				}
@@ -462,7 +486,13 @@ class CFormElement extends CElement {
 	 * @throws Exception
 	 */
 	protected function checkFieldValue($field, $values, $raise_exception = true) {
-		$classes = [CMultifieldTableElement::class, CMultiselectElement::class, CCheckboxListElement::class, CHostInterfaceElement::class];
+		$classes = [
+			CMultifieldTableElement::class,
+			CMultiselectElement::class,
+			CCheckboxListElement::class,
+			CHostInterfaceElement::class,
+			CFormElement::class
+		];
 		$element = $this->getField($field);
 
 		if (is_array($values) && !in_array(get_class($element), $classes)) {
@@ -518,5 +548,40 @@ class CFormElement extends CElement {
 				$form->waitUntilReloaded();
 			}
 		};
+	}
+
+	/**
+	 * Check if field is marked as required in form.
+	 *
+	 * @param string $label    field label text
+	 *
+	 * @return boolean
+	 */
+	public function isRequired($label) {
+		return $this->getLabel($label)->hasClass($this->required_label);
+	}
+
+	/**
+	 * Get the mandatory labels marked with an asterisk.
+	 *
+	 * @return array
+	 */
+	public function getRequiredLabels() {
+		$labels = $this->getLabels(CElementFilter::CLASSES_PRESENT, [$this->required_label])
+				->filter(CElementFilter::VISIBLE)->asText();
+
+		return array_values($labels);
+	}
+
+	/**
+	 * Get form fields values.
+	 *
+	 * @param CElementFilter $filter			condition to be filtered by
+	 * @param array			 $filter_params		condition parameters to be set
+	 *
+	 * @return array
+	 */
+	public function getValues($filter = null, $filter_params = []) {
+		return $this->getFields($filter, $filter_params)->asValues();
 	}
 }

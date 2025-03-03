@@ -1,29 +1,22 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 #include "lld_protocol.h"
-#include "zbxlld.h"
 
-#include "log.h"
 #include "zbxserialize.h"
 #include "zbxipcservice.h"
-#include "sysinfo.h"
+#include "zbxsysinfo.h"
 
 zbx_uint32_t	zbx_lld_serialize_item_value(unsigned char **data, zbx_uint64_t itemid, zbx_uint64_t hostid,
 		const char *value, const zbx_timespec_t *ts, unsigned char meta, zbx_uint64_t lastlogsize, int mtime,
@@ -82,6 +75,34 @@ void	zbx_lld_deserialize_item_value(const unsigned char *data, zbx_uint64_t *ite
 	}
 }
 
+zbx_uint32_t	zbx_lld_serialize_value(unsigned char **data, const char *value)
+{
+	zbx_uint32_t	data_len = 0, value_len;
+
+	if (NULL != value)
+	{
+		zbx_serialize_prepare_str(data_len, value);
+		*data = (unsigned char *)zbx_malloc(NULL, data_len);
+		(void)zbx_serialize_str(*data, value, value_len);
+	}
+	else
+	{
+		*data = NULL;
+		data_len = 0;
+	}
+
+	return data_len;
+}
+
+
+void	zbx_lld_deserialize_value(const unsigned char *data, char **value)
+{
+	zbx_uint32_t	value_len;
+
+	data += zbx_deserialize_str(data, value, value_len);
+}
+
+
 zbx_uint32_t	zbx_lld_serialize_diag_stats(unsigned char **data, zbx_uint64_t items_num, zbx_uint64_t values_num)
 {
 	unsigned char	*ptr;
@@ -99,7 +120,8 @@ zbx_uint32_t	zbx_lld_serialize_diag_stats(unsigned char **data, zbx_uint64_t ite
 	return data_len;
 }
 
-static void	zbx_lld_deserialize_diag_stats(const unsigned char *data, zbx_uint64_t *items_num, zbx_uint64_t *values_num)
+static void	zbx_lld_deserialize_diag_stats(const unsigned char *data, zbx_uint64_t *items_num,
+		zbx_uint64_t *values_num)
 {
 	data += zbx_deserialize_value(data, items_num);
 	(void)zbx_deserialize_value(data, values_num);
@@ -126,7 +148,6 @@ zbx_uint32_t	zbx_lld_serialize_top_items_result(unsigned char **data, const zbx_
 {
 	unsigned char	*ptr;
 	zbx_uint32_t	data_len = 0, item_len = 0;
-	int		i;
 
 	if (0 != num)
 	{
@@ -141,7 +162,7 @@ zbx_uint32_t	zbx_lld_serialize_top_items_result(unsigned char **data, const zbx_
 	ptr = *data;
 	ptr += zbx_serialize_value(ptr, num);
 
-	for (i = 0; i < num; i++)
+	for (int i = 0; i < num; i++)
 	{
 		ptr += zbx_serialize_value(ptr, rule_infos[i]->itemid);
 		ptr += zbx_serialize_value(ptr, rule_infos[i]->values_num);
@@ -152,7 +173,7 @@ zbx_uint32_t	zbx_lld_serialize_top_items_result(unsigned char **data, const zbx_
 
 static void	zbx_lld_deserialize_top_items_result(const unsigned char *data, zbx_vector_uint64_pair_t *items)
 {
-	int	i, items_num;
+	int	items_num;
 
 	data += zbx_deserialize_value(data, &items_num);
 
@@ -160,7 +181,7 @@ static void	zbx_lld_deserialize_top_items_result(const unsigned char *data, zbx_
 	{
 		zbx_vector_uint64_pair_reserve(items, items_num);
 
-		for (i = 0; i < items_num; i++)
+		for (int i = 0; i < items_num; i++)
 		{
 			zbx_uint64_pair_t	pair;
 			int			value;
@@ -175,16 +196,19 @@ static void	zbx_lld_deserialize_top_items_result(const unsigned char *data, zbx_
 
 /******************************************************************************
  *                                                                            *
- * Purpose: process low level discovery value/error                           *
+ * Purpose: enqueues LLD value/error                                          *
  *                                                                            *
- * Parameters: itemid - [IN] the LLD rule id                                  *
- *             hostid - [IN] the host id                                      *
- *             value  - [IN] the rule value (can be NULL if error is set)     *
- *             ts     - [IN] the value timestamp                              *
- *             error  - [IN] the error message (can be NULL)                  *
+ * Parameters: itemid      - [IN]                                             *
+ *             hostid      - [IN]                                             *
+ *             value       - [IN] rule value (can be NULL if error is set)    *
+ *             ts          - [IN] value timestamp                             *
+ *             meta        - [IN] flag to include metadata                    *
+ *             lastlogsize - [IN] (metadata)                                  *
+ *             mtime       - [IN] (metadata)                                  *
+ *             error       - [IN] error message (can be NULL)                 *
  *                                                                            *
  ******************************************************************************/
-void	zbx_lld_process_value(zbx_uint64_t itemid, zbx_uint64_t hostid, const char *value, const zbx_timespec_t *ts,
+void	zbx_lld_queue_value(zbx_uint64_t itemid, zbx_uint64_t hostid, const char *value, const zbx_timespec_t *ts,
 		unsigned char meta, zbx_uint64_t lastlogsize, int mtime, const char *error)
 {
 	static zbx_ipc_socket_t	socket;
@@ -212,13 +236,11 @@ void	zbx_lld_process_value(zbx_uint64_t itemid, zbx_uint64_t hostid, const char 
 
 /******************************************************************************
  *                                                                            *
- * Purpose: process low level discovery agent result                          *
- *                                                                            *
- * Parameters: itemid - [IN] the LLD rule id                                  *
- *             hostid - [IN] the host id                                      *
- *             result - [IN] the agent result                                 *
- *             ts     - [IN] the value timestamp                              *
- *             error  - [IN] the error message (can be NULL)                  *
+ * Parameters: itemid - [IN]                                                  *
+ *             hostid - [IN]                                                  *
+ *             result - [IN] agent result                                     *
+ *             ts     - [IN] value timestamp                                  *
+ *             error  - [IN] error message (can be NULL)                      *
  *                                                                            *
  ******************************************************************************/
 void	zbx_lld_process_agent_result(zbx_uint64_t itemid, zbx_uint64_t hostid, AGENT_RESULT *result,
@@ -231,10 +253,10 @@ void	zbx_lld_process_agent_result(zbx_uint64_t itemid, zbx_uint64_t hostid, AGEN
 
 	if (NULL != result)
 	{
-		if (NULL != GET_TEXT_RESULT(result))
-			value = *(GET_TEXT_RESULT(result));
+		if (NULL != ZBX_GET_TEXT_RESULT(result))
+			value = *(ZBX_GET_TEXT_RESULT(result));
 
-		if (0 != ISSET_META(result))
+		if (0 != ZBX_ISSET_META(result))
 		{
 			meta = 1;
 			lastlogsize = result->lastlogsize;
@@ -243,17 +265,17 @@ void	zbx_lld_process_agent_result(zbx_uint64_t itemid, zbx_uint64_t hostid, AGEN
 	}
 
 	if (NULL != value || NULL != error || 0 != meta)
-		zbx_lld_process_value(itemid, hostid, value, ts, meta, lastlogsize, mtime, error);
+		zbx_lld_queue_value(itemid, hostid, value, ts, meta, lastlogsize, mtime, error);
 }
 
 /******************************************************************************
  *                                                                            *
- * Purpose: get queue size (enqueued value count) of LLD manager              *
+ * Purpose: gets queue size (enqueued value count) of LLD manager             *
  *                                                                            *
- * Parameters: size  - [OUT] the queue size                                   *
- *             error - [OUT] the error message                                *
+ * Parameters: size  - [OUT] queue size                                       *
+ *             error - [OUT] error message                                    *
  *                                                                            *
- * Return value: SUCCEED - the queue size was returned successfully           *
+ * Return value: SUCCEED - queue size was returned successfully               *
  *               FAIL    - otherwise                                          *
  *                                                                            *
  ******************************************************************************/
@@ -291,7 +313,7 @@ out:
 
 /******************************************************************************
  *                                                                            *
- * Purpose: get lld manager diagnostic statistics                             *
+ * Purpose: gets LLD manager diagnostic statistics                            *
  *                                                                            *
  ******************************************************************************/
 int	zbx_lld_get_diag_stats(zbx_uint64_t *items_num, zbx_uint64_t *values_num, char **error)
@@ -312,13 +334,13 @@ int	zbx_lld_get_diag_stats(zbx_uint64_t *items_num, zbx_uint64_t *values_num, ch
 
 /******************************************************************************
  *                                                                            *
- * Purpose: get the top N items by the number of queued values                *
+ * Purpose: gets top N items by number of queued values                       *
  *                                                                            *
- * Parameters limit - [IN] the number of top records to retrieve              *
- *            items - [OUT] a vector of top itemid, values_num pairs          *
- *            error - [OUT] the error message                                 *
+ * Parameters limit - [IN] number of top records to retrieve                  *
+ *            items - [OUT] vector of top itemid, values_num pairs            *
+ *            error - [OUT] error message                                     *
  *                                                                            *
- * Return value: SUCCEED - the top n items were returned successfully         *
+ * Return value: SUCCEED - top n items were returned successfully             *
  *               FAIL - otherwise                                             *
  *                                                                            *
  ******************************************************************************/

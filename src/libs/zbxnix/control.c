@@ -1,26 +1,22 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-#include "zbxnix.h"
 #include "control.h"
+#include "zbxnix.h"
 
-#include "common.h"
+#include "zbxnum.h"
+#include "zbx_rtc_constants.h"
 
 static int	parse_log_level_options(const char *opt, size_t len, unsigned int *scope, unsigned int *data)
 {
@@ -42,7 +38,7 @@ static int	parse_log_level_options(const char *opt, size_t len, unsigned int *sc
 	else if (0 != isdigit(*(++rtc_options)))
 	{
 		/* convert PID */
-		if (FAIL == is_ushort(rtc_options, &num) || 0 == num)
+		if (FAIL == zbx_is_ushort(rtc_options, &num) || 0 == num)
 		{
 			zbx_error("invalid log level control target: invalid or unsupported process identifier");
 			return FAIL;
@@ -91,7 +87,7 @@ static int	parse_log_level_options(const char *opt, size_t len, unsigned int *sc
 			}
 
 			/* convert Zabbix process number (e.g. "2" in "poller,2") */
-			if (FAIL == is_ushort(proc_num, &num) || 0 == num)
+			if (FAIL == zbx_is_ushort(proc_num, &num) || 0 == num)
 			{
 				zbx_error("invalid log level control target: invalid or unsupported process number"
 						" \"%s\"", proc_num);

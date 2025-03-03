@@ -1,26 +1,23 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 #include "dbupgrade_macros.h"
-
 #include "dbupgrade.h"
-#include "zbxdbhigh.h"
+
+#include "zbxdb.h"
+#include "zbxnum.h"
+#include "zbxstr.h"
 
 /* Function argument descriptors.                                                */
 /* Used in varargs list to describe following parameter mapping to old position. */
@@ -115,10 +112,10 @@ static int	str_rename_macro(const char *in, const char *oldmacro, const char *ne
  *               FAIL     - database error occurred                           *
  *                                                                            *
  ******************************************************************************/
-int	db_rename_macro(DB_RESULT result, const char *table, const char *pkey, zbx_field_len_t *fields, int fields_num,
-		const char *oldmacro, const char *newmacro)
+int	db_rename_macro(zbx_db_result_t result, const char *table, const char *pkey, zbx_field_len_t *fields,
+		int fields_num, const char *oldmacro, const char *newmacro)
 {
-	DB_ROW		row;
+	zbx_db_row_t	row;
 	char		*sql = 0, *value = NULL, *value_esc;
 	size_t		sql_alloc = 4096, sql_offset = 0, field_alloc = 0, old_offset;
 	int		i, ret = SUCCEED;
@@ -126,9 +123,7 @@ int	db_rename_macro(DB_RESULT result, const char *table, const char *pkey, zbx_f
 
 	sql = zbx_malloc(NULL, sql_alloc);
 
-	zbx_DBbegin_multiple_update(&sql, &sql_alloc, &sql_offset);
-
-	while (NULL != (row = DBfetch(result)))
+	while (NULL != (row = zbx_db_fetch(result)))
 	{
 		old_offset = sql_offset;
 
@@ -146,7 +141,7 @@ int	db_rename_macro(DB_RESULT result, const char *table, const char *pkey, zbx_f
 					continue;
 				}
 
-				value_esc = DBdyn_escape_string(value);
+				value_esc = zbx_db_dyn_escape_string(value);
 
 				if (old_offset == sql_offset)
 					zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset, "update %s set ", table);
@@ -163,14 +158,12 @@ int	db_rename_macro(DB_RESULT result, const char *table, const char *pkey, zbx_f
 		if (old_offset != sql_offset)
 		{
 			zbx_snprintf_alloc(&sql, &sql_alloc, &sql_offset, " where %s=%s;\n", pkey, row[0]);
-			if (SUCCEED != (ret = DBexecute_overflowed_sql(&sql, &sql_alloc, &sql_offset)))
+			if (SUCCEED != (ret = zbx_db_execute_overflowed_sql(&sql, &sql_alloc, &sql_offset)))
 				goto out;
 		}
 	}
 
-	zbx_DBend_multiple_update(&sql, &sql_alloc, &sql_offset);
-
-	if (16 < sql_offset && ZBX_DB_OK > DBexecute("%s", sql))
+	if (ZBX_DB_OK > zbx_db_flush_overflowed_sql(sql, sql_offset))
 		ret = FAIL;
 out:
 	zbx_free(value);
@@ -254,7 +247,7 @@ static void	dbpatch_update_func_delta(zbx_dbpatch_function_t *function, const ch
 
 	dbpatch_update_function(function, "max", parameter, ZBX_DBPATCH_FUNCTION_UPDATE);
 
-	functionid2 = (NULL == function->arg0 ? DBget_maxid("functions") : (zbx_uint64_t)functions->values_num);
+	functionid2 = (NULL == function->arg0 ? zbx_db_get_maxid("functions") : (zbx_uint64_t)functions->values_num);
 	dbpatch_add_function(function, functionid2, "min", parameter, ZBX_DBPATCH_FUNCTION_CREATE, functions);
 
 	*replace = zbx_dsprintf(NULL, "({" ZBX_FS_UI64 "}-{" ZBX_FS_UI64 "})", function->functionid, functionid2);
@@ -266,7 +259,7 @@ static void	dbpatch_update_func_diff(zbx_dbpatch_function_t *function, char **re
 
 	dbpatch_update_function(function, "last", "#1", ZBX_DBPATCH_FUNCTION_UPDATE);
 
-	functionid2 = (NULL == function->arg0 ? DBget_maxid("functions") : (zbx_uint64_t)functions->values_num);
+	functionid2 = (NULL == function->arg0 ? zbx_db_get_maxid("functions") : (zbx_uint64_t)functions->values_num);
 	dbpatch_add_function(function, functionid2, "last", "#2", ZBX_DBPATCH_FUNCTION_CREATE, functions);
 
 	*replace = zbx_dsprintf(NULL, "({" ZBX_FS_UI64 "}<>{" ZBX_FS_UI64 "})", function->functionid, functionid2);
@@ -279,7 +272,7 @@ static void	dbpatch_update_func_trenddelta(zbx_dbpatch_function_t *function, con
 
 	dbpatch_update_function(function, "trendmax", parameter, ZBX_DBPATCH_FUNCTION_UPDATE);
 
-	functionid2 = (NULL == function->arg0 ? DBget_maxid("functions") : (zbx_uint64_t)functions->values_num);
+	functionid2 = (NULL == function->arg0 ? zbx_db_get_maxid("functions") : (zbx_uint64_t)functions->values_num);
 	dbpatch_add_function(function, functionid2, "trendmin", parameter, ZBX_DBPATCH_FUNCTION_CREATE, functions);
 
 	*replace = zbx_dsprintf(NULL, "({" ZBX_FS_UI64 "}-{" ZBX_FS_UI64 "})", function->functionid, functionid2);
@@ -362,12 +355,12 @@ static void	dbpatch_update_func_bitand(zbx_dbpatch_function_t *function, const z
  *               FAIL    - otherwise                                          *
  *                                                                            *
  ******************************************************************************/
-void	dbpatch_strcpy_alloc_quoted(char **str, size_t *str_alloc, size_t *str_offset, const char *source)
+void	dbpatch_strcpy_alloc_quoted_compat(char **str, size_t *str_alloc, size_t *str_offset, const char *source)
 {
 	char	raw[ZBX_DBPATCH_FUNCTION_PARAM_LEN * 5 + 1], quoted[sizeof(raw)];
 
 	zbx_strlcpy(raw, source, sizeof(raw));
-	zbx_escape_string(quoted, sizeof(quoted), raw, "\"\\");
+	zbx_escape_string(quoted, sizeof(quoted), raw, "\"");
 	zbx_chrcpy_alloc(str, str_alloc, str_offset, '"');
 	zbx_strcpy_alloc(str, str_alloc, str_offset, quoted);
 	zbx_chrcpy_alloc(str, str_alloc, str_offset, '"');
@@ -420,6 +413,7 @@ void	dbpatch_convert_params(char **out, const char *parameter, const zbx_vector_
 	const zbx_strloc_t	*loc;
 	const char		*ptr;
 	char			*arg;
+	int			quoted;
 
 	va_start(args, params);
 
@@ -434,7 +428,8 @@ void	dbpatch_convert_params(char **out, const char *parameter, const zbx_vector_
 				if (-1 != (index = va_arg(args, int)) && index < params->values_num)
 				{
 					loc = &params->values[index];
-					arg = zbx_substr_unquote(parameter, loc->l, loc->r);
+					arg = zbx_function_param_unquote_dyn_compat(parameter + loc->l,
+							1 + loc->r - loc->l, &quoted);
 
 					if ('\0' != *arg)
 					{
@@ -450,7 +445,8 @@ void	dbpatch_convert_params(char **out, const char *parameter, const zbx_vector_
 				if (-1 != (index = va_arg(args, int)) && index < params->values_num)
 				{
 					loc = &params->values[index];
-					arg = zbx_substr_unquote(parameter, loc->l, loc->r);
+					arg = zbx_function_param_unquote_dyn_compat(parameter + loc->l,
+							1 + loc->r - loc->l, &quoted);
 
 					if ('\0' != *arg)
 					{
@@ -473,11 +469,12 @@ void	dbpatch_convert_params(char **out, const char *parameter, const zbx_vector_
 					char	*str;
 
 					loc = &params->values[index];
-					str = zbx_substr_unquote(parameter, loc->l, loc->r);
+					str = zbx_function_param_unquote_dyn_compat(parameter + loc->l,
+							1 + loc->r - loc->l, &quoted);
 					if ('\0' != *str)
 					{
 						if (SUCCEED == dbpatch_is_composite_constant(str))
-							dbpatch_strcpy_alloc_quoted(out, &out_alloc, &out_offset, str);
+							dbpatch_strcpy_alloc_quoted_compat(out, &out_alloc, &out_offset, str);
 						else
 							zbx_strcpy_alloc(out, &out_alloc, &out_offset, str);
 
@@ -493,10 +490,11 @@ void	dbpatch_convert_params(char **out, const char *parameter, const zbx_vector_
 					char	*str;
 
 					loc = &params->values[index];
-					str = zbx_substr_unquote(parameter, loc->l, loc->r);
+					str = zbx_function_param_unquote_dyn_compat(parameter + loc->l,
+							1 + loc->r - loc->l, &quoted);
 
 					if (SUCCEED == dbpatch_is_composite_constant(str))
-						dbpatch_strcpy_alloc_quoted(out, &out_alloc, &out_offset, str);
+						dbpatch_strcpy_alloc_quoted_compat(out, &out_alloc, &out_offset, str);
 					else
 						zbx_strcpy_alloc(out, &out_alloc, &out_offset, str);
 
@@ -509,8 +507,9 @@ void	dbpatch_convert_params(char **out, const char *parameter, const zbx_vector_
 					char	*str;
 
 					loc = &params->values[index];
-					str = zbx_substr_unquote(parameter, loc->l, loc->r);
-					dbpatch_strcpy_alloc_quoted(out, &out_alloc, &out_offset, str);
+					str = zbx_function_param_unquote_dyn_compat(parameter + loc->l,
+							1 + loc->r - loc->l, &quoted);
+					dbpatch_strcpy_alloc_quoted_compat(out, &out_alloc, &out_offset, str);
 
 					zbx_free(str);
 				}
@@ -521,7 +520,8 @@ void	dbpatch_convert_params(char **out, const char *parameter, const zbx_vector_
 					char	*str;
 
 					loc = &params->values[index];
-					str = zbx_substr_unquote(parameter, loc->l, loc->r);
+					str = zbx_function_param_unquote_dyn_compat(parameter + loc->l,
+							1 + loc->r - loc->l, &quoted);
 					zbx_strcpy_alloc(out, &out_alloc, &out_offset, str);
 					zbx_free(str);
 				}
@@ -530,7 +530,8 @@ void	dbpatch_convert_params(char **out, const char *parameter, const zbx_vector_
 					char	*str;
 
 					loc = &params->values[index];
-					str = zbx_substr_unquote(parameter, loc->l, loc->r);
+					str = zbx_function_param_unquote_dyn_compat(parameter + loc->l,
+							1 + loc->r - loc->l, &quoted);
 					zbx_chrcpy_alloc(out, &out_alloc, &out_offset, ':');
 					zbx_strcpy_alloc(out, &out_alloc, &out_offset, str);
 					zbx_free(str);
@@ -539,11 +540,11 @@ void	dbpatch_convert_params(char **out, const char *parameter, const zbx_vector_
 			case ZBX_DBPATCH_ARG_CONST_STR:
 				if (NULL != (ptr = va_arg(args, char *)))
 				{
-					char	quoted[MAX_STRING_LEN];
+					char	quoted_esc[MAX_STRING_LEN];
 
-					zbx_escape_string(quoted, sizeof(quoted), ptr, "\"\\");
+					zbx_escape_string(quoted_esc, sizeof(quoted_esc), ptr, "\"\\");
 					zbx_chrcpy_alloc(out, &out_alloc, &out_offset, '"');
-					zbx_strcpy_alloc(out, &out_alloc, &out_offset, quoted);
+					zbx_strcpy_alloc(out, &out_alloc, &out_offset, quoted_esc);
 					zbx_chrcpy_alloc(out, &out_alloc, &out_offset, '"');
 				}
 				break;
@@ -842,7 +843,7 @@ static void	dbpatch_replace_functionids(char **expression, const zbx_vector_ptr_
 		switch (token.type)
 		{
 			case ZBX_TOKEN_OBJECTID:
-				if (SUCCEED == is_uint64_n(*expression + token.loc.l + 1,
+				if (SUCCEED == zbx_is_uint64_n(*expression + token.loc.l + 1,
 						token.loc.r - token.loc.l - 1, &index) &&
 						(int)index < functions->values_num)
 				{

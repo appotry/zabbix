@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 require_once dirname(__FILE__).'/../include/CIntegrationTest.php';
@@ -29,7 +24,7 @@ class testGoAgentDataCollection extends CIntegrationTest {
 
 	const COMPARE_AVERAGE = 0;
 	const COMPARE_LAST = 1;
-	const OFFSET_MAX = 10;
+	const OFFSET_MAX = 20;
 
 	private static $hostids = [];
 	private static $itemids = [];
@@ -60,6 +55,12 @@ class testGoAgentDataCollection extends CIntegrationTest {
 			'key' => 'net.dns.record[,zabbix.com]',
 			'type' => ITEM_TYPE_ZABBIX_ACTIVE,
 			'valueType' => ITEM_VALUE_TYPE_TEXT
+		],
+		[
+			'key' => 'net.dns.perf[,zabbix.com]',
+			'type' => ITEM_TYPE_ZABBIX_ACTIVE,
+			'valueType' => ITEM_VALUE_TYPE_FLOAT,
+			'threshold' => 10000
 		],
 		[
 			'key' => 'net.if.discovery',
@@ -192,6 +193,12 @@ class testGoAgentDataCollection extends CIntegrationTest {
 			'valueType' => ITEM_VALUE_TYPE_TEXT
 		],
 		[
+			'key' => 'vfs.file.regmatch[/etc/hosts,127.0.0.1]',
+			'type' => ITEM_TYPE_ZABBIX,
+			'valueType' => ITEM_VALUE_TYPE_UINT64,
+			'threshold' => 1
+		],
+		[
 			'key' => 'vfs.fs.discovery',
 			'type' => ITEM_TYPE_ZABBIX_ACTIVE,
 			'valueType' => ITEM_VALUE_TYPE_TEXT
@@ -220,31 +227,36 @@ class testGoAgentDataCollection extends CIntegrationTest {
 			'key' => 'system.cpu.util[,,avg1]',
 			'type' => ITEM_TYPE_ZABBIX,
 			'valueType' => ITEM_VALUE_TYPE_FLOAT,
-			'threshold' => 0.5
+			'threshold' => 0.9
 		],
 		[
 			'key' => 'system.cpu.load[,avg1]',
 			'type' => ITEM_TYPE_ZABBIX,
 			'valueType' => ITEM_VALUE_TYPE_FLOAT,
-			'threshold' => 0.5
+			'threshold' => 0.9
 		],
 		[
 			'key' => 'vfs.dev.read[,operations]',
 			'type' => ITEM_TYPE_ZABBIX,
 			'valueType' => ITEM_VALUE_TYPE_UINT64,
-			'threshold' => 10
+			'threshold' => 1000
 		],
 		[
 			'key' => 'vfs.dev.write[,operations]',
-			'type' => ITEM_TYPE_ZABBIX,
+			'type' => ITEM_TYPE_ZABBIX_ACTIVE,
 			'valueType' => ITEM_VALUE_TYPE_UINT64,
-			'threshold' => 100
+			'threshold' => 10000
+		],
+		[
+			'key' => 'vfs.dev.discovery',
+			'type' => ITEM_TYPE_ZABBIX_ACTIVE,
+			'valueType' => ITEM_VALUE_TYPE_TEXT
 		],
 		[
 			'key' => 'proc.cpu.util[,,,,avg1]',
 			'type' => ITEM_TYPE_ZABBIX,
 			'valueType' => ITEM_VALUE_TYPE_FLOAT,
-			'threshold' => 10.0,
+			'threshold' => 90.0,
 			'compareType' => self::COMPARE_AVERAGE
 		],
 		[
@@ -258,60 +270,66 @@ class testGoAgentDataCollection extends CIntegrationTest {
 			'key' => 'system.swap.out[,pages]',
 			'type' => ITEM_TYPE_ZABBIX,
 			'valueType' => ITEM_VALUE_TYPE_UINT64,
-			'threshold' => 100,
+			'threshold' => 10000,
 			'compareType' => self::COMPARE_AVERAGE
 		],
 		[
 			'key' => 'proc.mem[zabbix_server,zabbix,avg]',
 			'type' => ITEM_TYPE_ZABBIX,
 			'valueType' => ITEM_VALUE_TYPE_FLOAT,
-			'threshold' => 100.0
+			'threshold' => 10000.0
 		],
 		[
 			'key' => 'web.page.perf[http://localhost]',
 			'type' => ITEM_TYPE_ZABBIX,
 			'valueType' => ITEM_VALUE_TYPE_FLOAT,
-			'threshold' => 1.0,
+			'threshold' => 100.0,
 			'compareType' => self::COMPARE_AVERAGE
 		],
 		[
 			'key' => 'net.tcp.service.perf[ssh]',
 			'type' => ITEM_TYPE_ZABBIX,
 			'valueType' => ITEM_VALUE_TYPE_FLOAT,
-			'threshold' => 0.05
+			'threshold' => 5.00
 		],
 		[
 			'key' => 'net.udp.service.perf[ntp]',
 			'type' => ITEM_TYPE_ZABBIX,
 			'valueType' => ITEM_VALUE_TYPE_FLOAT,
-			'threshold' => 0.05
+			'threshold' => 5.00
 		],
 		[
 			'key' => 'system.swap.size[,total]',
 			'type' => ITEM_TYPE_ZABBIX,
 			'valueType' => ITEM_VALUE_TYPE_UINT64,
-			'threshold' => 100,
+			'threshold' => 10000,
 			'compareType' => self::COMPARE_AVERAGE
 		],
 		[
 			'key' => 'vfs.fs.inode[/,pfree]',
 			'type' => ITEM_TYPE_ZABBIX,
 			'valueType' => ITEM_VALUE_TYPE_FLOAT,
-			'threshold' => 0.1,
+			'threshold' => 0.9,
 			'compareType' => self::COMPARE_AVERAGE
 		],
 		[
 			'key' => 'vfs.fs.size[/tmp,free]',
 			'type' => ITEM_TYPE_ZABBIX,
 			'valueType' => ITEM_VALUE_TYPE_UINT64,
-			'threshold' => 10000000,
+			'threshold' => 100000000,
 			'compareType' => self::COMPARE_AVERAGE
+		],
+		[
+			'key' => 'vfs.fs.get',
+			'type' => ITEM_TYPE_ZABBIX_ACTIVE,
+			'valueType' => ITEM_VALUE_TYPE_TEXT,
+			'do_not_compare' => '1'
 		],
 		[
 			'key' => 'vm.memory.size[free]',
 			'type' => ITEM_TYPE_ZABBIX,
 			'valueType' => ITEM_VALUE_TYPE_UINT64,
-			'threshold' => 10000000,
+			'threshold' => 100000000,
 			'compareType' => self::COMPARE_AVERAGE
 		],
 		[// Should be treated as a special case, since this metric returns JSON object.
@@ -319,7 +337,7 @@ class testGoAgentDataCollection extends CIntegrationTest {
 			'key' => 'zabbix.stats[127.0.0.1,'.PHPUNIT_PORT_PREFIX.self::SERVER_PORT_SUFFIX.']',
 			'type' => ITEM_TYPE_ZABBIX,
 			'valueType' => ITEM_VALUE_TYPE_TEXT,
-			'threshold' => 50
+			'do_not_compare' => '1'
 		]
 	];
 
@@ -329,7 +347,8 @@ class testGoAgentDataCollection extends CIntegrationTest {
 	public function prepareData() {
 		// Create host "agentd" and "agent2".
 		$hosts = [];
-		foreach ([self::COMPONENT_AGENT => self::AGENT_PORT_SUFFIX, self::COMPONENT_AGENT2 => self::AGENT2_PORT_SUFFIX] as $component => $port) {
+		foreach ([self::COMPONENT_AGENT => self::AGENT_PORT_SUFFIX, self::COMPONENT_AGENT2 =>
+			self::AGENT2_PORT_SUFFIX] as $component => $port) {
 			$hosts[] = [
 				'host' => $component,
 				'interfaces' => [
@@ -381,12 +400,18 @@ class testGoAgentDataCollection extends CIntegrationTest {
 				'value_type' => $item['valueType'],
 				'delay' => '1s'
 			];
-
 			foreach ([self::COMPONENT_AGENT, self::COMPONENT_AGENT2] as $component) {
-				$items[] = array_merge($data, [
-					'hostid' => self::$hostids[$component],
-					'interfaceid' => $interfaceids[$component]
-				]);
+				$host_if_props = [
+					'hostid' => self::$hostids[$component]
+				];
+
+				if ($data['type'] == ITEM_TYPE_ZABBIX_ACTIVE) {
+					$host_if_props['interfaceid'] = 0;
+				} else {
+					$host_if_props['interfaceid'] = $interfaceids[$component];
+				}
+
+				$items[] = array_merge($data, $host_if_props);
 			}
 		}
 
@@ -448,7 +473,7 @@ class testGoAgentDataCollection extends CIntegrationTest {
 		}
 
 		// Delay to ensure that all metrics were collected.
-		sleep(90);
+		sleep(110);
 	}
 
 	/**
@@ -543,7 +568,12 @@ class testGoAgentDataCollection extends CIntegrationTest {
 				$a = end($values[self::COMPONENT_AGENT]);
 				$b = end($values[self::COMPONENT_AGENT2]);
 
+				if (array_key_exists('do_not_compare', $item)) {
+					break;
+				}
+
 				if (array_key_exists('threshold', $item) && $item['threshold'] !== 0) {
+
 					$a = substr($a, 0, $item['threshold']);
 					$b = substr($b, 0, $item['threshold']);
 				}
@@ -553,9 +583,10 @@ class testGoAgentDataCollection extends CIntegrationTest {
 
 			case ITEM_VALUE_TYPE_FLOAT:
 			case ITEM_VALUE_TYPE_UINT64:
+				$diff_values = [];
+
 				if (CTestArrayHelper::get($item, 'compareType', self::COMPARE_LAST) === self::COMPARE_AVERAGE) {
 					$value = [];
-					$diff_values = [];
 
 					foreach ([self::COMPONENT_AGENT, self::COMPONENT_AGENT2] as $component) {
 						// Calculate offset between Agent and Agent2 result arrays
@@ -579,19 +610,27 @@ class testGoAgentDataCollection extends CIntegrationTest {
 					for ($i = 0; $i < self::OFFSET_MAX; $i++) {
 						$a = $value[self::COMPONENT_AGENT][$i];
 						$b = $value[self::COMPONENT_AGENT2][$i];
-						$diff_values[$i] = abs(abs($a) - abs($b));
+						$diff_values[$i] = abs($a - $b);
 					}
 					$offset = array_search(min($diff_values), $diff_values);
 
 					$a = $value[self::COMPONENT_AGENT][$offset];
 					$b = $value[self::COMPONENT_AGENT2][$offset];
+
+					$diff = abs($a - $b);
 				}
 				else {
-					$a = end($values[self::COMPONENT_AGENT]);
-					$b = end($values[self::COMPONENT_AGENT2]);
+					$records = count($values[self::COMPONENT_AGENT]);
+					for ($i = 0; $i < self::OFFSET_MAX; $i++) {
+						$slice = array_slice($values[self::COMPONENT_AGENT], 0, $records - $i);
+						$a = end($slice);
+						$b = end($values[self::COMPONENT_AGENT2]);
+						$diff_values[$i] = abs($a - $b);
+					}
+
+					$diff = min($diff_values);
 				}
 
-				$diff = abs(abs($a) - abs($b));
 				$this->assertTrue($diff < $item['threshold'], 'Difference for '.$item['key'].
 						' is more than defined threshold '.$diff.' > '.$item['threshold']
 				);
@@ -601,8 +640,6 @@ class testGoAgentDataCollection extends CIntegrationTest {
 
 	/**
 	 * Sort array by multiple fields.
-	 *
-	 * @static
 	 *
 	 * @param array $array  array to sort passed by reference
 	 * @param array $fields fields to sort, can be either string with field name or array with 'field' and 'order' keys

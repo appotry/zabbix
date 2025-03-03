@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -24,26 +19,38 @@
  */
 class CControllerNotificationsGet extends CController {
 
-	protected function init() {
+	/**
+	 * @var array
+	 */
+	private $notifications = [];
+
+	/**
+	 * @var array
+	 */
+	private $settings = [];
+
+	/**
+	 * @var int
+	 */
+	private $timeout_time = 0;
+
+	/**
+	 * @var int
+	 */
+	private $time_from = 0;
+
+	/**
+	 * @var array
+	 */
+	private $known_eventids = [];
+
+	protected function init(): void {
 		parent::init();
 
-		$this->notifications = [];
-		$this->settings = getMessageSettings();
-		$ok_timeout = (int) timeUnitToSeconds(CSettingsHelper::get(CSettingsHelper::OK_PERIOD));
-		$timeout = (int) timeUnitToSeconds($this->settings['timeout']);
-		$this->settings['timeout'] = $timeout;
-		$this->settings['ok_timeout'] = min([$timeout, $ok_timeout]);
-		$this->settings['show_recovered'] = (bool) $this->settings['triggers.recovery'];
-		$this->settings['show_suppressed'] = (bool) $this->settings['show_suppressed'];
-		if (!$this->settings['triggers.severities']) {
-			$this->settings['enabled'] = true;
-		}
-
-		$this->timeout_time = time() - $this->settings['timeout'];
-		$this->time_from = max([$this->settings['last.clock'], $this->timeout_time]);
+		$this->disableCsrfValidation();
 	}
 
-	protected function checkInput() {
+	protected function checkInput(): bool {
 		$fields = [
 			'known_eventids' => 'array_db events.eventid'
 		];
@@ -63,11 +70,26 @@ class CControllerNotificationsGet extends CController {
 		return $ret;
 	}
 
-	protected function checkPermissions() {
+	protected function checkPermissions(): bool {
 		return (!CWebUser::isGuest() && $this->getUserType() >= USER_TYPE_ZABBIX_USER);
 	}
 
-	protected function doAction() {
+	protected function doAction(): void {
+		$this->notifications = [];
+		$this->settings = getMessageSettings();
+		$ok_timeout = (int) timeUnitToSeconds(CSettingsHelper::get(CSettingsHelper::OK_PERIOD));
+		$timeout = (int) timeUnitToSeconds($this->settings['timeout']);
+		$this->settings['timeout'] = $timeout;
+		$this->settings['ok_timeout'] = min([$timeout, $ok_timeout]);
+		$this->settings['show_recovered'] = (bool) $this->settings['triggers.recovery'];
+		$this->settings['show_suppressed'] = (bool) $this->settings['show_suppressed'];
+		if (!$this->settings['triggers.severities']) {
+			$this->settings['enabled'] = true;
+		}
+
+		$this->timeout_time = time() - $this->settings['timeout'];
+		$this->time_from = max([$this->settings['last.clock'], $this->timeout_time]);
+
 		if (!$this->settings['enabled']) {
 			$this->setResponse(new CControllerResponseData(['main_block' => $this->makeResponseData()]));
 			return;
@@ -80,7 +102,7 @@ class CControllerNotificationsGet extends CController {
 		$this->setResponse(new CControllerResponseData(['main_block' => $this->makeResponseData()]));
 	}
 
-	protected function loadNotifications() {
+	protected function loadNotifications(): void {
 		// Select problem events.
 		$options = [
 			'output' => ['eventid', 'r_eventid', 'objectid', 'severity', 'clock', 'r_clock', 'name'],
@@ -88,6 +110,7 @@ class CControllerNotificationsGet extends CController {
 			'object' => EVENT_OBJECT_TRIGGER,
 			'severities' => array_keys($this->settings['triggers.severities']),
 			'suppressed' => $this->settings['show_suppressed'] ? null : false,
+			'symptom' => false,
 			'sortorder' => ZBX_SORT_DOWN,
 			'sortfield' => 'eventid',
 			'limit' => 15,
@@ -185,22 +208,25 @@ class CControllerNotificationsGet extends CController {
 				'output' => [],
 				'selectHosts' => ['hostid', 'name'],
 				'triggerids' => array_keys($problems_by_triggerid),
-				'lastChangeSince' => $this->time_from,
 				'preservekeys' => true
 			]);
 
 			foreach ($problems_by_triggerid as $triggerid => $notification_eventids) {
-				$trigger = $triggers[$triggerid];
+				$trigger = array_key_exists($triggerid, $triggers) ? $triggers[$triggerid] : null;
+
+				if ($trigger === null) {
+					continue;
+				}
 
 				$url_problems = (new CUrl('zabbix.php'))
 					->setArgument('action', 'problem.view')
-					->setArgument('filter_name', '')
+					->setArgument('filter_set', '1')
 					->setArgument('hostids[]', $trigger['hosts'][0]['hostid'])
 					->getUrl();
 
 				$url_events = (new CUrl('zabbix.php'))
 					->setArgument('action', 'problem.view')
-					->setArgument('filter_name', '')
+					->setArgument('filter_set', '1')
 					->setArgument('triggerids[]', $triggerid)
 					->getUrl();
 
@@ -214,14 +240,12 @@ class CControllerNotificationsGet extends CController {
 						->getUrl();
 
 					$notification += [
-						'title' => sprintf('[url=%s]%s[/url]', $url_problems,
-							CHtml::encode($trigger['hosts'][0]['name'])
-						),
+						'title' => (new CLink($trigger['hosts'][0]['name'], $url_problems))->toString(),
 						'body' => [
-							'[url='.$url_events.']'.CHtml::encode($notification['name']).'[/url]',
-							'[url='.$url_trigger_events.']'.
-								zbx_date2str(DATE_TIME_FORMAT_SECONDS, $notification['clock']).
-							'[/url]'
+							(new CLink($notification['name'], $url_events))->toString(),
+							(new CLink(
+								zbx_date2str(DATE_TIME_FORMAT_SECONDS, $notification['clock']), $url_trigger_events)
+							)->toString()
 						]
 					];
 				}
@@ -231,7 +255,7 @@ class CControllerNotificationsGet extends CController {
 		$this->notifications = array_values($this->notifications);
 	}
 
-	protected function makeResponseData() {
+	protected function makeResponseData(): string {
 		CArrayHelper::sort($this->notifications, [
 			['field' => 'clock', 'order' => ZBX_SORT_DOWN],
 			['field' => 'severity', 'order' => ZBX_SORT_DOWN],
@@ -252,16 +276,18 @@ class CControllerNotificationsGet extends CController {
 		return json_encode([
 			'notifications' => $this->notifications,
 			'settings' => [
+				'username' => CApiService::$userData['username'],
 				'enabled' => (bool) $this->settings['enabled'],
 				'alarm_timeout' => (int) $this->settings['sounds.repeat'],
 				'msg_recovery_timeout' => $this->settings['ok_timeout'],
 				'msg_timeout' => $this->settings['timeout'],
 				'muted' => (bool) $this->settings['sounds.mute'],
+				'snoozed_eventid' => (int) $this->settings['snoozed.eventid'],
 				'severity_styles' => [
 					-1 => ZBX_STYLE_NORMAL_BG,
 					TRIGGER_SEVERITY_AVERAGE => ZBX_STYLE_AVERAGE_BG,
 					TRIGGER_SEVERITY_DISASTER => ZBX_STYLE_DISASTER_BG,
-					TRIGGER_SEVERITY_HIGH  => ZBX_STYLE_HIGH_BG,
+					TRIGGER_SEVERITY_HIGH => ZBX_STYLE_HIGH_BG,
 					TRIGGER_SEVERITY_INFORMATION => ZBX_STYLE_INFO_BG,
 					TRIGGER_SEVERITY_NOT_CLASSIFIED => ZBX_STYLE_NA_BG,
 					TRIGGER_SEVERITY_WARNING => ZBX_STYLE_WARNING_BG
@@ -275,7 +301,8 @@ class CControllerNotificationsGet extends CController {
 					TRIGGER_SEVERITY_NOT_CLASSIFIED => $this->settings['sounds.'.TRIGGER_SEVERITY_NOT_CLASSIFIED],
 					TRIGGER_SEVERITY_WARNING => $this->settings['sounds.'.TRIGGER_SEVERITY_WARNING]
 				]
-			]
+			],
+			CSRF_TOKEN_NAME => CCsrfTokenHelper::get('notifications')
 		]);
 	}
 }

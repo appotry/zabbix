@@ -1,20 +1,15 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 package log
@@ -22,22 +17,31 @@ package log
 import (
 	"time"
 
-	"git.zabbix.com/ap/plugin-support/plugin"
+	"golang.zabbix.com/agent2/internal/agent/scheduler"
+	"golang.zabbix.com/sdk/errs"
+	"golang.zabbix.com/sdk/plugin"
 )
+
+var impl Plugin
 
 // Plugin -
 type Plugin struct {
 	plugin.Base
 	input   chan *watchRequest
-	clients map[plugin.ResultWriter][]*plugin.Request
+	clients map[plugin.ResultWriter][]*scheduler.Request
 }
 
 type watchRequest struct {
-	requests []*plugin.Request
+	requests []*scheduler.Request
 	sink     plugin.ResultWriter
 }
 
-var impl Plugin
+func init() {
+	err := plugin.RegisterMetrics(&impl, "DebugLog", "debug.log", "Returns timestamp each second.")
+	if err != nil {
+		panic(errs.Wrap(err, "failed to register metrics"))
+	}
+}
 
 func (p *Plugin) run() {
 	p.Debugf("activating plugin")
@@ -58,7 +62,8 @@ run:
 						Value:       &value,
 						LastLogsize: &lastlogsize,
 						Ts:          now,
-						Mtime:       &mtime})
+						Mtime:       &mtime,
+					})
 				}
 			}
 		case wr := <-p.input:
@@ -75,7 +80,7 @@ run:
 func (p *Plugin) Start() {
 	p.Debugf("start")
 	p.input = make(chan *watchRequest)
-	p.clients = make(map[plugin.ResultWriter][]*plugin.Request)
+	p.clients = make(map[plugin.ResultWriter][]*scheduler.Request)
 	go p.run()
 }
 
@@ -84,7 +89,7 @@ func (p *Plugin) Stop() {
 	close(p.input)
 }
 
-func (p *Plugin) Watch(requests []*plugin.Request, ctx plugin.ContextProvider) {
+func (p *Plugin) Watch(requests []*scheduler.Request, ctx plugin.ContextProvider) {
 	p.Debugf("watch")
 	p.input <- &watchRequest{sink: ctx.Output(), requests: requests}
 }
@@ -95,8 +100,4 @@ func (p *Plugin) Configure(global *plugin.GlobalOptions, private interface{}) {
 
 func (p *Plugin) Validate(private interface{}) (err error) {
 	return
-}
-
-func init() {
-	plugin.RegisterMetrics(&impl, "DebugLog", "debug.log", "Returns timestamp each second.")
 }

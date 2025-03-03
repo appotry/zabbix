@@ -1,21 +1,16 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -48,22 +43,33 @@ final class CSlaHelper {
 	}
 
 	/**
+	 * @param bool $compact
+	 *
 	 * @return array
 	 */
-	public static function getReportNames(): array {
+	public static function getReportNames(bool $compact = false): array {
 		static $report_names;
 
 		if ($report_names === null) {
 			$report_names = [
-				ZBX_SLA_PERIOD_DAILY => _('Day'),
-				ZBX_SLA_PERIOD_WEEKLY => _('Week'),
-				ZBX_SLA_PERIOD_MONTHLY => _('Month'),
-				ZBX_SLA_PERIOD_QUARTERLY => _('Quarter'),
-				ZBX_SLA_PERIOD_ANNUALLY => _('Year')
+				'default' => [
+					ZBX_SLA_PERIOD_DAILY => _('Day'),
+					ZBX_SLA_PERIOD_WEEKLY => _('Week'),
+					ZBX_SLA_PERIOD_MONTHLY => _('Month'),
+					ZBX_SLA_PERIOD_QUARTERLY => _('Quarter'),
+					ZBX_SLA_PERIOD_ANNUALLY => _('Year')
+				],
+				'compact' => [
+					ZBX_SLA_PERIOD_DAILY => _x('Day', 'compact table header'),
+					ZBX_SLA_PERIOD_WEEKLY => _x('Week', 'compact table header'),
+					ZBX_SLA_PERIOD_MONTHLY => _x('Month', 'compact table header'),
+					ZBX_SLA_PERIOD_QUARTERLY => _x('Quarter', 'compact table header'),
+					ZBX_SLA_PERIOD_ANNUALLY => _x('Year', 'compact table header')
+				]
 			];
 		}
 
-		return $report_names;
+		return $report_names[$compact ? 'compact' : 'default'];
 	}
 
 	/**
@@ -138,7 +144,7 @@ final class CSlaHelper {
 			case ZBX_SLA_PERIOD_WEEKLY:
 				$tag->addItem([
 					$datetime_from->format(ZBX_SLA_PERIOD_DATE_FORMAT_WEEKLY_FROM),
-					' &#8211; ',
+					[' ', NDASH(), ' '],
 					$datetime_to->format(ZBX_SLA_PERIOD_DATE_FORMAT_WEEKLY_TO)
 				]);
 				break;
@@ -150,7 +156,7 @@ final class CSlaHelper {
 			case ZBX_SLA_PERIOD_QUARTERLY:
 				$tag->addItem([
 					$datetime_from->format(ZBX_SLA_PERIOD_DATE_FORMAT_QUARTERLY_FROM),
-					' &#8211; ',
+					[' ', NDASH(), ' '],
 					$datetime_to->format(ZBX_SLA_PERIOD_DATE_FORMAT_QUARTERLY_TO)
 				]);
 				break;
@@ -236,11 +242,11 @@ final class CSlaHelper {
 	 *
 	 * @throws Exception
 	 *
-	 * @return CTag
+	 * @return array
 	 */
-	public static function getScheduleTag(array $schedule): CTag {
+	public static function getScheduleCaption(array $schedule): array {
 		if (!$schedule) {
-			return new CSpan(_('24x7'));
+			return [new CSpan(_('24x7'))];
 		}
 
 		$hint = (new CTableInfo())->setHeader(
@@ -251,11 +257,11 @@ final class CSlaHelper {
 			$hint->addRow([getDayOfWeekCaption($weekday), $periods === '' ? '-' : $periods]);
 		}
 
-		return (new CSpan(_('Custom')))
-			->addItem(
-				(new CSpan())
-					->addClass('icon-description')
-					->setHint($hint)
-			);
+		return [
+			new CSpan(_('Custom')),
+			(new CButtonIcon(ZBX_ICON_ALERT_WITH_CONTENT))
+				->setAttribute('data-content', '?')
+				->setHint($hint)
+		];
 	}
 }

@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -76,6 +71,8 @@ class CUpdateIntervalParser extends CParser {
 
 		// First interval must be simple interval (or macro). Other intervals may be mixed and repeat multiple times.
 		if ($this->simple_interval_parser->parse($source, $p) == self::PARSE_FAIL) {
+			$this->errorPos($source, $p);
+
 			return self::PARSE_FAIL;
 		}
 		$p += $this->simple_interval_parser->getLength();
@@ -111,7 +108,13 @@ class CUpdateIntervalParser extends CParser {
 		$this->length = $p - $pos;
 		$this->match = substr($source, $pos, $this->length);
 
-		return isset($source[$p]) ? self::PARSE_SUCCESS_CONT : self::PARSE_SUCCESS;
+		if (!isset($source[$p])) {
+			return self::PARSE_SUCCESS;
+		}
+
+		$this->errorPos($source, $p);
+
+		return self::PARSE_SUCCESS_CONT;
 	}
 
 	/**
@@ -124,26 +127,25 @@ class CUpdateIntervalParser extends CParser {
 	}
 
 	/**
-	 * Get all intervals or specifically flexible or scheduling intervals.
+	 * Get all intervals, or specifically flexible or scheduling ones.
 	 *
-	 * @param int $type			If null get both types, else either ITEM_DELAY_FLEXIBLE or ITEM_DELAY_SCHEDULING
+	 * @param int|null $type  ITEM_DELAY_FLEXIBLE, ITEM_DELAY_SCHEDULING, or null for both.
 	 *
 	 * @return array
 	 */
-	public function getIntervals($type = null) {
+	public function getIntervals(?int $type = null) {
 		if ($type === null) {
 			return $this->intervals;
 		}
-		else {
-			$intervals = [];
 
-			foreach ($this->intervals as $interval) {
-				if ($interval['type'] == $type) {
-					$intervals[] = $interval['interval'];
-				}
+		$intervals = [];
+
+		foreach ($this->intervals as $interval) {
+			if ($interval['type'] == $type) {
+				$intervals[] = $interval['interval'];
 			}
-
-			return $intervals;
 		}
+
+		return $intervals;
 	}
 }

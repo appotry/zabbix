@@ -1,25 +1,24 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
 class CControllerAuditLogList extends CController {
+
+	protected function init() {
+		$this->disableCsrfValidation();
+	}
 
 	protected function checkInput(): bool {
 		$fields = [
@@ -31,35 +30,12 @@ class CControllerAuditLogList extends CController {
 			'filter_userids' =>			'array_db users.userid',
 			'filter_resourceid' =>		'string',
 			'filter_recordsetid' =>		'string',
+			'filter_ip' =>				'string',
 			'from' =>					'range_time',
 			'to' =>						'range_time'
 		];
 
-		$ret = $this->validateInput($fields);
-
-		if ($ret) {
-			$fields = [];
-
-			if ($this->getInput('filter_resourceid', '') !== '') {
-				$fields['filter_resourceid'] = 'id';
-			}
-
-			if ($this->getInput('filter_recordsetid', '') !== '') {
-				$fields['filter_recordsetid'] = 'cuid';
-			}
-
-			if ($fields) {
-				$validator = new CNewValidator($this->getInputAll(), $fields);
-
-				foreach ($validator->getAllErrors() as $error) {
-					info($error);
-				}
-
-				if ($validator->isErrorFatal() || $validator->isError()) {
-					$ret = false;
-				}
-			}
-		}
+		$ret = $this->validateInput($fields) && $this->validateTimeSelectorPeriod();
 
 		if (!$ret) {
 			$this->setResponse(new CControllerResponseFatal());
@@ -73,10 +49,10 @@ class CControllerAuditLogList extends CController {
 	}
 
 	protected function doAction(): void {
-		if ($this->getInput('filter_set', 0)) {
+		if ($this->hasInput('filter_set')) {
 			$this->updateProfiles();
 		}
-		elseif ($this->getInput('filter_rst', 0)) {
+		elseif ($this->hasInput('filter_rst')) {
 			$this->deleteProfiles();
 		}
 
@@ -96,6 +72,7 @@ class CControllerAuditLogList extends CController {
 			'auditlog_actions' => CProfile::getArray('web.auditlog.filter.actions', []),
 			'resourceid' => CProfile::get('web.auditlog.filter.resourceid', ''),
 			'recordsetid' => CProfile::get('web.auditlog.filter.recordsetid', ''),
+			'ip' => CProfile::get('web.auditlog.filter.ip', ''),
 			'action' => $this->getAction(),
 			'actions' => self::getActionsList(),
 			'resources' => self::getResourcesList(),
@@ -104,22 +81,20 @@ class CControllerAuditLogList extends CController {
 			'active_tab' => CProfile::get('web.auditlog.filter.active', 1)
 		];
 		$users = [];
-		$non_existent_userids = [];
+		$non_existent_userids = [0];
 
 		$filter = [
-			'action' => $data['auditlog_actions']
+			'action' => $data['auditlog_actions'] ?: null
 		];
 
 		if ($data['resourcetype'] != -1) {
 			$filter['resourcetype'] = $data['resourcetype'];
 		}
 
-		if ($data['resourceid'] !== '') {
-			$filter['resourceid'] = $data['resourceid'];
-		}
-
-		if ($data['recordsetid'] !== '') {
-			$filter['recordsetid'] = $data['recordsetid'];
+		foreach (['resourceid', 'recordsetid', 'ip'] as $field) {
+			if ($data[$field] !== '') {
+				$filter[$field] = $data[$field];
+			}
 		}
 
 		$params = [
@@ -147,21 +122,22 @@ class CControllerAuditLogList extends CController {
 				'preservekeys' => true
 			]);
 
+			if (in_array('0', $data['userids'])) {
+				$users[0] = ['userid' => '0', 'username' => 'System', 'name' => '', 'surname' => ''];
+			}
+
 			$data['userids'] = $this->sanitizeUsersForMultiselect($users);
 
 			if ($users) {
 				$params['userids'] = array_column($users, 'userid');
-				$data['auditlogs'] = API::AuditLog()->get($params);
 			}
 
 			$users = array_map(function(array $value): string {
 				return $value['username'];
 			}, $users);
 		}
-		else {
-			$data['auditlogs'] = API::AuditLog()->get($params);
-		}
 
+		$data['auditlogs'] = API::AuditLog()->get($params);
 		$data['paging'] = CPagerHelper::paginate($data['page'], $data['auditlogs'], ZBX_SORT_UP,
 			(new CUrl('zabbix.php'))->setArgument('action', $this->getAction())
 		);
@@ -199,10 +175,6 @@ class CControllerAuditLogList extends CController {
 		$this->setResponse($response);
 	}
 
-	protected function init(): void {
-		$this->disableSIDValidation();
-	}
-
 	/**
 	 * Return associated list of available actions and labels.
 	 *
@@ -218,7 +190,8 @@ class CControllerAuditLogList extends CController {
 			CAudit::ACTION_DELETE => _('Delete'),
 			CAudit::ACTION_EXECUTE => _('Execute'),
 			CAudit::ACTION_HISTORY_CLEAR => _('History clear'),
-			CAudit::ACTION_CONFIG_REFRESH => _('Configuration refresh')
+			CAudit::ACTION_CONFIG_REFRESH => _('Configuration refresh'),
+			CAudit::ACTION_PUSH => _('Push')
 		];
 	}
 
@@ -233,12 +206,14 @@ class CControllerAuditLogList extends CController {
 			CAudit::RESOURCE_AUTH_TOKEN => _('API token'),
 			CAudit::RESOURCE_AUTHENTICATION => _('Authentication'),
 			CAudit::RESOURCE_AUTOREGISTRATION  => _('Autoregistration'),
+			CAudit::RESOURCE_CONNECTOR => _('Connector'),
 			CAudit::RESOURCE_CORRELATION => _('Event correlation'),
 			CAudit::RESOURCE_DASHBOARD => _('Dashboard'),
 			CAudit::RESOURCE_DISCOVERY_RULE => _('Discovery rule'),
 			CAudit::RESOURCE_GRAPH => _('Graph'),
 			CAudit::RESOURCE_GRAPH_PROTOTYPE => _('Graph prototype'),
 			CAudit::RESOURCE_HA_NODE => _('High availability node'),
+			CAudit::RESOURCE_HISTORY => _('History'),
 			CAudit::RESOURCE_HOST => _('Host'),
 			CAudit::RESOURCE_HOST_GROUP => _('Host group'),
 			CAudit::RESOURCE_HOST_PROTOTYPE => _('Host prototype'),
@@ -248,12 +223,15 @@ class CControllerAuditLogList extends CController {
 			CAudit::RESOURCE_IT_SERVICE => _('Service'),
 			CAudit::RESOURCE_ITEM => _('Item'),
 			CAudit::RESOURCE_ITEM_PROTOTYPE => _('Item prototype'),
+			CAudit::RESOURCE_LLD_RULE => _('LLD rule'),
 			CAudit::RESOURCE_MACRO => _('Macro'),
 			CAudit::RESOURCE_MAINTENANCE => _('Maintenance'),
 			CAudit::RESOURCE_MAP => _('Map'),
 			CAudit::RESOURCE_MEDIA_TYPE => _('Media type'),
+			CAudit::RESOURCE_MFA => _('Multi-factor authentication'),
 			CAudit::RESOURCE_MODULE => _('Module'),
 			CAudit::RESOURCE_PROXY => _('Proxy'),
+			CAudit::RESOURCE_PROXY_GROUP => _('Proxy group'),
 			CAudit::RESOURCE_REGEXP => _('Regular expression'),
 			CAudit::RESOURCE_SCENARIO => _('Web scenario'),
 			CAudit::RESOURCE_SCHEDULED_REPORT => _('Scheduled report'),
@@ -264,6 +242,7 @@ class CControllerAuditLogList extends CController {
 			CAudit::RESOURCE_TEMPLATE_DASHBOARD => _('Template dashboard'),
 			CAudit::RESOURCE_TRIGGER => _('Trigger'),
 			CAudit::RESOURCE_TRIGGER_PROTOTYPE => _('Trigger prototype'),
+			CAudit::RESOURCE_TEMPLATE_GROUP => _('Template group'),
 			CAudit::RESOURCE_USER => _('User'),
 			CAudit::RESOURCE_USERDIRECTORY => _('User directory'),
 			CAudit::RESOURCE_USER_GROUP => _('User group'),
@@ -282,6 +261,7 @@ class CControllerAuditLogList extends CController {
 		CProfile::update('web.auditlog.filter.recordsetid', $this->getInput('filter_recordsetid', ''),
 			PROFILE_TYPE_STR
 		);
+		CProfile::update('web.auditlog.filter.ip', $this->getInput('filter_ip', ''), PROFILE_TYPE_STR);
 	}
 
 	private function deleteProfiles(): void {
@@ -290,6 +270,7 @@ class CControllerAuditLogList extends CController {
 		CProfile::delete('web.auditlog.filter.resourcetype');
 		CProfile::delete('web.auditlog.filter.resourceid');
 		CProfile::delete('web.auditlog.filter.recordsetid');
+		CProfile::delete('web.auditlog.filter.ip');
 	}
 
 	private function sanitizeUsersForMultiselect(array $users): array {
@@ -311,7 +292,8 @@ class CControllerAuditLogList extends CController {
 				$auditlog['short_details'] .= _('Description').': '.$auditlog['resourcename'];
 			}
 
-			if (!in_array($auditlog['action'], [CAudit::ACTION_ADD, CAudit::ACTION_UPDATE, CAudit::ACTION_EXECUTE])) {
+			if (!in_array($auditlog['action'], [CAudit::ACTION_ADD, CAudit::ACTION_UPDATE, CAudit::ACTION_EXECUTE,
+					CAudit::ACTION_PUSH])) {
 				continue;
 			}
 
@@ -328,7 +310,7 @@ class CControllerAuditLogList extends CController {
 			}
 
 			$details = $this->formatDetails($details);
-			$short_details =  array_slice($details, 0, 2);
+			$short_details = array_slice($details, 0, 2);
 
 			// We cut string and show "Details" button if audit detail string more than 255 symbols.
 			foreach ($short_details as &$detail) {

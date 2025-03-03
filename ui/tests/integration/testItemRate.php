@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 require_once dirname(__FILE__).'/../include/CIntegrationTest.php';
@@ -270,7 +265,7 @@ class testItemRate extends CIntegrationTest {
 		[
 			'api_request' => false,
 			'expected_result' => false,
-			'expected_error' => 'Cannot evaluate expression: invalid string values of backet for function at "histogram_quantile(0.8,0.1,last(//rate[0.1]),"Inf2",last(//rate[Inf2]))"',
+			'expected_error' => 'Cannot evaluate expression: invalid string values of bucket for function at "histogram_quantile(0.8,0.1,last(//rate[0.1]),"Inf2",last(//rate[Inf2]))"',
 			'item' => [
 				'name' => 'histogram_quantile-fail-Inf2',
 				'params' => 'histogram_quantile(0.8,0.1,last(/'.'/rate[0.1]),"Inf2",last(/'.'/rate[Inf2]))',
@@ -368,6 +363,10 @@ class testItemRate extends CIntegrationTest {
 			]);
 			$this->assertArrayHasKey('itemids', $response['result']);
 			$this->assertEquals(1, count($response['result']['itemids']));
+
+			if ($scenario['api_request'] === false) {
+				$scenario['api_request'] = ['itemids' => []];
+			}
 			$scenario['api_request']['itemids'][] = $response['result']['itemids'][0];
 			$scenario['api_request']['time_from'] = self::$items[$scenario['item']['item_num']]['time_from'];
 			$scenario['api_request']['time_till'] = self::$items[$scenario['item']['item_num']]['time_till'];
@@ -447,6 +446,8 @@ class testItemRate extends CIntegrationTest {
 			$api_request = array_merge($scenario['api_request'], $req);
 			break;
 		}
+
+		$this->reloadConfigurationCache();
 
 		if ($expected_error === false) {
 			$result = $this->call('history.get', $api_request, $expected_error);

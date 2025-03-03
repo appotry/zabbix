@@ -1,25 +1,19 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-#include "common.h"
-#include "sysinfo.h"
-#include "log.h"
+#include "zbxsysinfo.h"
+#include "../sysinfo.h"
 
 typedef struct
 {
@@ -30,7 +24,7 @@ typedef struct
 }
 zbx_kstat_t;
 
-int	get_diskstat(const char *devname, zbx_uint64_t *dstat)
+int	zbx_get_diskstat(const char *devname, zbx_uint64_t *dstat)
 {
 	return FAIL;
 }
@@ -106,7 +100,7 @@ clean:
 	return ret;
 }
 
-static int	VFS_DEV_READ_BYTES(const char *devname, AGENT_RESULT *result)
+static int	vfs_dev_read_bytes(const char *devname, AGENT_RESULT *result)
 {
 	zbx_kstat_t	zk;
 	char		*error;
@@ -122,7 +116,7 @@ static int	VFS_DEV_READ_BYTES(const char *devname, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-static int	VFS_DEV_READ_OPERATIONS(const char *devname, AGENT_RESULT *result)
+static int	vfs_dev_read_operations(const char *devname, AGENT_RESULT *result)
 {
 	zbx_kstat_t	zk;
 	char		*error;
@@ -138,7 +132,7 @@ static int	VFS_DEV_READ_OPERATIONS(const char *devname, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-static int	VFS_DEV_WRITE_BYTES(const char *devname, AGENT_RESULT *result)
+static int	vfs_dev_write_bytes(const char *devname, AGENT_RESULT *result)
 {
 	zbx_kstat_t	zk;
 	char		*error;
@@ -154,7 +148,7 @@ static int	VFS_DEV_WRITE_BYTES(const char *devname, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-static int	VFS_DEV_WRITE_OPERATIONS(const char *devname, AGENT_RESULT *result)
+static int	vfs_dev_write_operations(const char *devname, AGENT_RESULT *result)
 {
 	zbx_kstat_t	zk;
 	char		*error;
@@ -170,10 +164,16 @@ static int	VFS_DEV_WRITE_OPERATIONS(const char *devname, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
+typedef struct
+{
+	const char	*mode;
+	int		(*function)(const char *devname, AGENT_RESULT *result);
+}
+MODE_FUNCTION;
+
 static int	process_mode_function(AGENT_REQUEST *request, AGENT_RESULT *result, const MODE_FUNCTION *fl)
 {
 	const char	*devname, *mode;
-	int		i;
 
 	if (2 < request->nparam)
 	{
@@ -191,7 +191,7 @@ static int	process_mode_function(AGENT_REQUEST *request, AGENT_RESULT *result, c
 	if (NULL == mode || '\0' == *mode)
 		mode = "bytes";
 
-	for (i = 0; NULL != fl[i].mode; i++)
+	for (int i = 0; NULL != fl[i].mode; i++)
 	{
 		if (0 == strcmp(mode, fl[i].mode))
 			return (fl[i].function)(devname, result);
@@ -202,24 +202,24 @@ static int	process_mode_function(AGENT_REQUEST *request, AGENT_RESULT *result, c
 	return SYSINFO_RET_FAIL;
 }
 
-int	VFS_DEV_READ(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	vfs_dev_read(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	const MODE_FUNCTION	fl[] =
 	{
-		{"bytes",	VFS_DEV_READ_BYTES},
-		{"operations",	VFS_DEV_READ_OPERATIONS},
+		{"bytes",	vfs_dev_read_bytes},
+		{"operations",	vfs_dev_read_operations},
 		{NULL,		NULL}
 	};
 
 	return process_mode_function(request, result, fl);
 }
 
-int	VFS_DEV_WRITE(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	vfs_dev_write(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	const MODE_FUNCTION	fl[] =
 	{
-		{"bytes", 	VFS_DEV_WRITE_BYTES},
-		{"operations", 	VFS_DEV_WRITE_OPERATIONS},
+		{"bytes",	vfs_dev_write_bytes},
+		{"operations",	vfs_dev_write_operations},
 		{NULL,		NULL}
 	};
 

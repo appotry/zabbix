@@ -1,27 +1,26 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
+
 
 require_once dirname(__FILE__).'/../../include/CLegacyWebTest.php';
 
 use Facebook\WebDriver\WebDriverBy;
 
+/**
+ * @dataSource LoginUsers, Actions, UserPermissions
+ */
 class testPageReportsNotifications extends CLegacyWebTest {
 
 	public function testPageReportsNotifications_CheckLayout() {
@@ -35,12 +34,12 @@ class testPageReportsNotifications extends CLegacyWebTest {
 			$all_media[] = $name['name'];
 		}
 		$dropdowns = [
-			'media_type' => array_merge(['all'], $all_media),
+			'media_type' => array_merge(['All'], $all_media),
 			'period' => ['Daily', 'Weekly', 'Monthly', 'Yearly'],
-			'year' => ['2012', '2013', '2014', '2015', '2016', '2017', '2018', '2019', '2020', '2021', '2022']
+			'year' => array_reverse(range(date("Y"), 2012))
 		];
 		$default_selected = [
-			'media_type' => 'all',
+			'media_type' => 'All',
 			'period' => 'Weekly',
 			'year' => date('Y')
 		];
@@ -62,7 +61,7 @@ class testPageReportsNotifications extends CLegacyWebTest {
 		sort($user_alias);
 
 		$users = [];
-		$elements = $this->webDriver->findElements(WebDriverBy::xpath('//th[@class="vertical_rotation"]'));
+		$elements = $this->webDriver->findElements(WebDriverBy::xpath('//th/span[@class="text-vertical"]'));
 		foreach ($elements as $i => $element) {
 			$users[] = $element->getText();
 		}
@@ -164,13 +163,13 @@ class testPageReportsNotifications extends CLegacyWebTest {
 	public function testPageReportsNotifications_CheckFilters($data) {
 		$this->zbxTestLogin('report4.php');
 		$this->page->waitUntilReady();
-		// without sleep test fail because the "zabbix-sidebar-logo" element receive the click
-		sleep(1);
+		$table = $this->query('class:list-table')->one();
+		$table->waitUntilVisible();
 
 		// Select period
 		if (array_key_exists('period', $data)) {
 			$this->query('name:period')->asDropdown()->one()->select($data['period']);
-			sleep(3);
+			$table->waitUntilReloaded();
 			if ($data['period'] === 'Yearly') {
 				$this->zbxTestAssertElementNotPresentId('year');
 			}
@@ -179,11 +178,13 @@ class testPageReportsNotifications extends CLegacyWebTest {
 		// Select year
 		if (array_key_exists('year', $data)) {
 			$this->query('name:year')->asDropdown()->one()->select($data['year']);
+			$table->waitUntilReloaded();
 		}
 
 		// Select media
 		if (array_key_exists('media_type', $data)) {
 			$this->query('name:media_type')->asDropdown()->one()->select($data['media_type']);
+			$table->waitUntilReloaded();
 			$this->zbxTestAssertElementNotPresentId('year');
 			// Check media links not displayed
 			$media_types = [];
@@ -195,7 +196,7 @@ class testPageReportsNotifications extends CLegacyWebTest {
 
 		// Get user column number in table
 		$user_column_number = [];
-		$elements = $this->webDriver->findElements(WebDriverBy::xpath('//th[@class="vertical_rotation"]'));
+		$elements = $this->webDriver->findElements(WebDriverBy::xpath('//th/span[@class="text-vertical"]'));
 		foreach ($elements as $index => $element) {
 			// 2 is column of month plus column count begin from 1 not from 0
 			$user_column_number[$element->getText()] = $index + 2;

@@ -1,27 +1,22 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
-
-#include "common.h"
-#include "zbxserialize.h"
 #include "zbxdbhigh.h"
 
-void 	zbx_db_mediatype_clean(ZBX_DB_MEDIATYPE *mt)
+#include "zbxcommon.h"
+#include "zbxserialize.h"
+
+void 	zbx_db_mediatype_clean(zbx_db_mediatype *mt)
 {
 	zbx_free(mt->smtp_server);
 	zbx_free(mt->smtp_helo);
@@ -30,17 +25,16 @@ void 	zbx_db_mediatype_clean(ZBX_DB_MEDIATYPE *mt)
 	zbx_free(mt->gsm_modem);
 	zbx_free(mt->username);
 	zbx_free(mt->passwd);
-	zbx_free(mt->exec_params);
 	zbx_free(mt->attempt_interval);
 	zbx_free(mt->script);
 	zbx_free(mt->timeout);
 }
 
 void	zbx_serialize_mediatype(unsigned char **data, zbx_uint32_t *data_alloc, zbx_uint32_t *data_offset,
-		const ZBX_DB_MEDIATYPE *mt)
+		const zbx_db_mediatype *mt)
 {
 	zbx_uint32_t	data_len = 0, smtp_server_len, smtp_helo_len, smtp_email_len, exec_path_len, gsm_modem_len,
-			username_len, passwd_len, exec_params_len, script_len, attempt_interval_len, timeout_len;
+			username_len, passwd_len, script_len, attempt_interval_len, timeout_len;
 	unsigned char	*ptr, type = mt->type;
 
 	zbx_serialize_prepare_value(data_len, mt->mediatypeid);
@@ -57,11 +51,10 @@ void	zbx_serialize_mediatype(unsigned char **data, zbx_uint32_t *data_alloc, zbx
 	zbx_serialize_prepare_value(data_len, mt->smtp_verify_peer);
 	zbx_serialize_prepare_value(data_len, mt->smtp_verify_host);
 	zbx_serialize_prepare_value(data_len, mt->smtp_authentication);
-	zbx_serialize_prepare_str_len(data_len, mt->exec_params, exec_params_len);
 	zbx_serialize_prepare_value(data_len, mt->maxsessions);
 	zbx_serialize_prepare_value(data_len, mt->maxattempts);
 	zbx_serialize_prepare_str_len(data_len, mt->attempt_interval, attempt_interval_len);
-	zbx_serialize_prepare_value(data_len, mt->content_type);
+	zbx_serialize_prepare_value(data_len, mt->message_format);
 	zbx_serialize_prepare_str_len(data_len, mt->script, script_len);
 	zbx_serialize_prepare_str_len(data_len, mt->timeout, timeout_len);
 
@@ -86,18 +79,17 @@ void	zbx_serialize_mediatype(unsigned char **data, zbx_uint32_t *data_alloc, zbx
 	ptr += zbx_serialize_value(ptr, mt->smtp_verify_peer);
 	ptr += zbx_serialize_value(ptr, mt->smtp_verify_host);
 	ptr += zbx_serialize_value(ptr, mt->smtp_authentication);
-	ptr += zbx_serialize_str(ptr, mt->exec_params, exec_params_len);
 	ptr += zbx_serialize_value(ptr, mt->maxsessions);
 	ptr += zbx_serialize_value(ptr, mt->maxattempts);
 	ptr += zbx_serialize_str(ptr, mt->attempt_interval, attempt_interval_len);
-	ptr += zbx_serialize_value(ptr, mt->content_type);
+	ptr += zbx_serialize_value(ptr, mt->message_format);
 	ptr += zbx_serialize_str(ptr, mt->script, script_len);
 	(void)zbx_serialize_str(ptr, mt->timeout, timeout_len);
 
 	*data_offset += data_len;
 }
 
-zbx_uint32_t	zbx_deserialize_mediatype(const unsigned char *data, ZBX_DB_MEDIATYPE *mt)
+zbx_uint32_t	zbx_deserialize_mediatype(const unsigned char *data, zbx_db_mediatype *mt)
 {
 	zbx_uint32_t		len;
 	const unsigned char	*start = data;
@@ -117,11 +109,10 @@ zbx_uint32_t	zbx_deserialize_mediatype(const unsigned char *data, ZBX_DB_MEDIATY
 	data += zbx_deserialize_value(data, &mt->smtp_verify_peer);
 	data += zbx_deserialize_value(data, &mt->smtp_verify_host);
 	data += zbx_deserialize_value(data, &mt->smtp_authentication);
-	data += zbx_deserialize_str(data, &mt->exec_params, len);
 	data += zbx_deserialize_value(data, &mt->maxsessions);
 	data += zbx_deserialize_value(data, &mt->maxattempts);
 	data += zbx_deserialize_str(data, &mt->attempt_interval, len);
-	data += zbx_deserialize_value(data, &mt->content_type);
+	data += zbx_deserialize_value(data, &mt->message_format);
 	data += zbx_deserialize_str(data, &mt->script, len);
 	data += zbx_deserialize_str(data, &mt->timeout, len);
 

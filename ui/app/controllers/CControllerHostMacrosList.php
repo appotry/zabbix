@@ -1,38 +1,43 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
 class CControllerHostMacrosList extends CController {
+
+	public const DISCOVERY_STATE_AUTOMATIC = 0x1;
+	public const DISCOVERY_STATE_CONVERTING = 0x2;
+	public const DISCOVERY_STATE_MANUAL = 0x3;
+
+	public const MACRO_TEXTAREA_PARENT = 'macro-textarea-parent';
 
 	/**
 	 * @var array  Array of parent host defined macros.
 	 */
 	protected $parent_macros = [];
 
+	protected function init(): void {
+		$this->disableCsrfValidation();
+	}
+
 	protected function checkInput() {
 		$fields = [
 			'macros'				=> 'array',
 			'show_inherited_macros' => 'required|in 0,1',
 			'templateids'			=> 'array_db hosts.hostid',
-			'parent_hostid'			=> 'id',
-			'readonly'				=> 'required|in 0,1'
+			'readonly'				=> 'required|in 0,1',
+			'parent_hostid'			=> 'id'
 		];
 
 		$ret = $this->validateInput($fields);
@@ -83,7 +88,7 @@ class CControllerHostMacrosList extends CController {
 			$macros = cleanInheritedMacros($macros);
 
 			// Remove empty new macro lines.
-			$macros = array_filter($macros, function($macro) {
+			$macros = array_filter($macros, function ($macro) {
 				$keys = array_flip(['hostmacroid', 'macro', 'value', 'description']);
 
 				return (bool) array_filter(array_intersect_key($macro, $keys));
@@ -106,6 +111,15 @@ class CControllerHostMacrosList extends CController {
 			$macros[] = $macro;
 		}
 
+		foreach ($macros as &$macro) {
+			if (!array_key_exists('discovery_state', $macro)) {
+				$macro['discovery_state'] = self::DISCOVERY_STATE_MANUAL;
+			}
+
+			self::addMacroOriginalValues($macro);
+		}
+		unset($macro);
+
 		$data = [
 			'macros' => $macros,
 			'show_inherited_macros' => $show_inherited_macros,
@@ -120,5 +134,32 @@ class CControllerHostMacrosList extends CController {
 		}
 
 		$this->setResponse(new CControllerResponseData($data));
+	}
+
+	/**
+	 * Create array of original macro values from input fields.
+	 *
+	 * @param array  $macro
+	 * @param string $macro['original_value']
+	 * @param string $macro['original_description']
+	 * @param string $macro['original_macro_type']
+	 */
+	protected static function addMacroOriginalValues(array &$macro) {
+		if ($macro['discovery_state'] == self::DISCOVERY_STATE_MANUAL) {
+			return;
+		}
+
+		$field_keys_map = [
+			'original_value' => 'value',
+			'original_description' => 'description',
+			'original_macro_type' => 'type'
+		];
+
+		$macro['original'] = array_intersect_key($macro, $field_keys_map);
+		$macro['original'] = CArrayHelper::renameKeys($macro['original'], $field_keys_map);
+
+		foreach (array_keys($field_keys_map) as $key) {
+			unset($macro[$key]);
+		}
 	}
 }

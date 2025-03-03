@@ -1,20 +1,15 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -66,24 +61,26 @@ const ZBX_TEXTAREA_COLOR_WIDTH = 96;
 		 * @param {string} color
 		 */
 		setPreviewColor = function (color) {
-			color = $.trim(color).toUpperCase();
+			color = `#${color.toString().trim().toUpperCase()}`;
 
-			if (input.data('use_default') && color.length == 0) {
+			if (isColorHex(color)) {
+				$overlay_colorbox
+					.css({'background': color})
+					.attr('title', color)
+					.removeClass(['use-default', 'use-transparent']);
+			}
+			else if (input.data('use_default')) {
 				$overlay_colorbox
 					.css({'background': ''})
 					.attr('title', t('Use default'))
-					.addClass('use-default');
-			}
-			else if (/^[0-9A-F]{6}$/i.test(color)) {
-				$overlay_colorbox
-					.css({'background': '#' + color})
-					.attr('title', '#' + color)
-					.removeClass('use-default');
+					.addClass('use-default')
+					.removeClass('use-transparent');
 			}
 			else {
 				$overlay_colorbox
 					.css({'background': ''})
 					.attr('title', t('Use default'))
+					.addClass('use-transparent')
 					.removeClass('use-default');
 			}
 		},
@@ -161,7 +158,7 @@ const ZBX_TEXTAREA_COLOR_WIDTH = 96;
 
 				const $close = $('<button>', {
 					type: 'button',
-					class: 'overlay-close-btn',
+					class: 'btn-overlay-close',
 					title: t('S_CLOSE')
 				})
 					.on('click', (e) => {
@@ -215,6 +212,21 @@ const ZBX_TEXTAREA_COLOR_WIDTH = 96;
 
 				methods.hide();
 			},
+
+			destroy: function(element) {
+				const id = $(element).attr('id');
+
+				if ($('#lbl_' + id).length == 0) {
+					return;
+				}
+
+				element.next().remove();
+
+				$(element)
+					.off('change')
+					.data('use_default', null);
+			},
+
 			/**
 			 * Hide colorpicker overlay.
 			 */
@@ -237,6 +249,8 @@ const ZBX_TEXTAREA_COLOR_WIDTH = 96;
 			 * @param object target  jQuery element (colorbox) which triggered show action.
 			 */
 			show: function(id, target) {
+				this.hide();
+
 				input = $('#' + id);
 				colorbox = $('#lbl_' + id);
 
@@ -274,24 +288,26 @@ const ZBX_TEXTAREA_COLOR_WIDTH = 96;
 			 * @param string color    Desired hex color.
 			 */
 			set_color: function(color) {
-				color = $.trim(color).toUpperCase();
+				color = color.toString().trim().toUpperCase();
 
-				if (input.data('use_default') && color.length == 0) {
+				if (isColorHex(`#${color}`)) {
+					colorbox
+						.css({'background': `#${color}`})
+						.attr('title', `#${color}`)
+						.removeClass(['use-default', 'use-transparent']);
+				}
+				else if (input.data('use_default')) {
 					colorbox
 						.css({'background': ''})
 						.attr('title', t('Use default'))
-						.addClass('use-default');
-				}
-				else if (/^[0-9A-F]{6}$/i.test(color)) {
-					colorbox
-						.css({'background': '#' + color})
-						.attr('title', '#' + color)
-						.removeClass('use-default');
+						.addClass('use-default')
+						.removeClass('use-transparent');
 				}
 				else {
 					colorbox
 						.css({'background': ''})
 						.attr('title', t('Use default'))
+						.addClass('use-transparent')
 						.removeClass('use-default');
 				}
 
@@ -344,7 +360,7 @@ const ZBX_TEXTAREA_COLOR_WIDTH = 96;
 		 * @param {callable}  options.onUpdate     Callback function to execute once color has changed.
 		 */
 		return this.each(function (_, element) {
-			const id = $(element).attr('id');
+			const id = element.id;
 
 			if ($('#lbl_' + id).length) {
 				return;
@@ -360,18 +376,18 @@ const ZBX_TEXTAREA_COLOR_WIDTH = 96;
 				.on('keydown', function (e) {
 					if (e.keyCode == KEY_ENTER || e.keyCode == KEY_SPACE) {
 						e.preventDefault();
-						methods.show(id, e.target);
+						methods.show(element.id, e.target);
 					}
 				})
 				.on('click', function (e) {
-					methods.show(id, e.target);
+					methods.show(element.id, e.target);
 				})
 				.insertAfter(element);
 
 			$(element)
 				.data('use_default', options.use_default)
 				.change(function () {
-					methods.set_color_by_id($(element).attr('id'), this.value);
+					methods.set_color_by_id(element.id, this.value);
 					if (options.onUpdate !== null) {
 						options.onUpdate.call(element, this.value);
 					}

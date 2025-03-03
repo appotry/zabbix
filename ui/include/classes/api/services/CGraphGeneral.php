@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -30,6 +25,8 @@ abstract class CGraphGeneral extends CApiService {
 		'update' => ['min_user_type' => USER_TYPE_ZABBIX_ADMIN],
 		'delete' => ['min_user_type' => USER_TYPE_ZABBIX_ADMIN]
 	];
+
+	protected const FLAGS = null;
 
 	const ERROR_TEMPLATE_HOST_MIX = 'templateHostMix';
 	const ERROR_MISSING_GRAPH_NAME = 'missingGraphName';
@@ -59,8 +56,7 @@ abstract class CGraphGeneral extends CApiService {
 			],
 			'graphids' => $graphids,
 			'editable' => true,
-			'preservekeys' => true,
-			'inherited' => false
+			'preservekeys' => true
 		]);
 
 		$updateDiscoveredValidator = new CUpdateDiscoveredValidator([
@@ -72,14 +68,34 @@ abstract class CGraphGeneral extends CApiService {
 		}
 		unset($db_graph);
 
-		foreach ($graphs as &$graph) {
+		foreach ($graphs as $key => &$graph) {
 			// check permissions
 			if (!array_key_exists($graph['graphid'], $db_graphs)) {
 				self::exception(ZBX_API_ERROR_PARAMETERS, _('No permissions to referred object or it does not exist!'));
 			}
 
+			if ($db_graphs[$graph['graphid']]['templateid'] != 0
+					&& $db_graphs[$graph['graphid']]['flags'] == ZBX_FLAG_DISCOVERY_NORMAL) {
+				self::exception(ZBX_API_ERROR_PARAMETERS, _s('Cannot update a templated graph "%1$s".',
+					$graph['name']
+				));
+			}
+
 			// cannot update discovered graphs
 			$this->checkPartialValidator($graph, $updateDiscoveredValidator, $db_graphs[$graph['graphid']]);
+
+			// Allow for template inherited graphs to update discover parameter.
+			if ($db_graphs[$graph['graphid']]['templateid'] != 0) {
+				if ($db_graphs[$graph['graphid']]['flags'] == ZBX_FLAG_DISCOVERY_PROTOTYPE
+						&& array_key_exists('discover', $graph)) {
+					$graph = ['discover' => $graph['discover']] + $db_graphs[$graph['graphid']];
+					unset($graph['templateid'], $graph['flags'], $graph['uuid']);
+				}
+				else {
+					unset($graphs[$key]);
+				}
+				continue;
+			}
 
 			// validate items on set or pass existing items from DB
 			if (array_key_exists('gitems', $graph)) {
@@ -102,7 +118,9 @@ abstract class CGraphGeneral extends CApiService {
 		}
 		unset($graph);
 
-		$this->validateUpdate($graphs, $db_graphs);
+		if ($graphs) {
+			$this->validateUpdate($graphs, $db_graphs);
+		}
 
 		foreach ($graphs as &$graph) {
 			unset($graph['templateid']);
@@ -131,8 +149,10 @@ abstract class CGraphGeneral extends CApiService {
 		}
 		unset($graph);
 
-		$this->updateReal($graphs);
-		$this->inherit($graphs);
+		if ($graphs) {
+			$this->updateReal($graphs);
+			$this->inherit($graphs);
+		}
 
 		$resource = ($this instanceof CGraph) ? CAudit::RESOURCE_GRAPH : CAudit::RESOURCE_GRAPH_PROTOTYPE;
 		$this->addAuditBulk(CAudit::ACTION_UPDATE, $resource, $graphs, $db_graphs);
@@ -293,39 +313,8 @@ abstract class CGraphGeneral extends CApiService {
 	 * Check values for Y axis items and values.
 	 *
 	 * @param array $graph
-	 * @param bool  $tpl
 	 */
-	protected function checkAxisItems(array $graph, $tpl = false) {
-		$axisItems = [];
-		if (isset($graph['ymin_type']) && $graph['ymin_type'] == GRAPH_YAXIS_TYPE_ITEM_VALUE) {
-			$axisItems[$graph['ymin_itemid']] = $graph['ymin_itemid'];
-		}
-		if (isset($graph['ymax_type']) && $graph['ymax_type'] == GRAPH_YAXIS_TYPE_ITEM_VALUE) {
-			$axisItems[$graph['ymax_itemid']] = $graph['ymax_itemid'];
-		}
-
-		if (!empty($axisItems)) {
-			$options = [
-				'itemids' => $axisItems,
-				'output' => ['itemid'],
-				'countOutput' => true,
-				'webitems' => true,
-				'filter' => ['flags' => null, 'value_type' => [ITEM_VALUE_TYPE_FLOAT, ITEM_VALUE_TYPE_UINT64]]
-			];
-			if ($tpl) {
-				$options['hostids'] = $tpl;
-			}
-			else {
-				$options['templated'] = false;
-			}
-
-			$cntExist = API::Item()->get($options);
-
-			if ($cntExist != count($axisItems)) {
-				self::exception(ZBX_API_ERROR_PARAMETERS, _('Incorrect item for axis value.'));
-			}
-		}
-
+	protected function checkAxisItems(array $graph) {
 		// more than one sum type item for pie graph
 		if ($graph['graphtype'] == GRAPH_TYPE_PIE || $graph['graphtype'] == GRAPH_TYPE_EXPLODED) {
 			$sumItems = 0;
@@ -369,29 +358,8 @@ abstract class CGraphGeneral extends CApiService {
 			$result = $relationMap->mapMany($result, $gitems, 'gitems');
 		}
 
-		// adding HostGroups
-		if ($options['selectGroups'] !== null && $options['selectGroups'] !== API_OUTPUT_COUNT) {
-			$relationMap = new CRelationMap();
-			// discovered items
-			$dbRules = DBselect(
-				'SELECT gi.graphid,hg.groupid'.
-				' FROM graphs_items gi,items i,hosts_groups hg'.
-				' WHERE '.dbConditionInt('gi.graphid', $graphids).
-				' AND gi.itemid=i.itemid'.
-				' AND i.hostid=hg.hostid'
-			);
-			while ($relation = DBfetch($dbRules)) {
-				$relationMap->addRelation($relation['graphid'], $relation['groupid']);
-			}
-
-			$groups = API::HostGroup()->get([
-				'output' => $options['selectGroups'],
-				'groupids' => $relationMap->getRelatedIds(),
-				'nopermissions' => true,
-				'preservekeys' => true
-			]);
-			$result = $relationMap->mapMany($result, $groups, 'groups');
-		}
+		$this->addRelatedHostGroups($options, $result);
+		$this->addRelatedTemplateGroups($options, $result);
 
 		// adding Hosts
 		if ($options['selectHosts'] !== null && $options['selectHosts'] !== API_OUTPUT_COUNT) {
@@ -455,6 +423,72 @@ abstract class CGraphGeneral extends CApiService {
 		return $result;
 	}
 
+	private function addRelatedHostGroups(array $options, array &$result): void {
+		if ($options['selectHostGroups'] === null || $options['selectHostGroups'] === API_OUTPUT_COUNT) {
+			return;
+		}
+
+		$resource = DBselect(
+			'SELECT gi.graphid,hg.groupid'.
+			' FROM graphs_items gi'.
+			' JOIN items i ON gi.itemid=i.itemid'.
+			' JOIN hosts_groups hg ON i.hostid=hg.hostid'.
+			' JOIN hstgrp hgg ON hg.groupid=hgg.groupid'.
+				' AND '.dbConditionInt('hgg.type', [HOST_GROUP_TYPE_HOST_GROUP]).
+			' WHERE '.dbConditionId('gi.graphid', array_keys($result))
+		);
+		$relation_map = new CRelationMap();
+
+		while ($relation = DBfetch($resource)) {
+			$relation_map->addRelation($relation['graphid'], $relation['groupid']);
+		}
+
+		$related_ids = $relation_map->getRelatedIds();
+		$groups = $related_ids
+			? API::HostGroup()->get([
+				'output' => $options['selectHostGroups'],
+				'groupids' => $related_ids,
+				'nopermissions' => true,
+				'preservekeys' => true
+			])
+			: [];
+
+		$result = $relation_map->mapMany($result, $groups, 'hostgroups');
+	}
+
+	private function addRelatedTemplateGroups(array $options, array &$result): void {
+		if ($options['selectTemplateGroups'] === null || $options['selectTemplateGroups'] === API_OUTPUT_COUNT) {
+			return;
+		}
+
+		$resource = DBselect(
+			'SELECT gi.graphid,hg.groupid'.
+			' FROM graphs_items gi'.
+			' JOIN items i ON gi.itemid=i.itemid'.
+			' JOIN hosts_groups hg ON i.hostid=hg.hostid'.
+			' JOIN hstgrp hgg ON hg.groupid=hgg.groupid'.
+				' AND '.dbConditionInt('hgg.type', [HOST_GROUP_TYPE_TEMPLATE_GROUP]).
+			' WHERE '.dbConditionId('gi.graphid', array_keys($result))
+		);
+		$relation_map = new CRelationMap();
+
+		while ($relation = DBfetch($resource)) {
+			$relation_map->addRelation($relation['graphid'], $relation['groupid']);
+		}
+
+		$related_ids = $relation_map->getRelatedIds();
+		$groups = $related_ids
+			? API::TemplateGroup()->get([
+				'output' => $options['selectTemplateGroups'],
+				'groupids' => $related_ids,
+				'nopermissions' => true,
+				'preservekeys' => true
+			])
+			: [];
+
+		$result = $relation_map->mapMany($result, $groups, 'templategroups');
+	}
+
 	/**
 	 * Validate graph name and graph items including Y axis item ID's and graph item fields on Create method
 	 * and return valid item ID's on success or trow an error on failure.
@@ -463,11 +497,11 @@ abstract class CGraphGeneral extends CApiService {
 	 *
 	 * @return array
 	 */
-	protected function validateItemsCreate(array $graphs) {
+	protected function validateItemsCreate(array &$graphs) {
 		$itemIds = [];
-		$itemid_rules = ['type' => API_ID, 'flags' => API_NOT_EMPTY];
+		$itemid_rules = ['type' => API_ID];
 
-		foreach ($graphs as $graph) {
+		foreach ($graphs as &$graph) {
 			// validate graph name
 			$fields = ['name' => null];
 			if (!check_db_fields($fields, $graph)) {
@@ -484,7 +518,7 @@ abstract class CGraphGeneral extends CApiService {
 			// validate item fields
 			if (isset($graph['gitems'])) {
 				$fields = ['itemid' => null];
-				foreach ($graph['gitems'] as $gitem) {
+				foreach ($graph['gitems'] as &$gitem) {
 					// "itemid" is required
 					if (!check_db_fields($fields, $gitem)) {
 						self::exception(ZBX_API_ERROR_PARAMETERS, _('Missing "itemid" field for item.'));
@@ -492,7 +526,10 @@ abstract class CGraphGeneral extends CApiService {
 
 					// assigning with key preserves unique itemids
 					$itemIds[$gitem['itemid']] = $gitem['itemid'];
+
+					unset($gitem['gitemid']);
 				}
+				unset($gitem);
 			}
 
 			// add Y min axis item ID for permission validation
@@ -515,12 +552,169 @@ abstract class CGraphGeneral extends CApiService {
 				}
 			}
 		}
+		unset($graph);
 
 		return $itemIds;
 	}
 
 	/**
-	 * Validate graph gerenal data on Create method.
+	 * Validates items.
+	 *
+	 * @param array      $itemids
+	 * @param array      $graphs
+	 * @param array|null $db_items
+	 *
+	 * @throws APIException
+	 */
+	private function validateItems(array $itemids, array $graphs, ?array &$db_items = null): void {
+		$permission_options = ['nopermissions' => true];
+
+		foreach ($graphs as $graph) {
+			foreach ($graph['gitems'] as $gitem) {
+				if (!array_key_exists('gitemid', $gitem)) {
+					$permission_options = ['editable' => true];
+					break 2;
+				}
+			}
+		}
+
+		$db_items = API::Item()->get([
+			'output' => ['name', 'value_type', 'hostid'],
+			'selectHosts' => ['status'],
+			'itemids' => $itemids,
+			'webitems' => true,
+			'preservekeys' => true
+		] + $permission_options);
+
+		if (static::FLAGS == ZBX_FLAG_DISCOVERY_PROTOTYPE) {
+			$db_items += API::ItemPrototype()->get([
+				'output' => ['name', 'value_type', 'hostid'],
+				'selectHosts' => ['status'],
+				'selectDiscoveryRule' => ['itemid'],
+				'itemids' => $itemids,
+				'preservekeys' => true
+			] + $permission_options);
+		}
+
+		if (count($db_items) != count($itemids)) {
+			self::exception(ZBX_API_ERROR_PERMISSIONS, _('No permissions to referred object or it does not exist!'));
+		}
+
+		if (static::FLAGS == ZBX_FLAG_DISCOVERY_PROTOTYPE) {
+			$this->checkDiscoveryRuleCount($graphs, $db_items);
+		}
+
+		$allowed_value_types = [ITEM_VALUE_TYPE_FLOAT, ITEM_VALUE_TYPE_UINT64];
+
+		// get value type and name for these items
+		foreach ($graphs as $graph) {
+			$hosts = [];
+
+			// graph items
+			foreach ($graph['gitems'] as $gitem) {
+				$item = $db_items[$gitem['itemid']];
+
+				if (!in_array($item['value_type'], $allowed_value_types)) {
+					switch (static::FLAGS) {
+						case ZBX_FLAG_DISCOVERY_NORMAL:
+							$error = _('Cannot add a non-numeric item "%1$s" to graph "%2$s".');
+							break;
+
+						case  ZBX_FLAG_DISCOVERY_PROTOTYPE:
+							$error = _('Cannot add a non-numeric item "%1$s" to graph prototype "%2$s".');
+							break;
+					}
+
+					self::exception(ZBX_API_ERROR_PARAMETERS, sprintf($error, $item['name'], $graph['name']));
+				}
+
+				$hosts[$item['hostid']] = $item['hosts'][0];
+			}
+
+			// Y axis min
+			if (array_key_exists('ymin_type', $graph) && $graph['ymin_type'] == GRAPH_YAXIS_TYPE_ITEM_VALUE
+					&& array_key_exists('ymin_itemid', $graph) && $graph['ymin_itemid'] != 0) {
+				if (array_key_exists($graph['ymin_itemid'], $db_items)) {
+					$item = $db_items[$graph['ymin_itemid']];
+
+					if (!in_array($item['value_type'], $allowed_value_types)) {
+						self::exception(ZBX_API_ERROR_PARAMETERS, _s(
+							'Cannot add a non-numeric item "%1$s" to graph "%2$s".',
+							$item['name'],
+							$graph['name']
+						));
+					}
+
+					$hosts[$item['hostid']] = $item['hosts'][0];
+				}
+			}
+
+			// Y axis max
+			if (array_key_exists('ymax_type', $graph) && $graph['ymax_type'] == GRAPH_YAXIS_TYPE_ITEM_VALUE
+					&& array_key_exists('ymax_itemid', $graph) && $graph['ymax_itemid'] != 0) {
+				if (array_key_exists($graph['ymax_itemid'], $db_items)) {
+					$item = $db_items[$graph['ymax_itemid']];
+
+					if (!in_array($item['value_type'], $allowed_value_types)) {
+						self::exception(ZBX_API_ERROR_PARAMETERS, _s(
+							'Cannot add a non-numeric item "%1$s" to graph "%2$s".',
+							$item['name'],
+							$graph['name']
+						));
+					}
+
+					$hosts[$item['hostid']] = $item['hosts'][0];
+				}
+			}
+
+			if (in_array(HOST_STATUS_TEMPLATE, array_column($hosts, 'status'))) {
+				if (count($hosts) > 1) {
+					self::exception(ZBX_API_ERROR_PARAMETERS,
+						_s($this->getErrorMsg(self::ERROR_TEMPLATE_HOST_MIX), $graph['name'])
+					);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Check if graph prototype has at least one item prototype and belongs to one discovery rule.
+	 *
+	 * @param array  $graphs
+	 * @param array  $db_items
+	 *
+	 * @throws APIException
+	 */
+	private function checkDiscoveryRuleCount(array $graphs, array $db_items): void {
+		foreach ($graphs as $graph) {
+			// for update method we will skip this step, if no items are set
+			if (isset($graph['gitems'])) {
+				$lld_ruleids = [];
+
+				foreach ($graph['gitems'] as $gitem) {
+					if (array_key_exists('discoveryRule', $db_items[$gitem['itemid']])) {
+						$lld_ruleids[$db_items[$gitem['itemid']]['discoveryRule']['itemid']] = true;
+					}
+				}
+
+				if (count($lld_ruleids) > 1) {
+					self::exception(ZBX_API_ERROR_PARAMETERS, _s(
+						'Graph prototype "%1$s" contains item prototypes from multiple discovery rules.',
+						$graph['name']
+					));
+				}
+				elseif (!$lld_ruleids) {
+					self::exception(ZBX_API_ERROR_PARAMETERS, _s(
+						'Graph prototype "%1$s" must have at least one item prototype.',
+						$graph['name']
+					));
+				}
+			}
+		}
+	}
+
+	/**
+	 * Validate graph general data on Create method.
 	 * Check if new items are from same templated host, validate Y axis items and values and hosts and templates.
 	 *
 	 * @param array $graphs
@@ -528,22 +722,29 @@ abstract class CGraphGeneral extends CApiService {
 	 * @throws APIException
 	 */
 	protected function validateCreate(array &$graphs) {
+		$itemids = $this->validateItemsCreate($graphs);
+		$this->validateItems($itemids, $graphs, $db_items);
+
+		self::validateUuid($graphs, $db_items);
+
+		self::addUuid($graphs, $db_items);
+
+		self::checkUuidDuplicates($graphs);
+
 		$colorValidator = new CColorValidator();
+
+		$api_input_rules = ['type' => API_OBJECT, 'fields' => [
+			'name' => ['type' => API_STRING_UTF8, 'flags' => API_REQUIRED | API_NOT_EMPTY, 'length' => DB::getFieldLength('graphs', 'name')]
+		]];
 
 		switch (get_class($this)) {
 			case 'CGraph':
 				$error_cannot_set = _('Cannot set "%1$s" for graph "%2$s".');
-				$api_input_rules = ['type' => API_OBJECT, 'uniq' => [['uuid']], 'fields' => [
-					'uuid' =>		['type' => API_UUID]
-				]];
 				break;
 
 			case 'CGraphPrototype':
 				$error_cannot_set = _('Cannot set "%1$s" for graph prototype "%2$s".');
-				$api_input_rules = ['type' => API_OBJECT, 'uniq' => [['uuid']], 'fields' => [
-					'uuid' =>		['type' => API_UUID],
-					'discover' => 	['type' => API_INT32, 'in' => implode(',', [GRAPH_DISCOVER, GRAPH_NO_DISCOVER])]
-				]];
+				$api_input_rules['fields'] += ['discover' => ['type' => API_INT32, 'in' => implode(',', [GRAPH_DISCOVER, GRAPH_NO_DISCOVER])]];
 				break;
 
 			default:
@@ -551,7 +752,6 @@ abstract class CGraphGeneral extends CApiService {
 		}
 
 		$read_only_fields = ['templateid', 'flags'];
-		$templated_graph_indexes = [];
 
 		foreach ($graphs as $key => &$graph) {
 			$this->checkNoParameters($graph, $read_only_fields, $error_cannot_set, $graph['name']);
@@ -562,89 +762,121 @@ abstract class CGraphGeneral extends CApiService {
 				self::exception(ZBX_API_ERROR_PARAMETERS, $error);
 			}
 
-			$templatedGraph = false;
-
-			if (isset($graph['gitems'])) {
-				// check if new items are from same templated host
-				$graphHosts = API::Host()->get([
-					'itemids' => zbx_objectValues($graph['gitems'], 'itemid'),
-					'output' => ['hostid', 'status'],
-					'editable' => true,
-					'templated_hosts' => true
-				]);
-
-				// check - items from one template. at least one item belongs to template
-				foreach ($graphHosts as $host) {
-					if ($host['status'] == HOST_STATUS_TEMPLATE) {
-						$templatedGraph = $host['hostid'];
-						$templated_graph_indexes[$key] = true;
-						break;
-					}
-				}
-
-				if ($templatedGraph && count($graphHosts) > 1) {
+			foreach ($graph['gitems'] as $gitem) {
+				if (!array_key_exists('color', $gitem)) {
 					self::exception(ZBX_API_ERROR_PARAMETERS,
-						_s($this->getErrorMsg(self::ERROR_TEMPLATE_HOST_MIX), $graph['name'])
+						_s($this->getErrorMsg(self::ERROR_MISSING_REQUIRED_VALUE), 'color')
 					);
 				}
 
-				// check color
-				foreach ($graph['gitems'] as $gitem) {
-					if (!isset($gitem['color'])) {
-						self::exception(ZBX_API_ERROR_PARAMETERS,
-							_s($this->getErrorMsg(self::ERROR_MISSING_REQUIRED_VALUE), 'color')
-						);
-					}
-
-					if (!$colorValidator->validate($gitem['color'])) {
-						self::exception(ZBX_API_ERROR_PARAMETERS, $colorValidator->getError());
-					}
+				if (!$colorValidator->validate($gitem['color'])) {
+					self::exception(ZBX_API_ERROR_PARAMETERS, $colorValidator->getError());
 				}
 			}
 
 			// check graph type and ymin/ymax items
-			$this->checkAxisItems($graph, $templatedGraph);
+			$this->checkAxisItems($graph);
 		}
 		unset($graph);
 
-		$this->validateHostsAndTemplates($graphs);
-		$this->checkAndAddUuid($graphs, $templated_graph_indexes);
+		$this->checkDuplicates($graphs);
 	}
 
 	/**
-	 * Check that only graphs on templates have UUID. Add UUID to all graphs on templates, if it does not exists.
-	 *
-	 * @param array $graphs_to_create
-	 * @param array $templated_graph_indexes
+	 * @param array $graphs
+	 * @param array $db_items
 	 *
 	 * @throws APIException
 	 */
-	protected function checkAndAddUuid(array &$graphs_to_create, array $templated_graph_indexes): void {
-		foreach ($graphs_to_create as $index => &$graph) {
-			if (!array_key_exists($index, $templated_graph_indexes) && array_key_exists('uuid', $graph)) {
-				self::exception(ZBX_API_ERROR_PARAMETERS,
-					_s('Invalid parameter "%1$s": %2$s.', '/'.($index + 1),
-						_s('unexpected parameter "%1$s"', 'uuid')
-					)
-				);
-			}
+	private static function validateUuid(array $graphs, array $db_items): void {
+		foreach ($graphs as &$graph) {
+			$gitem = reset($graph['gitems']);
 
-			if (array_key_exists($index, $templated_graph_indexes) && !array_key_exists('uuid', $graph)) {
+			$graph['host_status'] = $db_items[$gitem['itemid']]['hosts'][0]['status'];
+		}
+		unset($graph);
+
+		$api_input_rules = ['type' => API_OBJECTS, 'flags' => API_ALLOW_UNEXPECTED, 'uniq' => [['uuid']], 'fields' => [
+			'host_status' =>	['type' => API_ANY],
+			'uuid' =>			['type' => API_MULTIPLE, 'rules' => [
+									['if' => ['field' => 'host_status', 'in' => HOST_STATUS_TEMPLATE], 'type' => API_UUID],
+									['else' => true, 'type' => API_STRING_UTF8, 'in' => DB::getDefault('graphs', 'uuid'), 'unset' => true]
+			]]
+		]];
+
+		if (!CApiInputValidator::validate($api_input_rules, $graphs, '/', $error)) {
+			self::exception(ZBX_API_ERROR_PARAMETERS, $error);
+		}
+	}
+
+	/**
+	 * Add the UUID to those of the given graphs that belong to a template and don't have the 'uuid' parameter set.
+	 *
+	 * @param array $graphs
+	 * @param array $db_items
+	 */
+	private static function addUuid(array &$graphs, array $db_items): void {
+		foreach ($graphs as &$graph) {
+			$gitem = reset($graph['gitems']);
+
+			if ($db_items[$gitem['itemid']]['hosts'][0]['status'] == HOST_STATUS_TEMPLATE
+					&& !array_key_exists('uuid', $graph)) {
 				$graph['uuid'] = generateUuidV4();
 			}
 		}
 		unset($graph);
+	}
 
-		$db_uuid = DB::select('graphs', [
+	/**
+	 * Verify graph UUIDs are not repeated.
+	 *
+	 * @param array      $graphs
+	 * @param array|null $db_graphs
+	 *
+	 * @throws APIException
+	 */
+	private static function checkUuidDuplicates(array $graphs, ?array $db_graphs = null): void {
+		$graph_indexes = [];
+
+		foreach ($graphs as $i => $graph) {
+			if (!array_key_exists('uuid', $graph) || $graph['uuid'] === '') {
+				continue;
+			}
+
+			if ($db_graphs === null || $graph['uuid'] !== $db_graphs[$graph['graphid']]['uuid']) {
+				$graph_indexes[$graph['uuid']] = $i;
+			}
+		}
+
+		if (!$graph_indexes) {
+			return;
+		}
+
+		$duplicates = DB::select('graphs', [
 			'output' => ['uuid'],
-			'filter' => ['uuid' => array_column($graphs_to_create, 'uuid')],
+			'filter' => [
+				'flags' => static::FLAGS,
+				'uuid' => array_keys($graph_indexes)
+			],
 			'limit' => 1
 		]);
 
-		if ($db_uuid) {
-			self::exception(ZBX_API_ERROR_PARAMETERS,
-				_s('Entry with UUID "%1$s" already exists.', $db_uuid[0]['uuid'])
-			);
+		if ($duplicates) {
+			switch (static::FLAGS) {
+				case ZBX_FLAG_DISCOVERY_NORMAL:
+					$error = _s('Invalid parameter "%1$s": %2$s.', '/'.($graph_indexes[$duplicates[0]['uuid']] + 1),
+						_('graph with the same UUID already exists')
+					);
+					break;
+
+				case ZBX_FLAG_DISCOVERY_PROTOTYPE:
+					$error = _s('Invalid parameter "%1$s": %2$s.', '/'.($graph_indexes[$duplicates[0]['uuid']] + 1),
+						_('graph prototype with the same UUID already exists')
+					);
+					break;
+			}
+
+			self::exception(ZBX_API_ERROR_PARAMETERS, $error);
 		}
 	}
 
@@ -653,12 +885,13 @@ abstract class CGraphGeneral extends CApiService {
 	 * and return valid item ID's on success or trow an error on failure.
 	 *
 	 * @param array $graphs
+	 * @param array $db_graphs
 	 *
 	 * @return array
 	 */
-	protected function validateItemsUpdate(array $graphs) {
+	protected function validateItemsUpdate(array $graphs, array $db_graphs) {
 		$dbFields = ['itemid' => null];
-		$itemid_rules = ['type' => API_ID, 'flags' => API_NOT_EMPTY];
+		$itemid_rules = ['type' => API_ID];
 
 		foreach ($graphs as $graph) {
 			// graph items are optional
@@ -686,7 +919,8 @@ abstract class CGraphGeneral extends CApiService {
 				if (!CApiInputValidator::validate($itemid_rules, $graph['ymin_itemid'], 'ymin_itemid', $error)) {
 					self::exception(ZBX_API_ERROR_PARAMETERS, $error);
 				}
-				else {
+				// Skip itemid if ymin_itemid stay the same.
+				elseif ($graph['ymin_itemid'] != $db_graphs[$graph['graphid']]['ymin_itemid']) {
 					$itemIds[$graph['ymin_itemid']] = $graph['ymin_itemid'];
 				}
 			}
@@ -696,7 +930,8 @@ abstract class CGraphGeneral extends CApiService {
 				if (!CApiInputValidator::validate($itemid_rules, $graph['ymax_itemid'], 'ymax_itemid', $error)) {
 					self::exception(ZBX_API_ERROR_PARAMETERS, $error);
 				}
-				else {
+				// Skip itemid if ymax_itemid stay the same.
+				elseif ($graph['ymax_itemid'] != $db_graphs[$graph['graphid']]['ymax_itemid']) {
 					$itemIds[$graph['ymax_itemid']] = $graph['ymax_itemid'];
 				}
 			}
@@ -714,19 +949,27 @@ abstract class CGraphGeneral extends CApiService {
 	 * @param array $dbGraphs
 	 */
 	protected function validateUpdate(array $graphs, array $dbGraphs) {
+		$itemIds = $this->validateItemsUpdate($graphs, $dbGraphs);
+		$this->validateItems($itemIds, $graphs, $db_items);
+
+		self::validateUuid($graphs, $db_items);
+
+		self::checkUuidDuplicates($graphs, $dbGraphs);
+
 		$colorValidator = new CColorValidator();
+
+		$api_input_rules = ['type' => API_OBJECT, 'fields' => [
+			'name' => ['type' => API_STRING_UTF8, 'flags' => API_NOT_EMPTY, 'length' => DB::getFieldLength('graphs', 'name')]
+		]];
 
 		switch (get_class($this)) {
 			case 'CGraph':
 				$error_cannot_update = _('Cannot update "%1$s" for graph "%2$s".');
-				$api_input_rules = ['type' => API_OBJECT, 'fields' => []];
 				break;
 
 			case 'CGraphPrototype':
 				$error_cannot_update = _('Cannot update "%1$s" for graph prototype "%2$s".');
-				$api_input_rules = ['type' => API_OBJECT, 'fields' => [
-					'discover' => ['type' => API_INT32, 'in' => implode(',', [GRAPH_DISCOVER, GRAPH_NO_DISCOVER])]
-				]];
+				$api_input_rules['fields'] += ['discover' => ['type' => API_INT32, 'in' => implode(',', [GRAPH_DISCOVER, GRAPH_NO_DISCOVER])]];
 				break;
 
 			default:
@@ -744,57 +987,9 @@ abstract class CGraphGeneral extends CApiService {
 				self::exception(ZBX_API_ERROR_PARAMETERS, $error);
 			}
 
-			if (array_key_exists('uuid', $graph)) {
-				self::exception(ZBX_API_ERROR_PARAMETERS,
-					_s('Invalid parameter "%1$s": %2$s.', '/' . ($key + 1), _s('unexpected parameter "%1$s"', 'uuid'))
-				);
-			}
-
-			$templatedGraph = false;
-
 			if (isset($graph['gitems'])) {
 				// first item determines to which host graph belongs to
 				$gitem = array_shift($dbGraphs[$graph['graphid']]['gitems']);
-
-				$graphHosts = API::Host()->get([
-					'itemids' => $gitem['itemid'],
-					'output' => ['hostid', 'status'],
-					'editable' => true,
-					'templated_hosts' => true
-				]);
-
-				$host = array_shift($graphHosts);
-
-				// if the current graph is templated and new items to be added
-				if (HOST_STATUS_TEMPLATE == $host['status']) {
-					$templatedGraph = $host['hostid'];
-
-					$itemIds = [];
-
-					foreach ($graph['gitems'] as $gitem) {
-						if (!isset($gitem['gitemid']) && isset($gitem['itemid'])) {
-							$itemIds[] = $gitem['itemid'];
-						}
-					}
-
-					if ($itemIds) {
-						$itemHosts = API::Host()->get([
-							'itemids' => $itemIds,
-							'output' => ['hostid'],
-							'editable' => true,
-							'templated_hosts' => true
-						]);
-
-						// only one host is allowed and it has to be the current. other templated hosts are allowed
-						$itemHosts = array_unique(zbx_objectValues($itemHosts, 'hostid'));
-
-						if (count($itemHosts) > 1 || !in_array($host['hostid'], $itemHosts)) {
-							self::exception(ZBX_API_ERROR_PARAMETERS,
-								_s($this->getErrorMsg(self::ERROR_TEMPLATE_HOST_MIX), $graph['name'])
-							);
-						}
-					}
-				}
 
 				// items fields
 				foreach ($graph['gitems'] as $gitem) {
@@ -806,83 +1001,21 @@ abstract class CGraphGeneral extends CApiService {
 			}
 
 			// check ymin, ymax items
-			$this->checkAxisItems($graph, $templatedGraph);
+			$this->checkAxisItems($graph);
 		}
 
-		$this->validateHostsAndTemplates($graphs);
+		static::checkDuplicates($graphs);
 	}
 
 	/**
-	 * Check if graph already exists somewhere in DB.
-	 *
 	 * @param array $graphs
+	 *
+	 * @throws APIException
 	 */
-	protected function validateHostsAndTemplates(array $graphs) {
-		$graphNames = [];
-
-		foreach ($graphs as $graph) {
-			// check if the host has any graphs in DB with the same name within host
-			$hostsAndTemplates = API::Host()->get([
-				'itemids' => zbx_objectValues($graph['gitems'], 'itemid'),
-				'output' => ['hostid'],
-				'nopermissions' => true,
-				'preservekeys' => true,
-				'templated_hosts' => true
-			]);
-
-			$hostAndTemplateIds = array_keys($hostsAndTemplates);
-
-			$dbGraphs = API::Graph()->get([
-				'hostids' => $hostAndTemplateIds,
-				'output' => ['graphid'],
-				'filter' => ['name' => $graph['name'], 'flags' => null], // 'flags' => null overrides default behaviour
-				'nopermissions' => true
-			]);
-
-			if ($dbGraphs) {
-				$duplicateGraphsFound = false;
-
-				if (isset($graph['graphid'])) {
-					foreach ($dbGraphs as $dbGraph) {
-						if (bccomp($dbGraph['graphid'], $graph['graphid']) != 0) {
-							$duplicateGraphsFound = true;
-							break;
-						}
-					}
-				}
-				else {
-					$duplicateGraphsFound = true;
-				}
-
-				if ($duplicateGraphsFound) {
-					self::exception(ZBX_API_ERROR_PARAMETERS,
-						_s('Graph with name "%1$s" already exists in graphs or graph prototypes.', $graph['name'])
-					);
-				}
-			}
-
-			// checks that there are no two graphs with the same name within host
-			foreach ($hostAndTemplateIds as $id) {
-				if (!isset($graphNames[$graph['name']])) {
-					$graphNames[$graph['name']] = [];
-				}
-
-				if (isset($graphNames[$graph['name']][$id])) {
-					self::exception(ZBX_API_ERROR_PARAMETERS,
-						_s('More than one graph with name "%1$s" within host.', $graph['name'])
-					);
-				}
-				else {
-					$graphNames[$graph['name']][$id] = true;
-				}
-			}
-		}
-	}
+	abstract protected static function checkDuplicates(array $graphs): void;
 
 	/**
 	 * Returns visible host name. Can be used for error reporting.
-	 *
-	 * @static
 	 *
 	 * @param string|int $hostid
 	 *
@@ -897,8 +1030,6 @@ abstract class CGraphGeneral extends CApiService {
 
 	/**
 	 * Adding graph items for selected graphs.
-	 *
-	 * @static
 	 *
 	 * @param array $graphs
 	 * @param bool  $with_hostid
@@ -937,7 +1068,7 @@ abstract class CGraphGeneral extends CApiService {
 	 *                             linked hosts or templates.
 	 * @throws APIException
 	 */
-	protected function inherit(array $graphs, array $hostids = null): void {
+	protected function inherit(array $graphs, ?array $hostids = null): void {
 		$graphs = array_column($graphs, null, 'graphid');
 
 		if ($hostids === null) {

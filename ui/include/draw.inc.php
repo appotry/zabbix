@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -27,14 +22,14 @@
  * @param   array     $fgColor    foreground color, array of RGB
  * @param   float     $alpha      transparency index in range of 0-1, 1 returns unchanged fgColor color
  *
- * @return  array                 new color
+ * @return int  A color index.
  */
 function zbx_colormix($image, $bgColor, $fgColor, $alpha) {
 	$r = $bgColor[0] + ($fgColor[0] - $bgColor[0]) * $alpha;
 	$g = $bgColor[1] + ($fgColor[1] - $bgColor[1]) * $alpha;
 	$b = $bgColor[2] + ($fgColor[2] - $bgColor[2]) * $alpha;
 
-	return imagecolorresolvealpha($image, $r, $g, $b, 0);
+	return imagecolorresolvealpha($image, (int) $r, (int) $g, (int) $b, 0);
 }
 
 /**

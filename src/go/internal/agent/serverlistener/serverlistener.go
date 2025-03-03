@@ -1,37 +1,34 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 package serverlistener
 
 import (
+	"errors"
 	"fmt"
 	"net"
+	"os"
 	"strings"
 	"time"
 
-	"git.zabbix.com/ap/plugin-support/log"
-	"zabbix.com/internal/agent"
-	"zabbix.com/internal/agent/scheduler"
-	"zabbix.com/internal/monitor"
-	"zabbix.com/pkg/tls"
-	"zabbix.com/pkg/zbxcomms"
-	"zabbix.com/pkg/zbxnet"
+	"golang.zabbix.com/agent2/internal/agent"
+	"golang.zabbix.com/agent2/internal/agent/scheduler"
+	"golang.zabbix.com/agent2/internal/monitor"
+	"golang.zabbix.com/agent2/pkg/tls"
+	"golang.zabbix.com/agent2/pkg/zbxcomms"
+	"golang.zabbix.com/sdk/log"
+	"golang.zabbix.com/sdk/zbxnet"
 )
 
 type ServerListener struct {
@@ -42,6 +39,8 @@ type ServerListener struct {
 	tlsConfig    *tls.Config
 	allowedPeers *zbxnet.AllowedPeers
 	bindIP       string
+	last_err     string
+	stopped      bool
 }
 
 func (sl *ServerListener) processConnection(conn *zbxcomms.Connection) (err error) {
@@ -64,8 +63,45 @@ func (sl *ServerListener) processConnection(conn *zbxcomms.Connection) (err erro
 	return nil
 }
 
+func (c *ServerListener) handleError(err error) error {
+	var netErr net.Error
+
+	if !errors.As(err, &netErr) {
+		log.Errf("failed to accept an incoming connection: %s", err.Error())
+
+		return nil
+	}
+
+	if netErr.Timeout() {
+		log.Debugf("failed to accept an incoming connection: %s", err.Error())
+
+		return nil
+	}
+
+	if c.stopped {
+		return err
+	}
+
+	log.Errf("failed to accept an incoming connection: %s", err.Error())
+
+	var se *os.SyscallError
+
+	if !errors.As(err, &se) {
+		return nil
+	}
+
+	/* sleep to avoid high CPU usage on surprising temporary errors */
+	if c.last_err == se.Err.Error() {
+		time.Sleep(time.Second)
+	}
+	c.last_err = se.Err.Error()
+
+	return nil
+}
+
 func (sl *ServerListener) run() {
 	defer log.PanicHook()
+
 	log.Debugf("[%d] starting listener for '%s:%d'", sl.listenerID, sl.bindIP, sl.options.ListenPort)
 
 	for {
@@ -75,16 +111,19 @@ func (sl *ServerListener) run() {
 		if err == nil {
 			if !sl.allowedPeers.CheckPeer(net.ParseIP(conn.RemoteIP())) {
 				conn.Close()
-				log.Warningf("cannot accept incoming connection for peer: %s", conn.RemoteIP())
+				log.Warningf("failed to accept an incoming connection: connection from \"%s\" rejected, allowed hosts: \"%s\"",
+					conn.RemoteIP(), sl.options.Server)
 			} else if err := sl.processConnection(conn); err != nil {
-				log.Warningf("cannot process incoming connection: %s", err.Error())
+				log.Warningf("failed to process an incoming connection from %s: %s", conn.RemoteIP(), err.Error())
 			}
 		} else {
-			if nerr, ok := err.(net.Error); ok && nerr.Temporary() {
-				log.Errf("cannot accept incoming connection: %s", err.Error())
-				continue
+			if err != nil {
+				if sl.handleError(err) == nil {
+					continue
+				}
+
+				break
 			}
-			break
 		}
 	}
 
@@ -114,6 +153,7 @@ func (sl *ServerListener) Start() (err error) {
 }
 
 func (sl *ServerListener) Stop() {
+	sl.stopped = true
 	if sl.listener != nil {
 		sl.listener.Close()
 	}

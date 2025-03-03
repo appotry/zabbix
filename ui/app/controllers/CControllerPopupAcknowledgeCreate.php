@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -51,24 +46,92 @@ class CControllerPopupAcknowledgeCreate extends CController {
 	 */
 	private $message;
 
+	/**
+	 * @var bool
+	 */
+	private $suppress;
+
+	/**
+	 * @var bool
+	 */
+	private $unsuppress;
+
+	/**
+	 * @var int
+	 */
+	private $suppress_until;
+
+	/**
+	 * @var CRangeTimeParser
+	 */
+	private $suppress_until_time_parser;
+
+	/**
+	 * @var int
+	 */
+	private $change_rank;
+
+	/**
+	 * @var bool
+	 */
+	private $rank_change_to_cause;
+
+	/**
+	 * @var bool
+	 */
+	private $rank_change_to_symptom;
+
 	protected function checkInput() {
 		$fields = [
 			'eventids' =>				'required|array_db acknowledges.eventid',
+			'cause_eventid' =>			'db acknowledges.eventid',
 			'message' =>				'db acknowledges.message|flags '.P_CRLF,
 			'scope' =>					'in '.ZBX_ACKNOWLEDGE_SELECTED.','.ZBX_ACKNOWLEDGE_PROBLEM,
 			'change_severity' =>		'db acknowledges.action|in '.ZBX_PROBLEM_UPDATE_NONE.','.ZBX_PROBLEM_UPDATE_SEVERITY,
 			'severity' =>				'ge '.TRIGGER_SEVERITY_NOT_CLASSIFIED.'|le '.TRIGGER_SEVERITY_COUNT,
 			'acknowledge_problem' =>	'db acknowledges.action|in '.ZBX_PROBLEM_UPDATE_NONE.','.ZBX_PROBLEM_UPDATE_ACKNOWLEDGE,
 			'unacknowledge_problem' =>	'db acknowledges.action|in '.ZBX_PROBLEM_UPDATE_NONE.','.ZBX_PROBLEM_UPDATE_UNACKNOWLEDGE,
-			'close_problem' =>			'db acknowledges.action|in '.ZBX_PROBLEM_UPDATE_NONE.','.ZBX_PROBLEM_UPDATE_CLOSE
+			'close_problem' =>			'db acknowledges.action|in '.ZBX_PROBLEM_UPDATE_NONE.','.ZBX_PROBLEM_UPDATE_CLOSE,
+			'suppress_problem' =>		'db acknowledges.action|in '.ZBX_PROBLEM_UPDATE_NONE.','.ZBX_PROBLEM_UPDATE_SUPPRESS,
+			'suppress_time_option' =>	'in '.ZBX_PROBLEM_SUPPRESS_TIME_INDEFINITE.','.ZBX_PROBLEM_SUPPRESS_TIME_DEFINITE,
+			'suppress_until_problem' => 'range_time',
+			'unsuppress_problem' =>		'db acknowledges.action|in '.ZBX_PROBLEM_UPDATE_NONE.','.ZBX_PROBLEM_UPDATE_UNSUPPRESS,
+			'change_rank' => 			'db acknowledges.action|in '.ZBX_PROBLEM_UPDATE_NONE.','.ZBX_PROBLEM_UPDATE_RANK_TO_CAUSE.','.ZBX_PROBLEM_UPDATE_RANK_TO_SYMPTOM
 		];
 
 		$ret = $this->validateInput($fields);
 
+		$suppress = $this->getInput('suppress_problem', ZBX_PROBLEM_UPDATE_NONE);
+		$suppress_time = $this->getInput('suppress_time_option', ZBX_PROBLEM_SUPPRESS_TIME_INDEFINITE);
+
+		if ($ret && $suppress == ZBX_PROBLEM_UPDATE_SUPPRESS && $suppress_time == ZBX_PROBLEM_SUPPRESS_TIME_DEFINITE) {
+			$this->suppress_until_time_parser = new CRangeTimeParser();
+			$this->suppress_until_time_parser->parse($this->getInput('suppress_until_problem', ''));
+			$suppress_until = $this->suppress_until_time_parser->getDateTime(false)->getTimestamp();
+
+			if (!validateUnixTime($suppress_until) || $suppress_until < time()) {
+				error(_s('Incorrect value for field "%1$s": %2$s.', _('Suppress'), _('invalid time')));
+				$ret = false;
+			}
+		}
+
+		$this->change_rank = $this->getInput('change_rank', ZBX_PROBLEM_UPDATE_NONE);
+
+		if ($ret && $this->change_rank == ZBX_PROBLEM_UPDATE_RANK_TO_SYMPTOM
+				&& !$this->hasInput('cause_eventid')) {
+			error(_s('Field "%1$s" is mandatory.', 'cause_eventid'));
+			$ret = false;
+		}
+
 		if (!$ret) {
+			$error_title = $this->hasInput('eventids')
+				? _n('Cannot update event', 'Cannot update events', count($this->getInput('eventids', [])))
+				: _('Cannot update events');
+
 			$this->setResponse(
 				new CControllerResponseData(['main_block' => json_encode([
 					'error' => [
+						'title' => $error_title,
 						'messages' => array_column(get_and_clear_messages(), 'message')
 					]
 				])])
@@ -82,18 +145,26 @@ class CControllerPopupAcknowledgeCreate extends CController {
 		if (!$this->checkAccess(CRoleHelper::ACTIONS_ACKNOWLEDGE_PROBLEMS)
 				&& !$this->checkAccess(CRoleHelper::ACTIONS_CLOSE_PROBLEMS)
 				&& !$this->checkAccess(CRoleHelper::ACTIONS_CHANGE_SEVERITY)
-				&& !$this->checkAccess(CRoleHelper::ACTIONS_ADD_PROBLEM_COMMENTS)) {
+				&& !$this->checkAccess(CRoleHelper::ACTIONS_ADD_PROBLEM_COMMENTS)
+				&& !$this->checkAccess(CRoleHelper::ACTIONS_SUPPRESS_PROBLEMS)
+				&& !$this->checkAccess(CRoleHelper::ACTIONS_CHANGE_PROBLEM_RANKING)) {
 			return false;
+		}
+
+		$eventids = array_flip($this->getInput('eventids'));
+
+		if ($this->hasInput('cause_eventid')) {
+			$eventids[$this->getInput('cause_eventid')] = true;
 		}
 
 		$events = API::Event()->get([
 			'countOutput' => true,
-			'eventids' => $this->getInput('eventids'),
+			'eventids' => array_keys($eventids),
 			'source' => EVENT_SOURCE_TRIGGERS,
 			'object' => EVENT_OBJECT_TRIGGER
 		]);
 
-		return ($events == count($this->getInput('eventids')));
+		return $events == count($eventids);
 	}
 
 	protected function doAction() {
@@ -103,22 +174,53 @@ class CControllerPopupAcknowledgeCreate extends CController {
 
 		$this->close_problems = $this->checkAccess(CRoleHelper::ACTIONS_CLOSE_PROBLEMS)
 			? ($this->getInput('close_problem', ZBX_PROBLEM_UPDATE_NONE) == ZBX_PROBLEM_UPDATE_CLOSE)
-			: ZBX_PROBLEM_UPDATE_NONE;
+			: false;
 		$this->change_severity = $this->checkAccess(CRoleHelper::ACTIONS_CHANGE_SEVERITY)
 			? ($this->getInput('change_severity', ZBX_PROBLEM_UPDATE_NONE) == ZBX_PROBLEM_UPDATE_SEVERITY)
-			: ZBX_PROBLEM_UPDATE_NONE;
+			: false;
 		$this->acknowledge = $this->checkAccess(CRoleHelper::ACTIONS_ACKNOWLEDGE_PROBLEMS)
 			? ($this->getInput('acknowledge_problem', ZBX_PROBLEM_UPDATE_NONE) == ZBX_PROBLEM_UPDATE_ACKNOWLEDGE)
-			: ZBX_PROBLEM_UPDATE_NONE;
+			: false;
 		$this->unacknowledge = $this->checkAccess(CRoleHelper::ACTIONS_ACKNOWLEDGE_PROBLEMS)
 			? ($this->getInput('unacknowledge_problem', ZBX_PROBLEM_UPDATE_NONE) == ZBX_PROBLEM_UPDATE_UNACKNOWLEDGE)
-			: ZBX_PROBLEM_UPDATE_NONE;
+			: false;
 		$this->new_severity = $this->getInput('severity', '');
 		$this->message = $this->checkAccess(CRoleHelper::ACTIONS_ADD_PROBLEM_COMMENTS)
 			? $this->getInput('message', '')
 			: '';
+		$this->suppress = $this->checkAccess(CRoleHelper::ACTIONS_SUPPRESS_PROBLEMS)
+			? ($this->getInput('suppress_problem', ZBX_PROBLEM_UPDATE_NONE) == ZBX_PROBLEM_UPDATE_SUPPRESS)
+			: false;
+		$this->unsuppress = $this->checkAccess(CRoleHelper::ACTIONS_SUPPRESS_PROBLEMS)
+			? ($this->getInput('unsuppress_problem', ZBX_PROBLEM_UPDATE_NONE) == ZBX_PROBLEM_UPDATE_UNSUPPRESS)
+			: false;
+		$this->rank_change_to_cause = $this->checkAccess(CRoleHelper::ACTIONS_CHANGE_PROBLEM_RANKING)
+			? ($this->change_rank == ZBX_PROBLEM_UPDATE_RANK_TO_CAUSE)
+			: false;
+		$this->rank_change_to_symptom = $this->checkAccess(CRoleHelper::ACTIONS_CHANGE_PROBLEM_RANKING)
+			? ($this->change_rank == ZBX_PROBLEM_UPDATE_RANK_TO_SYMPTOM)
+			: false;
 
 		$eventids = array_flip($this->getInput('eventids'));
+
+		// Process suppress until time.
+		if ($this->checkAccess(CRoleHelper::ACTIONS_SUPPRESS_PROBLEMS)
+				&& $this->getInput('suppress_problem', ZBX_PROBLEM_UPDATE_NONE) == ZBX_PROBLEM_UPDATE_SUPPRESS) {
+			// Check if suppress time option was definite or indefinite.
+			if ($this->getInput('suppress_time_option') == ZBX_PROBLEM_SUPPRESS_TIME_DEFINITE) {
+				// Convert suppress until problem input to Unix timestamp.
+				$this->suppress_until = $this->suppress_until_time_parser->getDateTime(false)->getTimestamp();
+				// Save if inserted was relative time.
+				if ($this->suppress_until_time_parser->getTimeType() == CRangeTimeParser::ZBX_TIME_RELATIVE) {
+					$suppress_until_time = $this->getInput('suppress_until_problem');
+					CProfile::update('web.problem_suppress_action_time_until', $suppress_until_time, PROFILE_TYPE_STR);
+				}
+			}
+			else {
+				// Save suppress until time for indefinite option.
+				$this->suppress_until = ZBX_PROBLEM_SUPPRESS_TIME_INDEFINITE;
+			}
+		}
 
 		// Select events that are created from the same trigger if ZBX_ACKNOWLEDGE_PROBLEM is selected.
 		if ($this->getInput('scope', ZBX_ACKNOWLEDGE_SELECTED) == ZBX_ACKNOWLEDGE_PROBLEM) {
@@ -136,8 +238,8 @@ class CControllerPopupAcknowledgeCreate extends CController {
 		while ($eventid_groups['readable']) {
 			$data = $this->getAcknowledgeOptions($eventid_groups);
 			/*
-			 * No actions to perform. This can happen only if user has selected action he has no permissions to do
-			 * for any of selected events. This can happen, when you will perform one action on multiple problems,
+			 * No actions to perform. This can happen only if user has selected an action they do not have permission to
+			 * do for any of selected events. This can happen, when user performs one action on multiple problems,
 			 * where only some of these problems can perform this action (ex. close problem).
 			 */
 			if ($data['action'] == ZBX_PROBLEM_UPDATE_NONE) {
@@ -163,15 +265,21 @@ class CControllerPopupAcknowledgeCreate extends CController {
 		$output = [];
 
 		if ($result) {
-			$output['message'] = _n('Event updated', 'Events updated', $updated_events_count);
+			$success = ['title' => _n('Event updated', 'Events updated', $updated_events_count)];
+
+			if ($messages = get_and_clear_messages()) {
+				$success['messages'] = array_column($messages, 'message');
+			}
+
+			$output['success'] = $success;
 		}
 		else {
-			error($data && $data['action'] == ZBX_PROBLEM_UPDATE_NONE
-				? _('At least one update operation or message is mandatory')
-				: _n('Cannot update event', 'Cannot update events', $updated_events_count)
-			);
+			if ($data && $data['action'] == ZBX_PROBLEM_UPDATE_NONE) {
+				error(_('At least one update operation or message is mandatory'));
+			}
 
 			$output['error'] = [
+				'title' => _n('Cannot update event', 'Cannot update events', count($this->getInput('eventids'))),
 				'messages' => array_column(get_and_clear_messages(), 'message')
 			];
 		}
@@ -186,7 +294,7 @@ class CControllerPopupAcknowledgeCreate extends CController {
 	 *
 	 * @return array
 	 */
-	protected function getRelatedProblemids(array $eventids) {
+	protected function getRelatedProblemids(array $eventids): array {
 		$events = API::Event()->get([
 			'output' => ['objectid'],
 			'eventids' => array_keys($eventids),
@@ -216,11 +324,12 @@ class CControllerPopupAcknowledgeCreate extends CController {
 	 *
 	 * @return array
 	 */
-	protected function getEventDetails(array $eventids) {
+	protected function getEventDetails(array $eventids): array {
 		// Select details for all affected events.
 		$events = API::Event()->get([
 			'output' => ['eventid', 'objectid', 'acknowledged', 'r_eventid'],
-			'select_acknowledges' => $this->close_problems ? ['action'] : null,
+			'selectAcknowledges' => $this->close_problems || $this->suppress || $this->unsuppress ? ['action'] : null,
+			'selectSuppressionData' => $this->unsuppress ? ['maintenanceid'] : null,
 			'eventids' => $eventids,
 			'source' => EVENT_SOURCE_TRIGGERS,
 			'object' => EVENT_OBJECT_TRIGGER,
@@ -249,22 +358,24 @@ class CControllerPopupAcknowledgeCreate extends CController {
 	 *  - unacknowledgeable (events are not yet unacknowledged);
 	 *  - readable events (events that user has at least read permissions).
 	 *
-	 * @param array $events
-	 * @param int   $events[]['eventid']                             Event id.
-	 * @param int   $events[]['objectid']                            Trigger ID that has generated particular event.
-	 * @param int   $events[]['r_eventid']                           Recovery event ID.
-	 * @param array $events[]['acknowledged']                        Array containing previously performed actions.
-	 * @param array $editable_triggers[<triggerid>]                  Arrays containing editable trigger IDs as keys.
-	 * @param array $editable_triggers[<triggerid>]['manual_close']  Arrays containing editable trigger IDs as keys.
+	 * @param array   $events
+	 * @param string  $events[]['eventid']                             Event ID.
+	 * @param string  $events[]['objectid']                            Trigger ID that has generated particular event.
+	 * @param string  $events[]['r_eventid']                           Recovery event ID.
+	 * @param string  $events[]['acknowledged']                        Indicates if event is acknowledged.
+	 * @param array   $editable_triggers[<triggerid>]                  Arrays containing editable trigger IDs as keys.
+	 * @param int     $editable_triggers[<triggerid>]['manual_close']  Trigger's manual_close configuration.
 	 *
 	 * @param array
 	 */
-	protected function groupEventsByActionsAllowed(array $events, array $editable_triggers) {
+	protected function groupEventsByActionsAllowed(array $events, array $editable_triggers): array {
 		$eventid_groups = [
 			'closable' => [],
 			'editable' => [],
 			'acknowledgeable' => [],
 			'unacknowledgeable' => [],
+			'suppressible' => [],
+			'unsuppressible' => [],
 			'readable' => []
 		];
 
@@ -285,6 +396,14 @@ class CControllerPopupAcknowledgeCreate extends CController {
 				$eventid_groups['unacknowledgeable'][] = $event['eventid'];
 			}
 
+			if ($this->suppress && !isEventClosed($event)) {
+				$eventid_groups['suppressible'][] = $event['eventid'];
+			}
+
+			if ($this->unsuppress && !isEventClosed($event) && $this->isEventSuppressed($event)) {
+				$eventid_groups['unsuppressible'][] = $event['eventid'];
+			}
+
 			$eventid_groups['readable'][] = $event['eventid'];
 		}
 
@@ -294,45 +413,58 @@ class CControllerPopupAcknowledgeCreate extends CController {
 	/**
 	 * Checks if events can be closed manually.
 	 *
-	 * @param array $event                                           Event object.
-	 * @param array $event['r_eventid']                              OK event id. 0 if not resolved.
-	 * @param array $event['acknowledges']                           List of problem updates.
-	 * @param array $event['acknowledges'][]['action']               Action performed in update.
-	 * @param array $editable_triggers[<triggerid>]                  List of editable triggers.
-	 * @param array $editable_triggers[<triggerid>]['manual_close']  Trigger's manual_close configuration.
+	 * @param array  $event                                           Event object.
+	 * @param array  $event['r_eventid']                              OK event id. 0 if not resolved.
+	 * @param array  $event['acknowledges']                           List of problem updates.
+	 * @param string $event['acknowledges'][]['action']               Action performed in update.
+	 * @param array  $editable_triggers[<triggerid>]                  List of editable triggers.
+	 * @param int    $editable_triggers[<triggerid>]['manual_close']  Trigger's manual_close configuration.
 	 *
 	 * @return bool
 	 */
-	protected function isEventClosable(array $event, array $editable_triggers) {
+	protected function isEventClosable(array $event, array $editable_triggers): bool {
 		if (!array_key_exists($event['objectid'], $editable_triggers)
 				|| $editable_triggers[$event['objectid']]['manual_close'] == ZBX_TRIGGER_MANUAL_CLOSE_NOT_ALLOWED
-				|| bccomp($event['r_eventid'], '0') > 0) {
+				|| isEventClosed($event)) {
 			return false;
-		}
-
-		foreach ($event['acknowledges'] as $acknowledge) {
-			if (($acknowledge['action'] & ZBX_PROBLEM_UPDATE_CLOSE) == ZBX_PROBLEM_UPDATE_CLOSE) {
-				return false;
-			}
 		}
 
 		return true;
 	}
 
 	/**
+	 * Checks if event is manually suppressed.
+	 *
+	 * @param array  $event                                         Event object.
+	 * @param array  $event['suppression_data']                     List of problem suppression data.
+	 * @param string $event['suppression_data'][]['maintenanceid']  Problem maintenanceid.
+	 *
+	 * @return bool
+	 */
+	protected function isEventSuppressed(array $event): bool {
+		foreach ($event['suppression_data'] as $suppression) {
+			if ($suppression['maintenanceid'] == 0) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
 	 * Function returns an array for event.acknowledge API method, containing a list of eventids and specific 'action'
 	 * flag to perform for list of eventids returned. Function will also clean utilized eventids from $eventids array.
 	 *
-	 * @param array $eventids
-	 * @param array $eventids['closable']            Event ids that user is allowed to close manually.
-	 * @param array $eventids['editable']            Event ids that user is allowed to make changes.
-	 * @param array $eventids['acknowledgeable']     Event ids that user is allowed to make acknowledgement.
-	 * @param array $eventids['unacknowledgeable']   Event ids that user is allowed to make unacknowledgement.
-	 * @param array $eventids['readable']            Event ids that user is allowed to read.
+	 * @param array $eventid_groups
+	 * @param array $eventid_groups['closable']            Event IDs that user is allowed to close manually.
+	 * @param array $eventid_groups['editable']            Event IDs that user is allowed to make changes.
+	 * @param array $eventid_groups['acknowledgeable']     Event IDs that user is allowed to make acknowledgement.
+	 * @param array $eventid_groups['unacknowledgeable']   Event IDs that user is allowed to make unacknowledgement.
+	 * @param array $eventid_groups['readable']            Event IDs that user is allowed to read.
 	 *
 	 * @return array
 	 */
-	protected function getAcknowledgeOptions(array &$eventid_groups) {
+	protected function getAcknowledgeOptions(array &$eventid_groups): array {
 		$data = [
 			'action' => ZBX_PROBLEM_UPDATE_NONE,
 			'eventids' => []
@@ -379,6 +511,42 @@ class CControllerPopupAcknowledgeCreate extends CController {
 
 			$data['action'] |= ZBX_PROBLEM_UPDATE_MESSAGE;
 			$data['message'] = $this->message;
+		}
+
+		if ($this->suppress && $eventid_groups['suppressible']) {
+			if (!$data['eventids']) {
+				$data['eventids'] = $eventid_groups['suppressible'];
+			}
+
+			$data['action'] |= ZBX_PROBLEM_UPDATE_SUPPRESS;
+			$data['suppress_until'] = $this->suppress_until;
+			$eventid_groups['suppressible'] = array_diff($eventid_groups['suppressible'], $data['eventids']);
+		}
+
+		if ($this->unsuppress && $eventid_groups['unsuppressible']) {
+			if (!$data['eventids']) {
+				$data['eventids'] = $eventid_groups['unsuppressible'];
+			}
+
+			$data['action'] |= ZBX_PROBLEM_UPDATE_UNSUPPRESS;
+			$eventid_groups['unsuppressible'] = array_diff($eventid_groups['unsuppressible'], $data['eventids']);
+		}
+
+		if ($this->rank_change_to_cause) {
+			if (!$data['eventids']) {
+				$data['eventids'] = $eventid_groups['readable'];
+			}
+
+			$data['action'] |= ZBX_PROBLEM_UPDATE_RANK_TO_CAUSE;
+		}
+
+		if ($this->rank_change_to_symptom) {
+			if (!$data['eventids']) {
+				$data['eventids'] = $eventid_groups['readable'];
+			}
+
+			$data['action'] |= ZBX_PROBLEM_UPDATE_RANK_TO_SYMPTOM;
+			$data['cause_eventid'] = $this->getInput('cause_eventid');
 		}
 
 		$eventid_groups['readable'] = array_diff($eventid_groups['readable'], $data['eventids']);

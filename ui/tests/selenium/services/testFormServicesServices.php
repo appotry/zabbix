@@ -1,215 +1,55 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2021 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
+
 
 require_once dirname(__FILE__).'/../../include/CWebTest.php';
 require_once dirname(__FILE__).'/../behaviors/CMessageBehavior.php';
-require_once dirname(__FILE__).'/../traits/TableTrait.php';
+require_once dirname(__FILE__).'/../behaviors/CTableBehavior.php';
 
 /**
+ * @dataSource EntitiesTags
+ * @dataSource Services
+ *
  * @backup services
  *
  * @onBefore prepareServicesData
  */
 class testFormServicesServices extends CWebTest {
 
-	use TableTrait;
+	/**
+	 * Attach MessageBehavior and TableBehavior to the test.
+	 *
+	 * @return array
+	 */
+	public function getBehaviors() {
+		return [
+			CMessageBehavior::class,
+			CTableBehavior::class
+		];
+	}
 
 	const UPDATE = true;
 	const EDIT_BUTTON_PATH = 'xpath:.//button[@title="Edit"]';
 
 	private static $service_sql = 'SELECT * FROM services ORDER BY serviceid';
 	private static $update_service = 'Update service';
-
-	private static $parentid;
-	private static $childid;
-	private static $parentid_2;
-	private static $childid_2;
-
-	/**
-	 * Attach MessageBehavior to the test.
-	 *
-	 * @return array
-	 */
-	public function getBehaviors() {
-		return ['class' => CMessageBehavior::class];
-	}
+	private static $delete_service = 'Service for delete';
+	private static $serviceids;
 
 	public static function prepareServicesData() {
-		CDataHelper::call('service.create', [
-			[
-				'name' => 'Update service',
-				'algorithm' => 1,
-				'sortorder' => 0,
-				'status_rules' => [
-					[
-						'type' => 1,
-						'limit_value' => 50,
-						'limit_status' => 3,
-						'new_status' => 4
-					],
-					[
-						'type' => 7,
-						'limit_value' => 33,
-						'limit_status' => 2,
-						'new_status' => 5
-					]
-				]
-			],
-			[
-				'name' => 'Parent1',
-				'algorithm' => 1,
-				'sortorder' => 0
-			],
-			[
-				'name' => 'Parent2',
-				'algorithm' => 1,
-				'sortorder' => 0
-			],
-			[
-				'name' => 'Parent3 with problem tags',
-				'algorithm' => 1,
-				'sortorder' => 0,
-				'problem_tags' => [
-					[
-						'tag' => 'test123',
-						'value' => 'test456'
-					],
-					[
-						'tag' => 'test',
-						'value' => 'test789'
-					]
-				]
-			],
-			[
-				'name' => 'Parent4',
-				'algorithm' => 1,
-				'sortorder' => 0
-			],
-			[
-				'name' => 'Parent5',
-				'algorithm' => 1,
-				'sortorder' => 0
-			],
-			[
-				'name' => 'Child1',
-				'algorithm' => 1,
-				'sortorder' => 0
-			],
-			[
-				'name' => 'Child2 with tags',
-				'algorithm' => 1,
-				'sortorder' => 0,
-				'problem_tags' => [
-					[
-						'tag' => 'test1',
-						'value' => 'value1'
-					],
-					[
-						'tag' => 'test2',
-						'value' => 'value2'
-					]
-				]
-			],
-			[
-				'name' => 'Child3',
-				'algorithm' => 1,
-				'sortorder' => 0
-			],
-			[
-				'name' => 'Child4',
-				'algorithm' => 1,
-				'sortorder' => 0
-			],
-			[
-				'name' => 'Clone_parent',
-				'algorithm' => 1,
-				'sortorder' => 0
-			],
-			[
-				'name' => 'Clone1',
-				'algorithm' => 0,
-				'weight' => 56,
-				'propagation_rule' => 1,
-				'propagation_value' => 3,
-				'sortorder' => 0,
-				'problem_tags' => [
-					[
-						'tag' => 'problem_tag_clone',
-						'value' => 'problem_value_clone'
-					]
-				],
-				'tags' => [
-					[
-						'tag' => 'tag_clone',
-						'value' => 'value_clone'
-					]
-				]
-			],
-			[
-				'name' => 'Clone2',
-				'algorithm' => 1,
-				'sortorder' => 0
-			]
-		]);
-
-		$services = CDataHelper::getIds('name');
-
-		CDataHelper::call('service.update', [
-			[
-				'serviceid' => $services['Child3'],
-				'parents' => [
-					[
-						'serviceid' => $services['Parent2']
-					]
-				]
-			],
-			[
-				'serviceid' => $services['Child4'],
-				'parents' => [
-					[
-						'serviceid' => $services['Parent4']
-					]
-				]
-			],
-			[
-				'serviceid' => $services['Clone1'],
-				'parents' => [
-					[
-						'serviceid' => $services['Clone_parent']
-					]
-				]
-			],
-			[
-				'serviceid' => $services['Clone2'],
-				'parents' => [
-					[
-						'serviceid' => $services['Clone_parent']
-					]
-				]
-			]
-		]);
-
-		self::$parentid = $services['Parent2'];
-		self::$childid = $services['Child3'];
-		self::$parentid_2 = $services['Parent4'];
-		self::$childid_2 = $services['Child4'];
+		self::$serviceids = CDataHelper::get('Services.serviceids');
 	}
 
 	/**
@@ -242,19 +82,18 @@ class testFormServicesServices extends CWebTest {
 		// Check layout at Service tab.
 		$hidden_fields = [];
 		foreach ($service_labels as $label => $visible) {
-			$this->assertEquals($visible, $form->query("xpath://div[@id='service-tab']//label[text()=".
-					CXPathHelper::escapeQuotes($label)."]")->one(false)->isDisplayed()
-			);
+			$this->assertEquals($visible, $form->getField($label)->isDisplayed());
+
 			if (!$visible) {
 				$hidden_fields[] = $label;
 			}
 		}
 
-		// Check advanced configuration default value.
-		$this->assertFalse($form->query('id:advanced_configuration')->asCheckbox()->one()->isChecked());
+		// Check advanced configuration default closed state.
+		$form->checkValue(['Advanced configuration' => false]);
 
-		// Set "Advanced configuration" to true and check that corresponding fields are now visible.
-		$form->query('id:advanced_configuration')->asCheckbox()->one()->set(true);
+		// Open "Advanced configuration" block and check that corresponding fields are now visible.
+		$form->fill(['Advanced configuration' => true]);
 
 		foreach ($hidden_fields as $label) {
 			$this->assertTrue($form->getLabel($label)->isDisplayed());
@@ -262,7 +101,7 @@ class testFormServicesServices extends CWebTest {
 
 		// Check Problem tags table headers.
 		$problem_tags_table = $form->query('id', 'problem_tags')->asMultifieldTable()->one();
-		$this->assertSame(['Name', 'Operation', 'Value', 'Action'], $problem_tags_table->getHeadersText());
+		$this->assertSame(['Name', 'Operation', 'Value', ''], $problem_tags_table->getHeadersText());
 
 		// Check Problem tags table fields.
 		$problem_tags_table->checkValue([['tag' => '', 'operator' => 'Equals', 'value' => '']]);
@@ -276,7 +115,7 @@ class testFormServicesServices extends CWebTest {
 
 		// Check Status rules table headers.
 		$status_rules_table = $form->query('id', 'status_rules')->asMultifieldTable()->one();
-		$this->assertSame(['Name', 'Action'], $status_rules_table->getHeadersText());
+		$this->assertSame(['Name', 'Actions'], $status_rules_table->getHeadersText());
 
 		// Check Service tab fields' maxlengths.
 		$service_tab_limits = [
@@ -410,12 +249,12 @@ class testFormServicesServices extends CWebTest {
 
 		// Check hint-box.
 		$form->query('id:algorithm-not-applicable-warning')->one()->click();
-		$hint = $form->query('xpath://div[@class="overlay-dialogue"]')->waitUntilPresent();
+		$hint = $form->query('xpath://div[@class="overlay-dialogue wordbreak"]')->waitUntilPresent();
 		$hintbox = 'Status calculation rule and additional rules are only applicable if child services exist.';
 		$this->assertEquals($hintbox, $hint->one()->getText());
 
 		// Close the hint-box.
-		$hint->query('xpath:.//button[@class="overlay-close-btn"]')->one()->click();
+		$hint->query('xpath:.//button[@class="btn-overlay-close"]')->one()->click();
 		$hint->waitUntilNotPresent();
 
 		// Check layout at Tags tab.
@@ -426,7 +265,7 @@ class testFormServicesServices extends CWebTest {
 		$this->assertTrue($tags_tab->query('xpath:.//label[text()="Tags"]')->one()->isValid());
 
 		// Check Tags default empty row and headers.
-		$tags_tab->query('id:tags-table')->asMultifieldTable()->one()->checkValue([['Name' => '', 'Value' => '']]);
+		$tags_tab->query('class:tags-table')->asMultifieldTable()->one()->checkValue([['Name' => '', 'Value' => '']]);
 
 		// Check table tags placeholders and length.
 		foreach (['tag' => 255, 'value' => 255] as $placeholder => $length) {
@@ -466,7 +305,7 @@ class testFormServicesServices extends CWebTest {
 		$this->assertFalse($children_dialog->query('id:serviceid_all')->asCheckbox()->one()->isChecked());
 
 		// Enter and submit filtering data.
-		$children_dialog->query('id:services-filter-name')->one()->fill('Parent1');
+		$children_dialog->query('id:services-filter-name')->one()->fill('Parent for 2 levels of child services');
 		$this->assertTrue($children_dialog->query('button:Cancel')->one()->isCLickable());
 		$children_dialog->query('button:Filter')->waitUntilClickable()->one()->click();
 		$children_dialog->waitUntilReady();
@@ -475,7 +314,8 @@ class testFormServicesServices extends CWebTest {
 		// Check filtering result.
 		$result = [
 			[
-				'Name' => 'Parent1',
+				'Name' => 'Parent for 2 levels of child services',
+				'Tags' => 'test: test123',
 				'Problem tags' => ''
 			]
 		];
@@ -486,11 +326,16 @@ class testFormServicesServices extends CWebTest {
 		$children_dialog->waitUntilReady();
 
 		// Check possible children count in table.
-		$this->assertEquals(13, $children_dialog->query('class:list-table')->asTable()->one()->getRows()->count());
+		$this->assertEquals(CDBHelper::getCount('SELECT null FROM services'), $children_dialog->query('class:list-table')
+				->asTable()->one()->getRows()->count()
+		);
 
 		foreach (['Add', 'Cancel'] as $button) {
 			$this->assertTrue($dialog->getFooter()->query('button', $button)->one()->isClickable());
 		}
+
+		$children_dialog->close();
+		$dialog->close();
 	}
 
 	public function getServicesData() {
@@ -539,7 +384,7 @@ class testFormServicesServices extends CWebTest {
 					'expected' => TEST_BAD,
 					'fields' => [
 						'Name' => 'Non-numeric weight',
-						'id:advanced_configuration' => true,
+						'Advanced configuration' => true,
 						'Weight' => 'abc'
 					],
 					'error' => 'Incorrect value "abc" for "weight" field.'
@@ -550,7 +395,7 @@ class testFormServicesServices extends CWebTest {
 					'expected' => TEST_BAD,
 					'fields' => [
 						'Name' => 'Negative weight',
-						'id:advanced_configuration' => true,
+						'Advanced configuration' => true,
 						'Weight' => '-2'
 					],
 					'error' => 'Incorrect value for field "weight": value must be no less than "0".'
@@ -561,7 +406,7 @@ class testFormServicesServices extends CWebTest {
 					'expected' => TEST_BAD,
 					'fields' => [
 						'Name' => 'Excessive weight',
-						'id:advanced_configuration' => true,
+						'Advanced configuration' => true,
 						'Weight' => '9999999'
 					],
 					'error' => 'Incorrect value for field "weight": value must be no greater than "1000000".'
@@ -572,7 +417,7 @@ class testFormServicesServices extends CWebTest {
 					'expected' => TEST_BAD,
 					'fields' => [
 						'Name' => 'Non-numeric N in additional rules',
-						'id:advanced_configuration' => true
+						'Advanced configuration' => true
 					],
 					'additional_rules' => [
 						[
@@ -590,7 +435,7 @@ class testFormServicesServices extends CWebTest {
 					'expected' => TEST_BAD,
 					'fields' => [
 						'Name' => 'Negative N in additional rules',
-						'id:advanced_configuration' => true
+						'Advanced configuration' => true
 					],
 					'additional_rules' => [
 						[
@@ -608,7 +453,7 @@ class testFormServicesServices extends CWebTest {
 					'expected' => TEST_BAD,
 					'fields' => [
 						'Name' => 'N more than 100% in additional rules',
-						'id:advanced_configuration' => true
+						'Advanced configuration' => true
 					],
 					'additional_rules' => [
 						[
@@ -626,7 +471,7 @@ class testFormServicesServices extends CWebTest {
 					'expected' => TEST_BAD,
 					'fields' => [
 						'Name' => 'W is equal to 0 in additional rules',
-						'id:advanced_configuration' => true
+						'Advanced configuration' => true
 					],
 					'additional_rules' => [
 						[
@@ -652,7 +497,7 @@ class testFormServicesServices extends CWebTest {
 					'fields' => [
 						'Name' => 'Max sort order, weight, etc',
 						'Sort order (0->999)' => '999',
-						'id:advanced_configuration' => true,
+						'Advanced configuration' => true,
 						'Status propagation rule' => 'Increase by',
 						'id:propagation_value_number' => '5',
 						'Weight' => '1000000'
@@ -664,7 +509,7 @@ class testFormServicesServices extends CWebTest {
 					'fields' => [
 						'Name' => 'Intermediate values in sort order',
 						'Sort order (0->999)' => '10',
-						'id:advanced_configuration' => true,
+						'Advanced configuration' => true,
 						'Status propagation rule' => 'Fixed status',
 						'id:propagation_value_status' => 'OK',
 						'Weight' => '5'
@@ -675,7 +520,7 @@ class testFormServicesServices extends CWebTest {
 				[
 					'fields' => [
 						'Name' => 'Fixed status',
-						'id:advanced_configuration' => true,
+						'Advanced configuration' => true,
 						'Status propagation rule' => 'Fixed status',
 						'id:propagation_value_status' => 'Not classified',
 						'Weight' => '0'
@@ -686,7 +531,7 @@ class testFormServicesServices extends CWebTest {
 				[
 					'fields' => [
 						'Name' => 'Service with multiple additional rules',
-						'id:advanced_configuration' => true
+						'Advanced configuration' => true
 					],
 					'additional_rules' => [
 						[
@@ -757,7 +602,7 @@ class testFormServicesServices extends CWebTest {
 					],
 					'children' => [
 						'Child services' => [
-							'Service' => 'Child4',
+							'Service' => 'Child 1',
 							'Problem tags' => '',
 							'Action' => 'Remove'
 						]
@@ -768,7 +613,7 @@ class testFormServicesServices extends CWebTest {
 			[
 				[
 					'fields' => [
-						'Name' => 'Child1'
+						'Name' => 'Service for duplicate check'
 					],
 					'duplicate' => true
 				]
@@ -778,7 +623,7 @@ class testFormServicesServices extends CWebTest {
 				[
 					'fields' => [
 						'Name' => 'With parent',
-						'Parent services' => 'Parent1'
+						'Parent services' => 'Parent for 2 levels of child services'
 					],
 					'update_duplicate' => true
 				]
@@ -801,7 +646,8 @@ class testFormServicesServices extends CWebTest {
 				[
 					'expected' => TEST_BAD,
 					'fields' => [
-						'Name' => 'Update rule: Non-numeric N in additional rules'
+						'Name' => 'Update rule: Non-numeric N in additional rules',
+						'Advanced configuration' => true
 					],
 					'existing_rule' => 'High - If at least 50% of child services have Average status or above',
 					'additional_rules' => [
@@ -819,7 +665,8 @@ class testFormServicesServices extends CWebTest {
 				[
 					'expected' => TEST_BAD,
 					'fields' => [
-						'Name' => 'Update rule: Negative N in additional rules'
+						'Name' => 'Update rule: Negative N in additional rules',
+						'Advanced configuration' => true
 					],
 					'existing_rule' => 'High - If at least 50% of child services have Average status or above',
 					'additional_rules' => [
@@ -837,7 +684,8 @@ class testFormServicesServices extends CWebTest {
 				[
 					'expected' => TEST_BAD,
 					'fields' => [
-						'Name' => 'Update rule: N more than 100% in additional rules'
+						'Name' => 'Update rule: N more than 100% in additional rules',
+						'Advanced configuration' => true
 					],
 					'existing_rule' => 'High - If at least 50% of child services have Average status or above',
 					'additional_rules' => [
@@ -855,7 +703,8 @@ class testFormServicesServices extends CWebTest {
 				[
 					'expected' => TEST_BAD,
 					'fields' => [
-						'Name' => 'Update rule: W is equal to 0 in additional rules'
+						'Name' => 'Update rule: W is equal to 0 in additional rules',
+						'Advanced configuration' => true
 					],
 					'existing_rule' => 'High - If at least 50% of child services have Average status or above',
 					'additional_rules' => [
@@ -872,7 +721,8 @@ class testFormServicesServices extends CWebTest {
 			[
 				[
 					'fields' => [
-						'Name' => 'Update additional rule'
+						'Name' => 'Update additional rule',
+						'Advanced configuration' => true
 					],
 					'existing_rule' => 'High - If at least 50% of child services have Average status or above',
 					'additional_rules' => [
@@ -892,7 +742,8 @@ class testFormServicesServices extends CWebTest {
 			[
 				[
 					'fields' => [
-						'Name' => 'Remove additional rule'
+						'Name' => 'Remove additional rule',
+						'Advanced configuration' => true
 					],
 					'existing_rule' => 'Disaster - If weight of child services with Warning status or below is less than 33%'
 				]
@@ -932,8 +783,8 @@ class testFormServicesServices extends CWebTest {
 			$this->query('button:Create service')->waitUntilClickable()->one()->click();
 		}
 
-		COverlayDialogElement::find()->one()->waitUntilReady();
-		$form = $this->query('id:service-form')->asForm()->one()->waitUntilReady();
+		$dialog = COverlayDialogElement::find()->one()->waitUntilReady();
+		$form = $dialog->query('id:service-form')->asForm()->one()->waitUntilReady();
 		$form->fill($data['fields']);
 
 		// Remove additional rule if no substitute rules are defined in data provider or edit rule if such exists.
@@ -957,12 +808,15 @@ class testFormServicesServices extends CWebTest {
 			if (!array_key_exists('existing_rule', $data)) {
 				$form->getFieldContainer('Additional rules')->query('button:Add')->waitUntilClickable()->one()->click();
 			}
-			$rules_form = COverlayDialogElement::find()->all()->last()->waitUntilReady()->asForm();
+			$rules_dialog = COverlayDialogElement::find()->all()->last()->waitUntilReady();
+			$rules_form = $rules_dialog->asForm();
 			$rules_form->fill($rule_fields);
 			$rules_form->submit();
 
 			if ($expected === TEST_BAD) {
 				$this->assertMessage(TEST_BAD, null, $data['error']);
+				$rules_dialog->close();
+				$dialog->close();
 
 				return;
 			}
@@ -988,6 +842,7 @@ class testFormServicesServices extends CWebTest {
 		if ($expected === TEST_BAD) {
 			$this->assertMessage(TEST_BAD, null, $data['error']);
 			$this->assertEquals($old_hash, CDBHelper::getHash(self::$service_sql));
+			$dialog->close();
 		}
 		else {
 			$this->assertMessage(TEST_GOOD, ($update ? 'Service updated' : 'Service created'));
@@ -1008,7 +863,7 @@ class testFormServicesServices extends CWebTest {
 			}
 
 			// Open just created or updated Service and check that all fields present correctly in form.
-			$table = $this->query('class:list-table')->asTable()->one()->waitUntilReady();
+			$table = $this->query('class:list-table')->asTable()->one()->waitUntilPresent();
 
 			// If it is child service, we need to open parent firstly.
 			if (array_key_exists('Parent services', $data['fields'])) {
@@ -1029,11 +884,20 @@ class testFormServicesServices extends CWebTest {
 				$this->assertTableData([$data['children']['Child services']], 'id:children');
 			}
 			else {
-				$table->findRow('Name', $data['fields']['Name'])->query(self::EDIT_BUTTON_PATH)->waitUntilClickable()
+				// There are 3 tables with class list-table, so it is specified that is should be in the service list.
+				$table = $this->query('xpath://form[@name="service_list"]//table')->asTable()->one()->waitUntilPresent();
+				$table->findRow('Name', $data['fields']['Name'], true)->query(self::EDIT_BUTTON_PATH)->waitUntilClickable()
 						->one()->click();
 				COverlayDialogElement::find()->one()->waitUntilReady();
 			}
 			$form->invalidate();
+
+			// Open "Advanced configuration" block if it was filled with data.
+			if (CTestArrayHelper::get($data, 'fields.Advanced configuration', false)) {
+				// After form submit "Advanced configuration" is closed.
+				$form->checkValue(['Advanced configuration' => false]);
+				$form->fill(['Advanced configuration' => true]);
+			}
 			$form->checkValue($data['fields']);
 
 			// Check that added/updated rules are present, and that removed rules are missing in configuration form.
@@ -1054,6 +918,8 @@ class testFormServicesServices extends CWebTest {
 					$this->assertFalse(in_array($data['existing_rule'], $existing_rules));
 				}
 			}
+
+			COverlayDialogElement::find()->one()->close();
 		}
 	}
 
@@ -1062,17 +928,22 @@ class testFormServicesServices extends CWebTest {
 			// Service with children.
 			[
 				[
-					'name' => 'Clone_parent',
+					'name' => 'Clone parent',
 					'children' => [
 						'Child services' => [
 							[
-								'Service' => 'Clone1',
+								'Service' => 'Clone child 1',
 								'Problem tags' => 'problem_tag_clone: problem_value_clone',
 								'Action' => 'Remove'
 							],
 							[
-								'Service' => 'Clone2',
+								'Service' => 'Clone child 2',
 								'Problem tags' => '',
+								'Action' => 'Remove'
+							],
+							[
+								'Service' => 'Clone child 3',
+								'Problem tags' => 'test1: value1',
 								'Action' => 'Remove'
 							]
 
@@ -1083,8 +954,8 @@ class testFormServicesServices extends CWebTest {
 			// Service with parent.
 			[
 				[
-					'name' => 'Clone1',
-					'parent' => 'Clone_parent'
+					'name' => 'Clone child 1',
+					'parent' => 'Clone parent'
 				]
 			]
 		];
@@ -1133,6 +1004,10 @@ class testFormServicesServices extends CWebTest {
 		$table->findRow('Name', $name, true)->query(self::EDIT_BUTTON_PATH)->waitUntilClickable()->one()->click();
 		$form->invalidate();
 		$original_values['Name'] = $name;
+
+		// If the date changed since the data source was executed, "Created at" for clone will differ from the original.
+		$original_values['Created at'] = date('Y-m-d', strtotime('today'));
+
 		$this->assertEquals($original_values, $form->getFields()->asValues());
 
 		// Check Child services were not cloned.
@@ -1140,6 +1015,8 @@ class testFormServicesServices extends CWebTest {
 			$form->selectTab('Child services');
 			$this->assertEquals('', $form->query('xpath:.//table[@id="children"]/tbody')->one()->getText());
 		}
+
+		COverlayDialogElement::find()->one()->close();
 	}
 
 	public static function getCancelData() {
@@ -1169,15 +1046,15 @@ class testFormServicesServices extends CWebTest {
 
 		$this->page->login()->open('zabbix.php?action=service.list.edit');
 		$table = $this->query('class:list-table')->asTable()->waitUntilVisible()->one();
-		$table->findRow('Name', 'Child2 with tags', true)->query(self::EDIT_BUTTON_PATH)->waitUntilClickable()
+		$table->findRow('Name', 'Simple actions service', true)->query(self::EDIT_BUTTON_PATH)->waitUntilClickable()
 				->one()->click();
 
 		$dialog = COverlayDialogElement::find()->waitUntilReady()->one();
 		$dialog->asForm()->fill([
 			'Name' => 'Updated name',
-			'Parent services' => 'Parent2',
+			'Parent services' => 'Parent for deletion from row',
 			'Sort order (0->999)' => '85',
-			'id:advanced_configuration' => true,
+			'Advanced configuration' => true,
 			'Status propagation rule' => 'Increase by',
 			'id:propagation_value_number' => '4',
 			'Weight' => '9'
@@ -1194,13 +1071,13 @@ class testFormServicesServices extends CWebTest {
 			// Service without children.
 			[
 				[
-					'name' => 'Child2 with tags'
+					'name' => 'Simple actions service'
 				]
 			],
 			// Service with children.
 			[
 				[
-					'name' => 'Parent1'
+					'name' => 'Parent for 2 levels of child services'
 				]
 			]
 		];
@@ -1230,7 +1107,7 @@ class testFormServicesServices extends CWebTest {
 		return [
 			[
 				[
-					'parent' => 'Parent3 with problem tags',
+					'parent' => 'Service with problem tags',
 					'enabled' => false
 				]
 			],
@@ -1238,17 +1115,17 @@ class testFormServicesServices extends CWebTest {
 				[
 					'expected' => TEST_BAD,
 					'circular' => true,
-					'parent' => 'Child3',
+					'parent' => 'Child 2',
 					'fields' => [
 						'Name' => 'Circular dependency'
 					],
-					'Child services' => 'Parent2',
+					'Child services' => 'Parent for deletion from row',
 					'error' => 'Services form a circular dependency.'
 				]
 			],
 			[
 				[
-					'parent' => 'Parent5',
+					'parent' => 'Parent for child creation',
 					'fields' => [
 						'Name' => 'With parent without tags'
 					]
@@ -1279,7 +1156,7 @@ class testFormServicesServices extends CWebTest {
 			// Find necessary row and then find Add child button right in that row.
 			$table->findRow('Name', $data['parent'], true)->query('xpath:.//button[@title="Add child service"]')
 					->waitUntilClickable()->one()->click();
-			COverlayDialogElement::find()->one()->waitUntilReady();
+			$dialog = COverlayDialogElement::find()->one()->waitUntilReady();
 			$form = $this->query('id:service-form')->asForm()->one()->waitUntilReady();
 			$form->fill($data['fields']);
 
@@ -1305,6 +1182,8 @@ class testFormServicesServices extends CWebTest {
 		if ($expected === TEST_BAD) {
 			$this->assertMessage(TEST_BAD, null, $data['error']);
 			$this->assertEquals($old_hash, CDBHelper::getHash(self::$service_sql));
+
+			$dialog->close();
 		}
 		else {
 			$this->assertMessage(TEST_GOOD, 'Service created');
@@ -1325,7 +1204,7 @@ class testFormServicesServices extends CWebTest {
 					->waitUntilClickable()->one()->click();
 			$table->findRow('Name', $data['fields']['Name'])->query(self::EDIT_BUTTON_PATH)->waitUntilClickable()
 					->one()->click();
-			COverlayDialogElement::find()->one()->waitUntilReady();
+			$dialog = COverlayDialogElement::find()->one()->waitUntilReady();
 			$form = $this->query('id:service-form')->asForm()->one();
 
 			// Check that all form fields were saved correctly.
@@ -1333,19 +1212,20 @@ class testFormServicesServices extends CWebTest {
 
 			// Check parent field separately, because it was not present in data[fields] array.
 			$this->assertEquals([$data['parent']], $form->getField('Parent services')->getValue());
+			$dialog->close();
 		}
 	}
 
 	public function testFormServicesServices_DeleteChild() {
-		$parent = 'Parent2';
-		$child = 'Child3';
+		$parent = 'Parent for deletion from row';
+		$child = 'Child 2';
 
 		$this->page->login()->open('zabbix.php?action=service.list.edit');
 		$table = $this->query('class:list-table')->asTable()->one()->waitUntilReady();
 		$table->findRow('Name', $parent, true)->query('link', $parent)->waitUntilClickable()->one()->click();
 
-		$this->query('id:tab_info')->one()->waitUntilVisible()->query('xpath:.//button[contains(@class, "btn-edit")]')
-				->one()->waitUntilClickable()->click();
+		$this->query('id:tab_info')->one()->waitUntilVisible()->query("xpath:.//button[".
+				CXPathHelper::fromClass('js-edit-service')."]")->one()->waitUntilClickable()->click();
 
 		$form = COverlayDialogElement::find()->waitUntilReady()->asForm()->one();
 		$form->selectTab('Child services');
@@ -1361,7 +1241,7 @@ class testFormServicesServices extends CWebTest {
 
 		$this->assertMessage(TEST_GOOD, 'Service updated');
 
-		// Check "No data found." text in table under Parent.
+		// Check "No data found" text in table under Parent.
 		$this->assertTableData([]);
 
 		foreach ([$parent, $child] as $name) {
@@ -1370,19 +1250,20 @@ class testFormServicesServices extends CWebTest {
 
 		// Check that service linking is disappeared from DB.
 		$this->assertEquals(0, CDBHelper::getCount('SELECT * FROM services_links WHERE serviceupid='.
-				self::$parentid.' AND servicedownid ='.self::$childid)
+				zbx_dbstr(self::$serviceids['Parent for deletion from row']).' AND servicedownid ='.
+				zbx_dbstr(self::$serviceids['Child 2']))
 		);
 	}
 
 	public function testFormServicesServices_DeleteParent() {
-		$parent = 'Parent4';
-		$child = 'Child4';
+		$parent = 'Parent for child deletion from row';
+		$child = 'Child 1';
 
 		$this->page->login()->open('zabbix.php?action=service.list.edit');
 		$table = $this->query('class:list-table')->asTable()->one()->waitUntilReady();
 		$table->findRow('Name', $parent, true)->query('link', $parent)->waitUntilClickable()->one()->click();
 		$this->page->waitUntilReady();
-		$table->findRow('Name', $child, true)->query('xpath:.//button[contains(@class, "btn-edit")]')
+		$table->findRow('Name', $child, true)->query("xpath:.//button[".CXPathHelper::fromClass('js-edit-service-list')."]")
 				->one()->waitUntilClickable()->click();
 
 		$form = COverlayDialogElement::find()->asForm()->one()->waitUntilReady();
@@ -1398,8 +1279,26 @@ class testFormServicesServices extends CWebTest {
 		}
 
 		$this->assertEquals(0, CDBHelper::getCount('SELECT * FROM services_links WHERE serviceupid='.
-				self::$parentid_2.' AND servicedownid ='.self::$childid_2)
+				zbx_dbstr(self::$serviceids['Parent for child deletion from row']).' AND servicedownid ='.
+				zbx_dbstr(self::$serviceids['Child 1']))
 		);
+	}
+
+	public function testFormServicesServices_DeleteService() {
+		$this->page->login()->open('zabbix.php?action=service.list.edit');
+		$table = $this->query('class:list-table')->asTable()->one()->waitUntilReady();
+		$table->findRow('Name', self::$delete_service)->query(self::EDIT_BUTTON_PATH)->waitUntilClickable()->one()->click();
+
+		$dialog = COverlayDialogElement::find()->waitUntilReady()->one();
+		$dialog->query('button:Delete')->waitUntilClickable()->one()->click();
+		$this->page->acceptAlert();
+		$dialog->ensureNotPresent();
+
+		$this->page->waitUntilReady();
+		$this->assertMessage(TEST_GOOD, 'Service deleted');
+		$this->assertFalse($this->query('link', self::$delete_service)->one(false)->isValid());
+
+		$this->assertEquals(0, CDBHelper::getCount('SELECT * FROM services WHERE name='.zbx_dbstr(self::$delete_service)));
 	}
 
 	/**

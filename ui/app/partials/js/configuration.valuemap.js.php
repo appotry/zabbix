@@ -1,33 +1,29 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
 /**
  * @var CPartial $this
+ * @var array    $data
  */
 ?>
 
 <script type="text/javascript">
 (() => {
-	document.querySelectorAll('#valuemap-table .element-table-add').forEach((elm) => elm.addEventListener('click',
-		(event) => openAddPopup(event))
+	document.querySelectorAll(`#${'<?= $data['table_id'] ?>'} .element-table-add`).forEach((element) =>
+		element.addEventListener('click', (event) => openAddPopup(event))
 	);
 
 	function openAddPopup(event) {
@@ -35,7 +31,7 @@
 		let valuemap_table = event.target.closest('table');
 
 		valuemap_table.querySelectorAll('[name$="[name]"]').forEach((elm) => valuemap_names.push(elm.value));
-		PopUp('popup.valuemap.edit', {valuemap_names}, {trigger_element: event.target});
+		PopUp('popup.valuemap.edit', {valuemap_names}, {dialogue_class: 'modal-popup-generic'});
 	}
 })();
 </script>
@@ -66,19 +62,19 @@ var AddValueMap = class {
 
 	render(edit) {
 		if (edit instanceof Element) {
-			return edit.replaceWith(this.row);
+			edit.replaceWith(this.row);
+			this.row.querySelector(`input[value="${this.data.name}"] ~ a`).focus();
 		}
-
-		return document
-			.querySelector('#valuemap-table tbody')
-			.append(this.row);
+		else {
+			document.querySelector(`#${'<?= $data['table_id'] ?>'} tbody`).append(this.row);
+		}
 	}
 
 	createNameCell() {
 		const cell = document.createElement('td');
 		const link = document.createElement('a');
 		link.textContent = this.data.name;
-		link.classList.add('wordwrap');
+		link.classList.add('wordbreak');
 		link.href = 'javascript:void(0);';
 		link.addEventListener('click', (e) => {
 			const valuemap_names = [];
@@ -89,7 +85,9 @@ var AddValueMap = class {
 					valuemap_names.push(element.value);
 				}
 			});
-			PopUp('popup.valuemap.edit', {...this.data, valuemap_names, edit: 1}, {trigger_element: e.target});
+			PopUp('popup.valuemap.edit', {...this.data, valuemap_names, edit: 1},
+				{dialogue_class: 'modal-popup-generic'}
+			);
 		});
 
 		cell.appendChild(this.createHiddenInput('[name]', this.data.name));
@@ -122,7 +120,7 @@ var AddValueMap = class {
 		hellip.innerHTML = '&hellip;';
 		arrow_cell.textContent = '⇒';
 		mappings_table.classList.add('mappings-table');
-		cell.classList.add('wordwrap');
+		cell.classList.add('wordbreak');
 
 		for (let mapping of this.data.mappings) {
 			mapping = {value: '', ...mapping};

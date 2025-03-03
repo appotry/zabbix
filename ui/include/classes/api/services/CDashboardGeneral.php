@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -33,7 +28,10 @@ abstract class CDashboardGeneral extends CApiService {
 		ZBX_WIDGET_FIELD_TYPE_GRAPH_PROTOTYPE => 'value_graphid',
 		ZBX_WIDGET_FIELD_TYPE_MAP => 'value_sysmapid',
 		ZBX_WIDGET_FIELD_TYPE_SERVICE => 'value_serviceid',
-		ZBX_WIDGET_FIELD_TYPE_SLA => 'value_slaid'
+		ZBX_WIDGET_FIELD_TYPE_SLA => 'value_slaid',
+		ZBX_WIDGET_FIELD_TYPE_USER => 'value_userid',
+		ZBX_WIDGET_FIELD_TYPE_ACTION => 'value_actionid',
+		ZBX_WIDGET_FIELD_TYPE_MEDIA_TYPE => 'value_mediatypeid'
 	];
 
 	protected const WIDGET_FIELD_TYPE_COLUMNS = [
@@ -225,7 +223,7 @@ abstract class CDashboardGeneral extends CApiService {
 					$options = [
 						'output' => ['widget_fieldid', 'widgetid', 'type', 'name', 'value_int', 'value_str',
 							'value_groupid', 'value_hostid', 'value_itemid', 'value_graphid', 'value_serviceid',
-							'value_slaid', 'value_sysmapid'
+							'value_slaid', 'value_userid', 'value_actionid', 'value_mediatypeid', 'value_sysmapid'
 						],
 						'filter' => ['widgetid' => $widgetids]
 					];
@@ -307,7 +305,7 @@ abstract class CDashboardGeneral extends CApiService {
 	 *
 	 * @throws APIException if the input is invalid.
 	 */
-	protected function checkWidgets(array $dashboards, array $db_dashboards = null): void {
+	protected function checkWidgets(array $dashboards, ?array $db_dashboards = null): void {
 		$widget_defaults = DB::getDefaults('widget');
 
 		foreach ($dashboards as $dashboard) {
@@ -366,7 +364,7 @@ abstract class CDashboardGeneral extends CApiService {
 	 *
 	 * @throws APIException if the input is invalid.
 	 */
-	protected function checkWidgetFields(array $dashboards, array $db_dashboards = null): void {
+	protected function checkWidgetFields(array $dashboards, ?array $db_dashboards = null): void {
 		$ids = [
 			ZBX_WIDGET_FIELD_TYPE_ITEM => [],
 			ZBX_WIDGET_FIELD_TYPE_ITEM_PROTOTYPE => [],
@@ -376,7 +374,10 @@ abstract class CDashboardGeneral extends CApiService {
 			ZBX_WIDGET_FIELD_TYPE_HOST => [],
 			ZBX_WIDGET_FIELD_TYPE_MAP => [],
 			ZBX_WIDGET_FIELD_TYPE_SERVICE => [],
-			ZBX_WIDGET_FIELD_TYPE_SLA => []
+			ZBX_WIDGET_FIELD_TYPE_SLA => [],
+			ZBX_WIDGET_FIELD_TYPE_USER => [],
+			ZBX_WIDGET_FIELD_TYPE_ACTION => [],
+			ZBX_WIDGET_FIELD_TYPE_MEDIA_TYPE => []
 		];
 
 		foreach ($dashboards as $dashboard) {
@@ -632,6 +633,60 @@ abstract class CDashboardGeneral extends CApiService {
 				}
 			}
 		}
+
+		if ($ids[ZBX_WIDGET_FIELD_TYPE_USER]) {
+			$userids = array_keys($ids[ZBX_WIDGET_FIELD_TYPE_USER]);
+
+			$db_users = API::User()->get([
+				'output' => [],
+				'userids' => $userids,
+				'preservekeys' => true
+			]);
+
+			foreach ($userids as $userid) {
+				if (!array_key_exists($userid, $db_users)) {
+					self::exception(ZBX_API_ERROR_PARAMETERS,
+						_s('User with ID "%1$s" is not available.', $userid)
+					);
+				}
+			}
+		}
+
+		if ($ids[ZBX_WIDGET_FIELD_TYPE_ACTION]) {
+			$actionids = array_keys($ids[ZBX_WIDGET_FIELD_TYPE_ACTION]);
+
+			$db_actions = API::Action()->get([
+				'output' => [],
+				'actionids' => $actionids,
+				'preservekeys' => true
+			]);
+
+			foreach ($actionids as $actionid) {
+				if (!array_key_exists($actionid, $db_actions)) {
+					self::exception(ZBX_API_ERROR_PARAMETERS,
+						_s('Action with ID "%1$s" is not available.', $actionid)
+					);
+				}
+			}
+		}
+
+		if ($ids[ZBX_WIDGET_FIELD_TYPE_MEDIA_TYPE]) {
+			$mediatypeids = array_keys($ids[ZBX_WIDGET_FIELD_TYPE_MEDIA_TYPE]);
+
+			$db_media_types = API::MediaType()->get([
+				'output' => [],
+				'mediatypeids' => $mediatypeids,
+				'preservekeys' => true
+			]);
+
+			foreach ($mediatypeids as $mediatypeid) {
+				if (!array_key_exists($mediatypeid, $db_media_types)) {
+					self::exception(ZBX_API_ERROR_PARAMETERS,
+						_s('Media type with ID "%1$s" is not available.', $mediatypeid)
+					);
+				}
+			}
+		}
 	}
 
 	/**
@@ -642,7 +697,7 @@ abstract class CDashboardGeneral extends CApiService {
 	 * @param array      $dashboards
 	 * @param array|null $db_dashboards
 	 */
-	protected function updatePages(array &$dashboards, array $db_dashboards = null): void {
+	protected function updatePages(array &$dashboards, ?array $db_dashboards = null): void {
 		$db_dashboard_pages = [];
 
 		if ($db_dashboards !== null) {
@@ -722,7 +777,7 @@ abstract class CDashboardGeneral extends CApiService {
 	 * @param array      $dashboards
 	 * @param array|null $db_dashboards
 	 */
-	protected function updateWidgets(array &$dashboards, array $db_dashboards = null): void {
+	protected function updateWidgets(array &$dashboards, ?array $db_dashboards = null): void {
 		$db_widgets = [];
 
 		if ($db_dashboards !== null) {
@@ -823,7 +878,7 @@ abstract class CDashboardGeneral extends CApiService {
 	 * @param array      $dashboards
 	 * @param array|null $db_dashboards
 	 */
-	protected function updateWidgetFields(array &$dashboards, array $db_dashboards = null): void {
+	protected function updateWidgetFields(array &$dashboards, ?array $db_dashboards = null): void {
 		$ins_widget_fields = [];
 		$upd_widget_fields = [];
 		$del_widget_fieldids = [];
@@ -950,8 +1005,6 @@ abstract class CDashboardGeneral extends CApiService {
 	 *   - web.dashboard.widget.navtree.item.selected
 	 *   - web.dashboard.widget.navtree.item-*.toggle
 	 *
-	 * @static
-	 *
 	 * @param array $widgetids
 	 */
 	protected static function deleteWidgets(array $widgetids): void {
@@ -1013,7 +1066,7 @@ abstract class CDashboardGeneral extends CApiService {
 						$db_widget_fields = DB::select('widget_field', [
 							'output' => ['widget_fieldid', 'widgetid', 'type', 'name', 'value_int', 'value_str',
 								'value_groupid', 'value_hostid', 'value_itemid', 'value_graphid', 'value_serviceid',
-								'value_slaid', 'value_sysmapid'
+								'value_slaid', 'value_userid', 'value_actionid', 'value_mediatypeid', 'value_sysmapid'
 							],
 							'filter' => [
 								'widgetid' => array_keys($db_widgets),

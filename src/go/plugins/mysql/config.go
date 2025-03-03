@@ -1,27 +1,25 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 package mysql
 
 import (
-	"git.zabbix.com/ap/plugin-support/conf"
-	"git.zabbix.com/ap/plugin-support/plugin"
+	"path/filepath"
+
+	"golang.zabbix.com/sdk/conf"
+	"golang.zabbix.com/sdk/errs"
+	"golang.zabbix.com/sdk/plugin"
 )
 
 // Session is a general structure for storing sessions' configuration.
@@ -35,7 +33,7 @@ type Session struct {
 	TLSKeyFile  string `conf:"name=TLSKeyFile,optional"`
 }
 
-// PluginOptions option from config file
+// PluginOptions option from config file.
 type PluginOptions struct {
 	// Timeout is the maximum time in seconds for waiting when a connection has to be established.
 	// Default value equals to the global timeout.
@@ -50,14 +48,25 @@ type PluginOptions struct {
 
 	// Sessions stores pre-defined named sets of connections settings.
 	Sessions map[string]Session `conf:"optional"`
+
+	// CustomQueriesPath is a full pathname of a directory containing *.sql files with custom queries.
+	CustomQueriesPath string `conf:"optional"`
+
+	// CustomQueriesEnabled disabled or enabled custom query functionality.
+	CustomQueriesEnabled bool `conf:"optional,default=false"`
+
+	// Default stores default connection parameter values from configuration file
+	Default Session `conf:"optional"`
 }
 
 // Configure implements the Configurator interface.
 // Initializes configuration structures.
-func (p *Plugin) Configure(global *plugin.GlobalOptions, options interface{}) {
-	if err := conf.Unmarshal(options, &p.options); err != nil {
+func (p *Plugin) Configure(global *plugin.GlobalOptions, options any) {
+	if err := conf.UnmarshalStrict(options, &p.options); err != nil {
 		p.Errf("cannot unmarshal configuration options: %s", err)
 	}
+
+	p.options.setCustomQueriesPathDefault()
 
 	if p.options.Timeout == 0 {
 		p.options.Timeout = global.Timeout
@@ -73,5 +82,14 @@ func (p *Plugin) Configure(global *plugin.GlobalOptions, options interface{}) {
 func (p *Plugin) Validate(options interface{}) error {
 	var opts PluginOptions
 
-	return conf.Unmarshal(options, &opts)
+	err := conf.UnmarshalStrict(options, &opts)
+	if err != nil {
+		return errs.Wrap(err, "failed to unmarshal configuration options")
+	}
+
+	if opts.CustomQueriesEnabled && opts.CustomQueriesPath != "" && !filepath.IsAbs(opts.CustomQueriesPath) {
+		return errs.Errorf("opto.CustomQueriesPath path: '%s' must be absolute", opts.CustomQueriesPath)
+	}
+
+	return nil
 }

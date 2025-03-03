@@ -1,4 +1,5 @@
 SUBDIRS = \
-	preprocessor \
+	pinger \
 	service \
-	trapper
+	trapper \
+	lld

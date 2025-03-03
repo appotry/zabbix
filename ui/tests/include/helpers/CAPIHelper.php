@@ -1,23 +1,18 @@
 <?php
-
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
+
 
 require_once 'vendor/autoload.php';
 
@@ -46,14 +41,18 @@ class CAPIHelper {
 	/**
 	 * Make API call.
 	 *
-	 * @param mixed $data     string containing request data as json.
+	 * @param mixed  $data       String containing request data as json.
+	 * @param string $sessionid  Authorization token.
 	 *
 	 * @return array
 	 *
 	 * @throws Exception      if API call fails.
 	 */
-	public static function callRaw($data) {
+	public static function callRaw($data, ?string $sessionid = null) {
 		global $URL;
+		if (!is_string($URL)) {
+			$URL = PHPUNIT_URL.'api_jsonrpc.php';
+		}
 
 		if (is_array($data)) {
 			$data = json_encode($data);
@@ -75,12 +74,17 @@ class CAPIHelper {
 			]
 		];
 
-		$handle = fopen($URL, 'rb', false, stream_context_create($params));
+		if ($sessionid !== null) {
+			$params['http']['header'][] = 'Authorization: Bearer '.$sessionid;
+		}
+
+		$handle = @fopen($URL, 'rb', false, stream_context_create($params));
 		if ($handle) {
 			$response = @stream_get_contents($handle);
 			fclose($handle);
 		}
 		else {
+			$php_errormsg = CTestArrayHelper::get(error_get_last(), 'message');
 			$response = false;
 		}
 
@@ -115,18 +119,12 @@ class CAPIHelper {
 	 * @return array
 	 */
 	public static function call($method, $params) {
-		$data = [
+		return static::callRaw([
 			'jsonrpc' => '2.0',
 			'method' => $method,
 			'params' => $params,
 			'id' => static::$request_id
-		];
-
-		if (static::$session) {
-			$data['auth'] = static::$session;
-		}
-
-		return static::callRaw($data);
+		], static::$session);
 	}
 
 	/**
@@ -147,7 +145,10 @@ class CAPIHelper {
 	public static function createSessionId($userid = 1, $sessionid = '09e7d4286dfdca4ba7be15e0f3b2b55a') {
 		if (!CDBHelper::getRow('select null from sessions where status=0 and userid='.zbx_dbstr($userid).
 				' and sessionid='.zbx_dbstr($sessionid))) {
-			DBexecute('insert into sessions (sessionid, userid) values ('.zbx_dbstr($sessionid).', '.$userid.')');
+			$secret = bin2hex(random_bytes(16));
+			DBexecute('INSERT INTO sessions (sessionid,userid,secret)'.
+				' VALUES ('.zbx_dbstr($sessionid).','.$userid.','.zbx_dbstr($secret).')'
+			);
 		}
 
 		static::$session = $sessionid;

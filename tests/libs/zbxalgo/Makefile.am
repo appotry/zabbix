@@ -1,8 +1,15 @@
+include ../Makefile.include
+
 if SERVER
 SERVER_tests = \
-	evaluate \
-	evaluate_unknown \
-	queue
+	queue \
+	zbx_list \
+	zbx_int128 \
+	zbx_mode_code \
+	zbx_binary_heap \
+	zbx_binary_heap_direct \
+	zbx_compare_tags_natural \
+	zbx_vector
 endif
 
 noinst_PROGRAMS = $(SERVER_tests)
@@ -11,112 +18,134 @@ if SERVER
 COMMON_SRC_FILES = \
 	../../zbxmocktest.h
 
-COMMON_LIB_FILES = \
-	$(top_srcdir)/src/zabbix_server/alerter/libzbxalerter.a \
-	$(top_srcdir)/src/zabbix_server/dbsyncer/libzbxdbsyncer.a \
-	$(top_srcdir)/src/zabbix_server/dbconfig/libzbxdbconfig.a \
-	$(top_srcdir)/src/zabbix_server/discoverer/libzbxdiscoverer.a \
-	$(top_srcdir)/src/zabbix_server/pinger/libzbxpinger.a \
-	$(top_srcdir)/src/zabbix_server/poller/libzbxpoller.a \
-	$(top_srcdir)/src/zabbix_server/housekeeper/libzbxhousekeeper.a \
-	$(top_srcdir)/src/zabbix_server/timer/libzbxtimer.a \
-	$(top_srcdir)/src/zabbix_server/trapper/libzbxtrapper.a \
-	$(top_srcdir)/src/zabbix_server/snmptrapper/libzbxsnmptrapper.a \
-	$(top_srcdir)/src/zabbix_server/httppoller/libzbxhttppoller.a \
-	$(top_srcdir)/src/zabbix_server/escalator/libzbxescalator.a \
-	$(top_srcdir)/src/zabbix_server/proxypoller/libzbxproxypoller.a \
-	$(top_srcdir)/src/zabbix_server/selfmon/libzbxselfmon.a \
-	$(top_srcdir)/src/zabbix_server/vmware/libzbxvmware.a \
-	$(top_srcdir)/src/zabbix_server/taskmanager/libzbxtaskmanager.a \
-	$(top_srcdir)/src/zabbix_server/ipmi/libipmi.a \
-	$(top_srcdir)/src/zabbix_server/odbc/libzbxodbc.a \
-	$(top_srcdir)/src/zabbix_server/scripts/libzbxscripts.a \
-	$(top_srcdir)/src/libs/zbxxml/libzbxxml.a \
-	$(top_srcdir)/src/zabbix_server/preprocessor/libpreprocessor.a \
-	$(top_srcdir)/src/libs/zbxsysinfo/libzbxserversysinfo.a \
-	$(top_srcdir)/src/libs/zbxsysinfo/simple/libsimplesysinfo.a \
-	$(top_srcdir)/src/libs/zbxserver/libzbxserver.a \
-	$(top_srcdir)/src/libs/zbxsysinfo/libzbxserversysinfo.a \
-	$(top_srcdir)/src/libs/zbxsysinfo/common/libcommonsysinfo.a \
-	$(top_srcdir)/src/libs/zbxsysinfo/simple/libsimplesysinfo.a \
-	$(top_srcdir)/src/libs/zbxdbcache/libzbxdbcache.a \
-	$(top_srcdir)/src/libs/zbxshmem/libzbxshmem.a \
-	$(top_srcdir)/src/libs/zbxregexp/libzbxregexp.a \
-	$(top_srcdir)/src/libs/zbxself/libzbxself.a \
+ALGO_LIBS = \
 	$(top_srcdir)/src/libs/zbxalgo/libzbxalgo.a \
-	$(top_srcdir)/src/libs/zbxconf/libzbxconf.a \
-	$(top_srcdir)/src/libs/zbxmedia/libzbxmedia.a \
 	$(top_srcdir)/src/libs/zbxcommon/libzbxcommon.a \
-	$(top_srcdir)/src/libs/zbxnix/libzbxnix.a \
-	$(top_srcdir)/src/libs/zbxhash/libzbxhash.a \
-	$(top_srcdir)/src/libs/zbxcrypto/libzbxcrypto.a \
-	$(top_srcdir)/src/libs/zbxcomms/libzbxcomms.a \
-	$(top_srcdir)/src/libs/zbxcompress/libzbxcompress.a \
-	$(top_srcdir)/src/libs/zbxcommon/libzbxcommon.a \
-	$(top_srcdir)/src/libs/zbxcrypto/libzbxcrypto.a \
-	$(top_srcdir)/src/libs/zbxcommshigh/libzbxcommshigh.a \
-	$(top_srcdir)/src/libs/zbxjson/libzbxjson.a \
-	$(top_srcdir)/src/libs/zbxvariant/libzbxvariant.a \
-	$(top_srcdir)/src/libs/zbxhttp/libzbxhttp.a \
-	$(top_srcdir)/src/libs/zbxipcservice/libzbxipcservice.a \
-	$(top_srcdir)/src/libs/zbxexec/libzbxexec.a \
-	$(top_srcdir)/src/libs/zbxicmpping/libzbxicmpping.a \
-	$(top_srcdir)/src/libs/zbxdbupgrade/libzbxdbupgrade.a \
-	$(top_srcdir)/src/libs/zbxdbhigh/libzbxdbhigh.a \
-	$(top_srcdir)/src/libs/zbxdb/libzbxdb.a \
-	$(top_srcdir)/src/libs/zbxmodules/libzbxmodules.a \
-	$(top_srcdir)/src/libs/zbxtasks/libzbxtasks.a \
-	$(top_srcdir)/src/libs/zbxlog/libzbxlog.a \
-	$(top_srcdir)/src/libs/zbxthreads/libzbxthreads.a \
-	$(top_srcdir)/src/libs/zbxmutexs/libzbxmutexs.a \
-	$(top_srcdir)/src/libs/zbxconf/libzbxconf.a \
-	$(top_srcdir)/src/libs/zbxhistory/libzbxhistory.a \
-	$(top_srcdir)/src/zabbix_server/libzbxserver.a \
-	$(top_srcdir)/tests/libzbxmocktest.a \
-	$(top_srcdir)/tests/libzbxmockdata.a \
-	$(top_srcdir)/src/libs/zbxalgo/libzbxalgo.a
+	$(MOCK_DATA_DEPS) \
+	$(MOCK_TEST_DEPS)
 
-COMMON_COMPILER_FLAGS = -I@top_srcdir@/tests
-
-evaluate_SOURCES = \
-	evaluate.c \
-	$(COMMON_SRC_FILES)
-
-evaluate_LDADD = \
-	$(COMMON_LIB_FILES)
-
-evaluate_LDADD += @SERVER_LIBS@
-
-evaluate_LDFLAGS = @SERVER_LDFLAGS@
-
-evaluate_CFLAGS = $(COMMON_COMPILER_FLAGS)
-
-
-evaluate_unknown_SOURCES = \
-	evaluate_unknown.c \
-	$(COMMON_SRC_FILES)
-
-evaluate_unknown_LDADD = \
-	$(COMMON_LIB_FILES)
-
-evaluate_unknown_LDADD += @SERVER_LIBS@
-
-evaluate_unknown_LDFLAGS = @SERVER_LDFLAGS@
-
-evaluate_unknown_CFLAGS = $(COMMON_COMPILER_FLAGS)
-
+COMMON_COMPILER_FLAGS = -I@top_srcdir@/tests $(CMOCKA_CFLAGS) $(YAML_CFLAGS)
 
 queue_SOURCES = \
 	queue.c \
 	$(COMMON_SRC_FILES)
 
 queue_LDADD = \
-	$(COMMON_LIB_FILES)
+	$(ALGO_LIBS)
 
 queue_LDADD += @SERVER_LIBS@
 
-queue_LDFLAGS = @SERVER_LDFLAGS@
+queue_LDFLAGS = @SERVER_LDFLAGS@ $(CMOCKA_LDFLAGS) $(YAML_LDFLAGS)
 
 queue_CFLAGS = $(COMMON_COMPILER_FLAGS)
+
+#zbx_list
+
+zbx_list_SOURCES = \
+	zbx_list.c \
+	zbx_algo_common.c \
+	$(COMMON_SRC_FILES)
+
+zbx_list_LDADD = \
+	$(ALGO_LIBS)
+
+zbx_list_LDADD += @SERVER_LIBS@
+
+zbx_list_LDFLAGS = @SERVER_LDFLAGS@
+
+zbx_list_CFLAGS = $(COMMON_COMPILER_FLAGS)
+
+#zbx_int128
+
+zbx_int128_SOURCES = \
+	zbx_int128.c \
+	$(COMMON_SRC_FILES)
+
+zbx_int128_LDADD = \
+	$(ALGO_LIBS)
+
+zbx_int128_LDADD += @SERVER_LIBS@
+
+zbx_int128_LDFLAGS = @SERVER_LDFLAGS@
+
+zbx_int128_CFLAGS = $(COMMON_COMPILER_FLAGS)
+
+#zbx_mode_code
+
+zbx_mode_code_SOURCES = \
+	zbx_mode_code.c \
+	$(COMMON_SRC_FILES)
+
+zbx_mode_code_LDADD = \
+	$(ALGO_LIBS)
+
+zbx_mode_code_LDADD += @SERVER_LIBS@
+
+zbx_mode_code_LDFLAGS = @SERVER_LDFLAGS@
+
+zbx_mode_code_CFLAGS = $(COMMON_COMPILER_FLAGS)
+
+#zbx_binary_heap
+
+zbx_binary_heap_SOURCES = \
+	zbx_binary_heap.c \
+	zbx_algo_common.c \
+	$(COMMON_SRC_FILES)
+
+zbx_binary_heap_LDADD = \
+	$(ALGO_LIBS)
+
+zbx_binary_heap_LDADD += @SERVER_LIBS@
+
+zbx_binary_heap_LDFLAGS = @SERVER_LDFLAGS@
+
+zbx_binary_heap_CFLAGS = $(COMMON_COMPILER_FLAGS)
+
+#zbx_binary_heap_direct
+
+zbx_binary_heap_direct_SOURCES = \
+	zbx_binary_heap_direct.c \
+	zbx_algo_common.c \
+	$(COMMON_SRC_FILES)
+
+zbx_binary_heap_direct_LDADD = \
+	$(ALGO_LIBS)
+
+zbx_binary_heap_direct_LDADD += @SERVER_LIBS@
+
+zbx_binary_heap_direct_LDFLAGS = @SERVER_LDFLAGS@
+
+zbx_binary_heap_direct_CFLAGS = $(COMMON_COMPILER_FLAGS)
+
+#zbx_compare_tags_natural
+
+zbx_compare_tags_natural_SOURCES = \
+	zbx_compare_tags_natural.c \
+	$(COMMON_SRC_FILES)
+
+zbx_compare_tags_natural_LDADD = \
+	$(ALGO_LIBS)
+
+zbx_compare_tags_natural_LDADD += @SERVER_LIBS@
+
+zbx_compare_tags_natural_LDFLAGS = @SERVER_LDFLAGS@
+
+zbx_compare_tags_natural_CFLAGS = $(COMMON_COMPILER_FLAGS)
+
+#zbx_vector
+
+zbx_vector_SOURCES = \
+	zbx_vector.c \
+	$(COMMON_SRC_FILES)
+
+zbx_vector_LDADD = \
+	$(ALGO_LIBS)
+
+zbx_vector_LDADD += @SERVER_LIBS@
+
+zbx_vector_LDFLAGS = @SERVER_LDFLAGS@
+
+zbx_vector_CFLAGS = $(COMMON_COMPILER_FLAGS)
+
 
 endif

@@ -1,21 +1,16 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -43,7 +38,7 @@ $left_column = (new CFormList())
 					'srcfld1' => 'groupid',
 					'dstfrm' => 'zbx_filter',
 					'dstfld1' => 'groupids_',
-					'real_hosts' => true,
+					'with_hosts' => true,
 					'enrich_parent_groups' => true
 				]
 			]
@@ -57,8 +52,9 @@ $left_column = (new CFormList())
 			'object_name' => 'hosts',
 			'data' => array_key_exists('hosts', $data) ? $data['hosts'] : [],
 			'popup' => [
-				'filter_preselect_fields' => [
-					'hostgroups' => 'groupids_'
+				'filter_preselect' => [
+					'id' => 'groupids_',
+					'submit_as' => 'groupid'
 				],
 				'parameters' => [
 					'srctbl' => 'hosts',
@@ -77,8 +73,9 @@ $left_column = (new CFormList())
 			'object_name' => 'triggers',
 			'data' => array_key_exists('triggers', $data) ? $data['triggers'] : [],
 			'popup' => [
-				'filter_preselect_fields' => [
-					'hosts' => 'hostids_'
+				'filter_preselect' => [
+					'id' => 'hostids_',
+					'submit_as' => 'hostid'
 				],
 				'parameters' => [
 					'srctbl' => 'triggers',
@@ -99,9 +96,13 @@ $left_column = (new CFormList())
 			->setId('name_#{uniqid}')
 	)
 	->addRow(_('Severity'),
-		(new CSeverityCheckBoxList('severities'))
-			->setChecked($data['severities'])
+		(new CCheckBoxList('severities'))
 			->setUniqid('#{uniqid}')
+			->setOptions(CSeverityHelper::getSeverities())
+			->setChecked($data['severities'])
+			->setColumns(3)
+			->setVertical()
+			->showTitles()
 	);
 
 $filter_age = (new CNumericBox('age', $data['age'], 3, false, false, false))
@@ -117,15 +118,48 @@ $left_column
 			->setChecked($data['age_state'] == 1)
 			->setUncheckedValue(0)
 			->setId('age_state_#{uniqid}'),
-		(new CDiv())->addClass(ZBX_STYLE_FORM_INPUT_MARGIN),
 		$filter_age,
 		(new CDiv())->addClass(ZBX_STYLE_FORM_INPUT_MARGIN),
 		_('days')
-	]);
+	])
+	->addRow(_('Show symptoms'), [
+		(new CCheckBox('show_symptoms'))
+			->setChecked($data['show_symptoms'] == 1)
+			->setUncheckedValue(0)
+			->setId('show_symptoms_#{uniqid}')
+	])
+	->addRow(_('Show suppressed problems'), [
+		(new CCheckBox('show_suppressed'))
+			->setChecked($data['show_suppressed'] == ZBX_PROBLEM_SUPPRESSED_TRUE)
+			->setUncheckedValue(0)
+			->setId('show_suppressed_#{uniqid}')
+	])
+	->addRow(
+		_('Acknowledgement status'),
+		(new CHorList())
+			->addItem((new CRadioButtonList('acknowledgement_status', (int) $data['acknowledgement_status']))
+				->addValue(_('All'), ZBX_ACK_STATUS_ALL, 'acknowledgement_status_0_#{uniqid}')
+				->addValue(_('Unacknowledged'), ZBX_ACK_STATUS_UNACK, 'acknowledgement_status_1_#{uniqid}')
+				->addValue(_('Acknowledged'), ZBX_ACK_STATUS_ACK, 'acknowledgement_status_2_#{uniqid}')
+				->setModern(true)
+			)
+			->addItem((new CCheckBox('acknowledged_by_me', 1))
+				->setLabelPosition(CCheckBox::LABEL_POSITION_LEFT)
+				->setChecked($data['acknowledged_by_me'] == 1)
+				->setUncheckedValue(0)
+				->setLabel(_('By me'))
+				->setId('acknowledged_by_me_#{uniqid}')
+			)
+	);
 
-$filter_inventory_table = new CTable();
-$filter_inventory_table->setId('filter-inventory_#{uniqid}');
+$filter_inventory_table = (new CTable())->setId('filter-inventory_#{uniqid}');
+
 $inventories = array_column(getHostInventories(), 'title', 'db_field');
+
+if(!$data['inventory']) {
+	$data['inventory'] = [['field' => '', 'value' => '']];
+}
+
 $i = 0;
 foreach ($data['inventory'] as $field) {
 	$filter_inventory_table->addRow([
@@ -163,6 +197,10 @@ $filter_tags_table->addRow(
 			->setId('evaltype_#{uniqid}')
 	))->setColSpan(4)
 );
+
+if(!$data['tags']) {
+	$data['tags'] = [['tag' => '', 'value' => '', 'operator' => TAG_OPERATOR_LIKE]];
+}
 
 $i = 0;
 foreach ($data['tags'] as $tag) {
@@ -245,20 +283,7 @@ $right_column = (new CFormList())
 			->setEnabled($data['compact_view'] == 0)
 			->removeId()
 	])
-	->addRow(_('Show suppressed problems'), [
-		(new CCheckBox('show_suppressed'))
-			->setChecked($data['show_suppressed'] == ZBX_PROBLEM_SUPPRESSED_TRUE)
-			->setUncheckedValue(0)
-			->setId('show_suppressed_#{uniqid}'),
-		(new CDiv([
-			(new CLabel(_('Show unacknowledged only'), 'unacknowledged_#{uniqid}'))
-				->addClass(ZBX_STYLE_SECOND_COLUMN_LABEL),
-			(new CCheckBox('unacknowledged'))
-				->setChecked($data['unacknowledged'] == 1)
-				->setUncheckedValue(0)
-				->setId('unacknowledged_#{uniqid}')
-		]))->addClass(ZBX_STYLE_TABLE_FORMS_SECOND_COLUMN)
-	])
+
 	->addRow(_('Compact view'), [
 		(new CCheckBox('compact_view'))
 			->setChecked($data['compact_view'] == 1)
@@ -267,7 +292,7 @@ $right_column = (new CFormList())
 		(new CDiv([
 			(new CLabel(_('Show timeline'), 'show_timeline_#{uniqid}'))->addClass(ZBX_STYLE_SECOND_COLUMN_LABEL),
 			(new CCheckBox('show_timeline'))
-				->setChecked($data['show_timeline'] == 1)
+				->setChecked($data['show_timeline'] == ZBX_TIMELINE_ON)
 				->setEnabled($data['compact_view'] == 0)
 				->setUncheckedValue(0)
 				->setId('show_timeline_#{uniqid}')
@@ -280,7 +305,7 @@ $right_column = (new CFormList())
 			->setUncheckedValue(0)
 			->setId('details_#{uniqid}'),
 		(new CDiv([
-			(new CLabel(_('Highlight whole row'), 'highlight_row'))->addClass(ZBX_STYLE_SECOND_COLUMN_LABEL),
+			(new CLabel(_('Highlight whole row'), 'highlight_row_#{uniqid}'))->addClass(ZBX_STYLE_SECOND_COLUMN_LABEL),
 			(new CCheckBox('highlight_row'))
 				->setChecked($data['highlight_row'] == 1)
 				->setEnabled($data['compact_view'] == 1)
@@ -299,11 +324,10 @@ $template = (new CDiv())
 		(new CDiv($right_column))->addClass(ZBX_STYLE_CELL)
 	]);
 $template = (new CForm('get'))
-	->cleanItems()
 	->setName('zbx_filter')
 	->addItem([
 		$template,
-		(new CSubmitButton(null))->addClass(ZBX_STYLE_DISPLAY_NONE),
+		(new CSubmitButton())->addClass(ZBX_STYLE_FORM_SUBMIT_HIDDEN),
 		(new CVar('filter_name', '#{filter_name}'))->removeId(),
 		(new CVar('filter_show_counter', '#{filter_show_counter}'))->removeId(),
 		(new CVar('filter_custom_time', '#{filter_custom_time}'))->removeId(),
@@ -322,12 +346,12 @@ if (array_key_exists('render_html', $data)) {
 	return;
 }
 
-(new CScriptTemplate('filter-monitoring-problem'))
+(new CTemplateTag('filter-monitoring-problem'))
 	->setAttribute('data-template', 'monitoring.problem.filter')
 	->addItem($template)
 	->show();
 
-(new CScriptTemplate('filter-inventory-row'))
+(new CTemplateTag('filter-inventory-row'))
 	->addItem(
 		(new CRow([
 			(new CSelect('inventory[#{rowNum}][field]'))
@@ -345,7 +369,7 @@ if (array_key_exists('render_html', $data)) {
 	)
 	->show();
 
-(new CScriptTemplate('filter-tag-row-tmpl'))
+(new CTemplateTag('filter-tag-row-tmpl'))
 	->addItem(
 		(new CRow([
 			(new CTextBox('tags[#{rowNum}][tag]', '#{tag}'))
@@ -370,7 +394,6 @@ if (array_key_exists('render_html', $data)) {
 				->setWidth(ZBX_TEXTAREA_FILTER_SMALL_WIDTH),
 			(new CCol(
 				(new CButton('tags[#{rowNum}][remove]', _('Remove')))
-					->removeId()
 					->addClass(ZBX_STYLE_BTN_LINK)
 					->addClass('element-table-remove')
 					->removeId()
@@ -388,9 +411,9 @@ if (array_key_exists('render_html', $data)) {
 		$('[name="filter_new"],[name="filter_update"]').hide()
 			.filter(data.filter_configurable ? '[name="filter_update"]' : '[name="filter_new"]').show();
 
-		let fields = ['show', 'name', 'tag_priority', 'show_opdata', 'show_suppressed', 'show_tags', 'unacknowledged',
-				'compact_view', 'show_timeline', 'details', 'highlight_row', 'age_state', 'age', 'tag_name_format',
-				'evaltype'
+		let fields = ['show', 'name', 'tag_priority', 'show_opdata', 'show_symptoms', 'show_suppressed', 'show_tags',
+				'acknowledgement_status', 'acknowledged_by_me', 'compact_view', 'show_timeline', 'details',
+				'highlight_row', 'age_state', 'age', 'tag_name_format', 'evaltype'
 			],
 			eventHandler = {
 				show: () => {
@@ -435,6 +458,18 @@ if (array_key_exists('render_html', $data)) {
 
 					$('[name="tag_priority"]', container).prop('disabled', disabled);
 					$('[name="tag_name_format"]', container).prop('disabled', disabled);
+				},
+				unack_by_me: () => {
+					const acknowledgement_status = container.querySelector('[name="acknowledgement_status"]:checked');
+					const disabled = acknowledgement_status.value != <?= ZBX_ACK_STATUS_ACK ?>;
+
+					if (disabled) {
+						container.querySelector('[name="acknowledged_by_me"]').disabled = true;
+						container.querySelector('[name="acknowledged_by_me"]').checked = false;
+					}
+					else {
+						container.querySelector('[name="acknowledged_by_me"]').disabled = false;
+					}
 				}
 			};
 
@@ -459,9 +494,12 @@ if (array_key_exists('render_html', $data)) {
 		}
 
 		// Inventory table.
-		if (data.inventory.length == 0) {
+		$('#filter-inventory_' + data.uniqid, container).find('.form_row').remove();
+
+		if (data.inventory.length === 0) {
 			data.inventory.push({'field': '', 'value': ''});
 		}
+
 		$('#filter-inventory_' + data.uniqid, container).dynamicRows({
 			template: '#filter-inventory-row',
 			rows: data.inventory,
@@ -469,8 +507,10 @@ if (array_key_exists('render_html', $data)) {
 		});
 
 		// Tags table.
-		if (data.tags.length == 0) {
-			data.tags.push({'tag': '', 'value': '', 'operator': <?= TAG_OPERATOR_LIKE ?>});
+		$('#filter-tags_' + data.uniqid, container).find('.form_row').remove();
+
+		if (data.tags.length === 0) {
+			data.tags.push({'tag': '', 'value': '', 'operator': <?= TAG_OPERATOR_LIKE ?>, uniqid: data.uniqid});
 		}
 
 		$('#filter-tags_' + data.uniqid, container)
@@ -500,7 +540,7 @@ if (array_key_exists('render_html', $data)) {
 			name: 'groupids[]',
 			data: data.filter_view_data.groups || [],
 			objectOptions: {
-				real_hosts: 1,
+				with_hosts: 1,
 				enrich_parent_groups: 1
 			},
 			popup: {
@@ -523,8 +563,9 @@ if (array_key_exists('render_html', $data)) {
 			name: 'hostids[]',
 			data: data.filter_view_data.hosts || [],
 			popup: {
-				filter_preselect_fields: {
-					hostgroups: 'groupids_' + data.uniqid
+				filter_preselect: {
+					id: 'groupids_' + data.uniqid,
+					submit_as: 'groupid'
 				},
 				parameters: {
 					multiselect: 1,
@@ -543,8 +584,9 @@ if (array_key_exists('render_html', $data)) {
 			name: 'triggerids[]',
 			data: data.filter_view_data.triggers || [],
 			popup: {
-				filter_preselect_fields: {
-					hosts: 'hostids_' + data.uniqid
+				filter_preselect: {
+					id: 'hostids_' + data.uniqid,
+					submit_as: 'hostid'
 				},
 				parameters: {
 					srctbl: 'triggers',
@@ -562,6 +604,7 @@ if (array_key_exists('render_html', $data)) {
 		$('[name="age_state"]').change(eventHandler.age_state).trigger('change');
 		$('[name="compact_view"]', container).change(eventHandler.compact_view).trigger('change');
 		$('[name="show_tags"]', container).change(eventHandler.show_tags).trigger('change');
+		$('[name="acknowledgement_status"]', container).change(eventHandler.unack_by_me).trigger('change');
 
 		// Initialize src_url.
 		this.resetUnsavedState();
