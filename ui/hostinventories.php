@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -28,10 +23,6 @@ $page['file'] = 'hostinventories.php';
 
 $hostId = getRequest('hostid', 0);
 
-if ($hostId > 0) {
-	$page['web_layout_mode'] = CViewHelper::loadLayoutMode();
-}
-
 require_once dirname(__FILE__).'/include/page_header.php';
 
 //		VAR			TYPE	OPTIONAL FLAGS	VALIDATION	EXCEPTION
@@ -43,7 +34,7 @@ $fields = [
 	'filter_field' =>		[T_ZBX_STR, O_OPT, null,	null,		null],
 	'filter_field_value' =>	[T_ZBX_STR, O_OPT, null,	null,		null],
 	'filter_exact' =>		[T_ZBX_INT, O_OPT, null,	'IN(0,1)',	null],
-	'filter_groups' =>		[T_ZBX_INT, O_OPT, null,	DB_ID,		null],
+	'filter_groups' =>		[T_ZBX_INT, O_OPT, P_ONLY_ARRAY,	DB_ID,	null],
 	// actions
 	'cancel' =>				[T_ZBX_STR, O_OPT, P_SYS,		null,	null],
 	// sort and sortorder
@@ -203,7 +194,7 @@ else {
 		$options = [
 			'output' => ['hostid', 'name', 'status'],
 			'selectInventory' => ['name', 'type', 'os', 'serialno_a', 'tag', 'macaddress_a', $data['filter']['field']],
-			'selectGroups' => API_OUTPUT_EXTEND,
+			'selectHostGroups' => ['name'],
 			'groupids' => $filter_groupids,
 			'filter' => ['inventory_mode' => [HOST_INVENTORY_MANUAL, HOST_INVENTORY_AUTOMATIC]]
 		];

@@ -8,19 +8,33 @@ You can extend it or create your template for your specific needs.
 
 ## Requirements
 * Zabbix Agent 2
-* Go >= 1.13 (required only to build from source)
+* Go >= 1.21 (required only to build from source)
 
 ## Supported versions
 * MySQL, version 5.7+
 * Percona, version 8.0+
 * MariaDB, version 10.4+
 
-## Installation
+## DB configuration
+The plugin requires a user with the following permissions.
+
+* MySQL (version 5.7), Percona (version 8.0), MariaDB (version 10.4).
+```
+CREATE USER 'zbx_monitor'@'%' IDENTIFIED BY '<password>';
+GRANT REPLICATION CLIENT, PROCESS, SHOW DATABASES, SHOW VIEW ON *.* TO 'zbx_monitor'@'%';
+```
+* MariaDB slave instance (version >= 10.5.8-5).
+```
+CREATE USER 'zbx_monitor'@'%' IDENTIFIED BY '<password>';
+GRANT REPLICATION CLIENT, PROCESS, SHOW DATABASES, SHOW VIEW, SLAVE MONITOR ON *.* TO 'zbx_monitor'@'%';
+```
+
+## Plugin Installation
 The plugin is supplied as part of the Zabbix Agent 2 and does not require any special installation steps. Once 
 Zabbix Agent 2 is installed, the plugin is ready to work. Now you need to make sure that a MySQL instance is 
 available for connection and configure monitoring.
 
-## Configuration
+## Plugin configuration
 Open the Zabbix Agent configuration file (zabbix_agent2.conf) and set the required parameters.
 
 **Plugins.Mysql.CallTimeout** — The maximum time in seconds for waiting when a request has to be done.  
@@ -30,6 +44,16 @@ Open the Zabbix Agent configuration file (zabbix_agent2.conf) and set the requir
 **Plugins.Mysql.Timeout** — The maximum time in seconds for waiting when a connection has to be established.  
 *Default value:* equals the global Timeout configuration parameter.    
 *Limits:* 1-30
+
+**Plugins.Mysql.CustomQueriesPath** — Full pathname of a directory containing *.sql* files with custom queries.  
+*Default value:*: `/usr/local/share/zabbix/custom-queries/mysql` for unix systems
+
+*Default value:* `*:\Program Files\Zabbix Agent 2\Custom Queries\Mysql` for windows systems,
+where * is drive name taken from `ProgramFiles` environment variable
+
+**Plugins.Mysql.CustomQueriesEnabled** — If set enables the execution of the `mysql.custom.query`item key.
+If disabled, will not load any queries from custom query dir path.
+*Default value:* false    
 
 **Plugins.Mysql.KeepAlive** — Sets a time for waiting before unused connections will be closed.  
 *Default value:* 300 sec.  
@@ -45,14 +69,13 @@ Open the Zabbix Agent configuration file (zabbix_agent2.conf) and set the requir
 **Plugins.Mysql.Sessions.<session_name>.TLSCertFile** — Full pathname of a file containing the mysql certificate or certificate chain.
 *Default value:* 
 
-**Plugins.Mysql.Sessions.*.TLSKeyFile** — Full pathname of a file containing the mysql private key.
+**Plugins.Mysql.Sessions.<session_name>.TLSKeyFile** — Full pathname of a file containing the mysql private key.
 *Default value:* 
 
 ### Configuring connection
 A connection can be configured using either keys' parameters or named sessions.     
 
 *Notes*:  
-* It is not possible to mix configuration using named sessions and keys' parameters simultaneously.
 * You can leave any connection parameter empty, a default hard-coded value will be used in the such case.
 * TLS information can be passed only with sessions.
 * Embedded URI credentials (userinfo) are forbidden and will be ignored. So, you can't pass the credentials by this:   
@@ -109,6 +132,11 @@ Then you will be able to use these names as the 1st parameter (ConnString) in ke
 *Note*: sessions names are case-sensitive.
   
 ## Supported keys
+**mysql.custom.query[\<commonParams\>,queryName[,args...]** — Returns the result of a custom query.
+*Parameters:*  
+queryName (required) — the name of a custom query (must be equal to the name of an *sql* file without an extension).
+args (optional) — one or more arguments to pass to a query.
+
 **mysql.db.discovery[\<commonParams\>]** — Returns list of databases in LLD format.
 
 **mysql.db.size[\<commonParams\>,database]** — Returns size of given database in bytes.  
@@ -122,11 +150,50 @@ database (required) — database name.
 
 **mysql.replication.discovery[\<commonParams\>]** — Returns replication information in LLD format.   
 
-**mysql.replication.get_slave_status[\<commonParams\>]** — Returns replication status.
+**mysql.replication.get_slave_status[\<commonParams\>,\<masterHost\>]** — Returns replication status.
+
+*Parameters:*  
+`masterHost` (optional) — the name of the master host.
 
 **mysql.get_status_variables[\<commonParams\>]** — Returns values of global status variables.
 
 **mysql.version[\<commonParams\>]** — Returns MySQL version.      
+
+## Custom queries
+
+It is possible to extend the functionality of the plugin using user-defined queries. In order to do it, you should place all your queries in a specified directory in `Plugins.Mysql.CustomQueriesPath` (there is no default path) as it is for *.sql* files.
+For example, you can have a following tree:
+
+    /etc/zabbix/mysql/sql/  
+    ├── long_tx.sql
+    ├── payment.sql    
+    └── top_proc.sql
+     
+Then, you should set `Plugins.Mysql.CustomQueriesPath=/etc/zabbix/mysql/sql`.
+     
+Finally, when the queries are located in the right place, you can execute them:
+
+    mysql.custom.query[<commonParams>,top_proc]  
+    mysql.custom.query[<commonParams>,long_tx,600]
+          
+You can pass as many parameters to a query as you need.   
+The syntax for the placeholder parameters uses "?" where "?" is the parameter in order as provided. 
+For example: 
+
+```
+/* payment.sql */
+
+SELECT 
+    amount 
+FROM 
+    payment 
+WHERE
+    user = ?
+    AND service_id = ?
+    AND date = ?
+``` 
+
+    mysql.custom.query[<commonParams>,payment,"John Doe",1,"10/25/2020"]
 
 ## Troubleshooting
 The plugin uses Zabbix agent's logs. You can increase debugging level of Zabbix Agent if you need more details about 

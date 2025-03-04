@@ -1,26 +1,21 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
 /**
- * A parser for time used in the time selector.
+ * A parser for absolute and relative time used in the date-time inputs.
  */
 class CRangeTimeParser extends CParser {
 
@@ -84,21 +79,20 @@ class CRangeTimeParser extends CParser {
 	}
 
 	/**
-	 * Timestamp is returned as initialized DateTime object. Returns null when timestamp is not valid.
+	 * Get DateTime object with its value set to either start or end of the period derived from the date/time specified.
 	 *
-	 * @param bool   $is_start  If set to true date will be modified to lowest value, example (now/w) will be returned
-	 *                          as Monday of this week. When set to false precisiion will modify date to highest value,
-	 *                          same example will return Sunday of this week.
+	 * @param bool              $is_start
+	 * @param DateTimeZone|null $timezone
 	 *
 	 * @return DateTime|null
 	 */
-	public function getDateTime($is_start) {
+	public function getDateTime(bool $is_start, ?DateTimeZone $timezone = null): ?DateTime {
 		switch ($this->time_type) {
 			case self::ZBX_TIME_ABSOLUTE:
-				return $this->absolute_time_parser->getDateTime($is_start);
+				return $this->absolute_time_parser->getDateTime($is_start, $timezone);
 
 			case self::ZBX_TIME_RELATIVE:
-				return $this->relative_time_parser->getDateTime($is_start);
+				return $this->relative_time_parser->getDateTime($is_start, $timezone);
 
 			default:
 				return null;

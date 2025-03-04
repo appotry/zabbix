@@ -1,20 +1,15 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2021 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -184,6 +179,7 @@ class ZSelect extends HTMLElement {
 
 		li._index = this._options_map.size;
 		li.setAttribute('value', value);
+		li.setAttribute('title', label.trim());
 		li.innerHTML = new Template(template || this._option_template).evaluate(
 			Object.assign({label: label.trim()}, extra || {})
 		);
@@ -205,6 +201,13 @@ class ZSelect extends HTMLElement {
 				set: (is_disabled) => {
 					option.is_disabled = is_disabled;
 					li.toggleAttribute('disabled', is_disabled);
+				}
+			},
+			hidden: {
+				set: (is_hidden) => {
+					option.disabled = is_hidden;
+					is_hidden ? li.setAttribute('disabled', 'disabled') : li.removeAttribute('disabled');
+					li.style.display = is_hidden ? 'none' : '';
 				}
 			}
 		}));
@@ -282,7 +285,13 @@ class ZSelect extends HTMLElement {
 	}
 
 	_expand() {
-		const {height: button_height, y: button_y, left: button_left} = this._button.getBoundingClientRect();
+		const {
+			width: button_width,
+			height: button_height,
+			y: button_y,
+			left: button_left,
+			right: button_right
+		} = this._button.getBoundingClientRect();
 		const {height: document_height} = document.body.getBoundingClientRect();
 
 		if (button_y + button_height < 0 && document_height - button_y < 0) {
@@ -300,6 +309,7 @@ class ZSelect extends HTMLElement {
 		const space_above = button_y;
 
 		this._list.style.left = `${button_left}px`;
+		this._list.style.minWidth = `${button_width}px`;
 		this._list.style.maxHeight = '';
 
 		if (space_below - list_height > offset_bottom || space_below > space_above) {
@@ -320,7 +330,14 @@ class ZSelect extends HTMLElement {
 				this._list.style.maxHeight = `${space_above - offset_top}px`;
 			}
 		}
-		this._list.style.width = `${this.scrollWidth}px`;
+
+		const screen_width = window.innerWidth;
+		const list_right_edge = this._list.offsetLeft + this._list.offsetWidth;
+
+		if (list_right_edge > screen_width) {
+			this._list.style.left = '';
+			this._list.style.right = `${screen_width - button_right}px`;
+		}
 
 		this._highlight(this._preselected_index);
 
@@ -470,7 +487,7 @@ class ZSelect extends HTMLElement {
 
 		container.remove();
 
-		return width;
+		return Math.min(width, 453);
 	}
 
 	_isVisible() {

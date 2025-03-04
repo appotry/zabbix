@@ -1,26 +1,21 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 require_once dirname(__FILE__) . '/../include/CWebTest.php';
-require_once dirname(__FILE__).'/traits/TableTrait.php';
 require_once dirname(__FILE__).'/behaviors/CMessageBehavior.php';
+require_once dirname(__FILE__).'/behaviors/CTableBehavior.php';
 
 /**
  * @backup sessions
@@ -29,34 +24,34 @@ require_once dirname(__FILE__).'/behaviors/CMessageBehavior.php';
  */
 class testFormSetup extends CWebTest {
 
-	use TableTrait;
-
 	/**
-	 * Attach MessageBehavior to the test.
+	 * Attach MessageBehavior and TableBehavior to the test.
 	 *
 	 * @return array
 	 */
 	public function getBehaviors() {
 		return [
-			'class' => CMessageBehavior::class
+			CMessageBehavior::class,
+			CTableBehavior::class
 		];
 	}
 
 	/**
-	 * @backup config
+	 * @backup settings
 	 */
 	public function testFormSetup_welcomeSectionLayout() {
 		$this->page->login()->open('setup.php')->waitUntilReady();
 
 		// Check Welcome section.
-		$this->assertEquals("Welcome to\nZabbix 6.2", $this->query('xpath://div[@class="setup-title"]')->one()->getText());
+		$this->assertEquals("Welcome to\nZabbix ".ZABBIX_EXPORT_VERSION, $this->query('xpath://div[@class="setup-title"]')->one()->getText());
 		$this->checkSections('Welcome');
 		$form = $this->query('xpath://form')->asForm()->one();
 		$language_field = $form->getField('Default language');
-		$this->assertEquals('English (en_US)', $language_field->getValue());
+		$this->assertEquals('English (en_GB)', $language_field->getValue());
 		$hint_text = 'You are not able to choose some of the languages, because locales for them are not installed '.
 				'on the web server.';
-		$this->assertEquals($hint_text, $this->query('class:hint-box')->one()->getText());
+		$this->assertEquals($hint_text, $this->query('xpath://button[@data-hintbox]')->one()
+				->getAttribute('data-hintbox-contents'));
 		$this->checkButtons('first section');
 
 		$this->assertScreenshot($form, 'Welcome_En');
@@ -64,7 +59,7 @@ class testFormSetup extends CWebTest {
 		// Check that default language can be changed.
 		$language_field->fill('Russian (ru_RU)');
 		$this->page->refresh()->waitUntilReady();
-		$this->assertEquals("Добро пожаловать в\nZabbix 6.2", $this->query('xpath://div[@class="setup-title"]')->one()->getText());
+		$this->assertEquals("Добро пожаловать в\nZabbix ".ZABBIX_EXPORT_VERSION, $this->query('xpath://div[@class="setup-title"]')->one()->getText());
 
 		$this->checkButtons('russian');
 		$this->assertScreenshotExcept($form, $this->query('id:default-lang')->one(), 'Welcome_Rus');
@@ -105,7 +100,9 @@ class testFormSetup extends CWebTest {
 			'PHP session',
 			'PHP option "session.auto_start"',
 			'PHP gettext',
-			'PHP option "arg_separator.output"'
+			'PHP option "arg_separator.output"',
+			'PHP curl',
+			'System locale'
 		];
 		$this->assertTableDataColumn($prerequisites, '');
 		$this->checkSections('Check of pre-requesties');
@@ -113,6 +110,8 @@ class testFormSetup extends CWebTest {
 
 		global $DB;
 		$php_version = $this->query('xpath://td[text()="PHP version"]/following-sibling::td')->one();
+		// TODO: Incorrect screenshot on Jenkins due to Chrome - need to remove mouse hover on row in table.
+		$this->query('tag:h1')->one()->hoverMouse();
 		$this->assertScreenshotExcept($this->query('xpath://form')->one(), $php_version, 'Prerequisites_'.$DB['TYPE']);
 	}
 
@@ -134,7 +133,7 @@ class testFormSetup extends CWebTest {
 		$this->checkPageTextElements('Configure DB connection', $text);
 		$form = $this->query('xpath://form')->asForm()->one();
 
-		// Check input fieldsin Configure DB connection section for each DB type.
+		// Check input fields in Configure DB connection section for each DB type.
 		$db_types = $form->getField('Database type')->getOptions()->asText();
 		foreach ($db_types as $db_type) {
 			$form->getField('Database type')->select($db_type);
@@ -204,11 +203,13 @@ class testFormSetup extends CWebTest {
 			$vaults = [
 				'HashiCorp Vault' => [
 					'Vault API endpoint' => 'https://localhost:8200',
+					'Vault prefix' => '/v1/secret/data/',
 					'Vault secret path' => 'path/to/secret',
 					'Vault authentication token' => ''
 				],
 				'CyberArk Vault' => [
 					'Vault API endpoint' => 'https://localhost:1858',
+					'Vault prefix' => '/AIMWebService/api/Accounts?',
 					'Vault secret query string' => 'AppID=foo&Query=Safe=bar;Object=buzz',
 					'SSL certificate file' => 'conf/certs/cyberark-cert.pem',
 					'SSL key file' => 'conf/certs/cyberark-key.pem'
@@ -232,7 +233,7 @@ class testFormSetup extends CWebTest {
 					$vault_maxlength = ($field_name === 'Vault API endpoint' || $field_name === 'Vault secret path') ? 255 : 2048;
 					$field = $form->getField($field_name);
 					$this->assertEquals($vault_maxlength, $field->getAttribute('maxlength'));
-					if (in_array($field_name, ['Vault secret query string', 'Vault secret path'])) {
+					if (in_array($field_name, ['Vault secret query string', 'Vault secret path', 'Vault prefix'])) {
 						$this->assertEquals($parameter, $field->getAttribute('placeholder'));
 					}
 					else {
@@ -256,7 +257,7 @@ class testFormSetup extends CWebTest {
 	}
 
 	/**
-	 * @backup config
+	 * @backup settings
 	 */
 	public function testFormSetup_settingsSection() {
 		// Open the Pre-installation summary section.
@@ -275,9 +276,12 @@ class testFormSetup extends CWebTest {
 
 		// Check timezone field.
 		$timezones_field = $form->getField('Default time zone');
-
 		$timezones = $timezones_field->getOptions()->asText();
-		$this->assertEquals(426, count($timezones));
+
+		// Note that count of available timezones may differ based on the local environment configuration and php version.
+		$this->assertGreaterThan(415, count($timezones));
+		$this->assertContains(CDateTimeHelper::getTimeZoneFormat('Europe/Riga'), $timezones);
+
 		foreach (['System', 'Europe/Riga'] as $timezone_value) {
 			$timezone = CDateTimeHelper::getTimeZoneFormat($timezone_value);
 			$this->assertContains($timezone, $timezones);
@@ -302,7 +306,10 @@ class testFormSetup extends CWebTest {
 		$this->query('button:Next step')->one()->click();
 		$this->query('button:Next step')->one()->click();
 		$this->query('button:Finish')->one()->click();
-		$db_values = CDBHelper::getRow('SELECT default_theme, default_timezone FROM config');
+
+		$db_values = CDBHelper::getColumn('SELECT name, value_str FROM settings WHERE name IN (\'default_theme\','.
+				' \'default_timezone\') ORDER BY name', 'value_str'
+		);
 		$this->assertEquals(['dark-theme', 'Europe/Riga'], array_values($db_values));
 	}
 
@@ -353,7 +360,7 @@ class testFormSetup extends CWebTest {
 
 		// Check screenshot of the Pre-installation summary section.
 		$skip_fields = [];
-		foreach(['Database server', 'Database name'] as $skip_field) {
+		foreach(['Database server', 'Database port', 'Database name'] as $skip_field) {
 			$xpath = 'xpath://span[text()='.CXPathHelper::escapeQuotes($skip_field).']/../../div[@class="table-forms-td-right"]';
 			$skip_fields[] = $this->query($xpath)->one();
 		}
@@ -375,7 +382,7 @@ class testFormSetup extends CWebTest {
 	}
 
 	public function getDbConnectionDetails() {
-		return [
+		$provider = [
 			// Incorrect DB host.
 			[
 				[
@@ -572,6 +579,31 @@ class testFormSetup extends CWebTest {
 				]
 			]
 		];
+
+		// MySQL database error depends on php version.
+		$mapping = [
+			'Error connecting to database. Empty cipher.' => [
+				'8.1.0' => 'Cannot connect to MySQL using SSL'
+			],
+			'php_network_getaddresses: getaddrinfo failed: Name or service not known' => [
+				'8.1.0' => 'php_network_getaddresses: getaddrinfo for incorrect_DB_host failed: Name or service not known'
+			]
+		];
+
+		foreach ($provider as &$data) {
+			if (array_key_exists('mysql_error', $data[0]) && array_key_exists($data[0]['mysql_error'], $mapping)) {
+				foreach ($mapping[$data[0]['mysql_error']] as $version => $map) {
+					if (version_compare(phpversion(), $version, '<')) {
+						continue;
+					}
+
+					$data[0]['mysql_error'] = $map;
+				}
+			}
+		}
+		unset($data);
+
+		return $provider;
 	}
 
 	/**
@@ -825,7 +857,7 @@ class testFormSetup extends CWebTest {
 		$this->query('button:Back')->one()->click();
 		$this->assertEquals('Check of pre-requisites', $this->query('xpath://h1')->one()->getText());
 		$this->query('button:Back')->one()->click();
-		$this->assertEquals("Welcome to\nZabbix 6.2", $this->query('xpath://div[@class="setup-title"]')->one()->getText());
+		$this->assertEquals("Welcome to\nZabbix ".ZABBIX_EXPORT_VERSION, $this->query('xpath://div[@class="setup-title"]')->one()->getText());
 		$this->checkSections('Welcome');
 		$this->checkButtons('first section');
 
@@ -942,6 +974,7 @@ class testFormSetup extends CWebTest {
 		$db_parameters = $this->getDbParameters();
 		$form = $this->query('xpath://form')->asForm()->one();
 		$form->fill($db_parameters);
+
 		for ($i = 0; $i < $skip_sections[$section]; $i++) {
 			$this->query('button:Next step')->one()->click();
 		}

@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -40,7 +35,6 @@ class C32XmlValidator extends CXmlValidatorGeneral {
 	 * @param array  $data  Import data.
 	 * @param string $path  XML path (for error reporting).
 	 *
-	 * @throws Exception
 	 * @return array        Validator does some manipulation for the incoming data. For example, converts empty tags to
 	 *                      an array, if desired. Converted array is returned.
 	 */
@@ -987,7 +981,7 @@ class C32XmlValidator extends CXmlValidatorGeneral {
 	 *
 	 * @return bool
 	 */
-	public function requiredMapElement(array $parent_data = null) {
+	public function requiredMapElement(?array $parent_data = null) {
 		if (zbx_is_int($parent_data['elementtype'])) {
 			switch ($parent_data['elementtype']) {
 				case SYSMAP_ELEMENT_TYPE_HOST:
@@ -1008,7 +1002,6 @@ class C32XmlValidator extends CXmlValidatorGeneral {
 	 * @param array|null $parent_data  Data's parent array.
 	 * @param string     $path         XML path.
 	 *
-	 * @throws Exception if the map element is invalid.
 	 * @return mixed
 	 */
 	public function validateMapElement($data, ?array $parent_data, $path) {
@@ -1057,7 +1050,6 @@ class C32XmlValidator extends CXmlValidatorGeneral {
 	 * @param array|null $parent_data  Data's parent array.
 	 * @param string     $path         XML path.
 	 *
-	 * @throws Exception if the map element is invalid.
 	 * @return mixed
 	 */
 	public function validateScreenItemResource($data, ?array $parent_data, $path) {
@@ -1103,7 +1095,6 @@ class C32XmlValidator extends CXmlValidatorGeneral {
 	 * @param array|null $parent_data  Data's parent array.
 	 * @param string     $path         XML path.
 	 *
-	 * @throws Exception if the element is invalid.
 	 * @return mixed
 	 */
 	public function validateYMinItem($data, ?array $parent_data, $path) {
@@ -1127,7 +1118,6 @@ class C32XmlValidator extends CXmlValidatorGeneral {
 	 * @param array|null $parent_data  Data's parent array.
 	 * @param string     $path         XML path.
 	 *
-	 * @throws Exception if the element is invalid.
 	 * @return mixed
 	 */
 	public function validateYMaxItem($data, ?array $parent_data, $path) {

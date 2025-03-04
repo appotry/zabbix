@@ -1,20 +1,15 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 #include "zbxmocktest.h"
@@ -22,7 +17,7 @@
 #include "zbxmockassert.h"
 #include "zbxmockutil.h"
 
-#include "common.h"
+#include "zbxcommon.h"
 #include "zbxeval.h"
 #include "mock_eval.h"
 
@@ -72,23 +67,27 @@ static void	mock_read_callbacks(const char *path)
 			}
 			else
 			{
-				zbx_vector_dbl_t	*values;
+				zbx_vector_var_t	*values;
 
-				values = (zbx_vector_dbl_t *)zbx_malloc(NULL, sizeof(zbx_vector_dbl_t));
-				zbx_vector_dbl_create(values);
+				values = (zbx_vector_var_t *)zbx_malloc(NULL, sizeof(zbx_vector_var_t));
+				zbx_vector_var_create(values);
 
 				while (ZBX_MOCK_END_OF_VECTOR != (err = (zbx_mock_vector_element(hdata, &hvalue))))
 				{
+					zbx_variant_t	tmp;
+
 					if (ZBX_MOCK_SUCCESS != err)
 						fail_msg("cannot read callback retval contents");
 
 					if (ZBX_MOCK_SUCCESS != zbx_mock_string(hvalue, &value))
 						fail_msg("cannot read callback retval");
 
-					zbx_vector_dbl_append(values, atof(value));
+					zbx_variant_set_str(&tmp, zbx_strdup(NULL, value));
+					zbx_variant_convert(&tmp, ZBX_VARIANT_DBL);
+					zbx_vector_var_append(values, tmp);
 				}
 
-				zbx_variant_set_dbl_vector(&cb->retval, values);
+				zbx_variant_set_vector(&cb->retval, values);
 			}
 		}
 		else if (ZBX_MOCK_SUCCESS == zbx_mock_object_member(hcb, "error", &hdata))
@@ -112,7 +111,7 @@ static void	mock_read_callbacks(const char *path)
 	}
 }
 
-static int 	callback_cb(const char *name, size_t len, int args_num, const zbx_variant_t *args, void *data,
+static int 	callback_cb(const char *name, size_t len, int args_num, zbx_variant_t *args, void *data,
 		const zbx_timespec_t *ts, zbx_variant_t *value, char **error)
 {
 	int	i;
@@ -134,6 +133,7 @@ static int 	callback_cb(const char *name, size_t len, int args_num, const zbx_va
 				return FAIL;
 			}
 			zbx_variant_copy(value, &cb->retval);
+
 			return SUCCEED;
 		}
 	}

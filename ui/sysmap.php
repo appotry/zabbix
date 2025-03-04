@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -25,30 +20,25 @@ require_once dirname(__FILE__).'/include/forms.inc.php';
 
 $page['title'] = _('Configuration of network maps');
 $page['file'] = 'sysmap.php';
-$page['scripts'] = ['class.svg.canvas.js', 'class.svg.map.js', 'class.cmap.js',
-	'colorpicker.js', 'class.tagfilteritem.js'
-];
+$page['scripts'] = ['class.svg.canvas.js', 'class.svg.map.js', 'class.cmap.js', 'colorpicker.js'];
 $page['type'] = detect_page_type();
-
-require_once dirname(__FILE__).'/include/page_header.php';
 
 if (!CWebUser::checkAccess(CRoleHelper::ACTIONS_EDIT_MAPS)) {
 	access_deny(ACCESS_DENY_PAGE);
 }
+
+require_once dirname(__FILE__).'/include/page_header.php';
 
 // VAR	TYPE	OPTIONAL	FLAGS	VALIDATION	EXCEPTION
 $fields = [
 	'sysmapid' =>	[T_ZBX_INT, O_MAND, P_SYS,	DB_ID,		null],
 	'selementid' =>	[T_ZBX_INT, O_OPT, P_SYS,	DB_ID,		null],
 	'sysmap' =>		[T_ZBX_STR, O_OPT, null,	NOT_EMPTY,	'isset({action}) && {action} == "update"'],
-	'selements' =>	[T_ZBX_STR, O_OPT, P_SYS,	null,		null],
-	'links' =>		[T_ZBX_STR, O_OPT, P_SYS,	null,		null],
 	// actions
 	'action' =>		[T_ZBX_STR, O_OPT, P_ACT,	IN('"update","expand"'),	null],
 	'delete' =>		[T_ZBX_STR, O_OPT, P_SYS|P_ACT, null,	null],
 	'cancel' =>		[T_ZBX_STR, O_OPT, P_SYS,	null,		null],
 	'form' =>		[T_ZBX_STR, O_OPT, P_SYS,	null,		null],
-	'form_refresh' => [T_ZBX_INT, O_OPT, null,	null,		null],
 	// ajax
 	'favobj' =>		[T_ZBX_STR, O_OPT, P_ACT,	null,		null],
 	'favid' =>		[T_ZBX_STR, O_OPT, P_ACT,	null,		null],

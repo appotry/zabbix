@@ -1,29 +1,25 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
+
 
 require_once dirname(__FILE__).'/../../include/CWebTest.php';
 require_once dirname(__FILE__).'/../behaviors/CMessageBehavior.php';
 require_once dirname(__FILE__).'/../../include/helpers/CDataHelper.php';
 
 /**
- * @dataSource ScheduledReports
+ * @dataSource ScheduledReports, LoginUsers
  *
  * @backup report
  */
@@ -100,7 +96,7 @@ class testFormScheduledReport extends CWebTest {
 		$subscription_container = $form->getField('Subscriptions')->asTable();
 
 		// Report form fields maxlength attribute.
-		$maxlength_fields = ['Name' => 255, 'id:active_since' => 10, 'id:active_till' => 10, 'Subject' => 255,
+		$maxlength_fields = ['Name' => 255, 'id:active_since' => 255, 'id:active_till' => 255, 'Subject' => 255,
 			'Message' => 65535, 'Description' => 2048
 		];
 		foreach ($maxlength_fields as $field => $maxlength) {
@@ -174,7 +170,7 @@ class testFormScheduledReport extends CWebTest {
 		$subscription_overlay = COverlayDialogElement::find()->all()->last()->waitUntilReady();
 		$overlay_form = $subscription_overlay->query('id:subscription-form')->waitUntilVisible()->asForm()->one();
 		$overlay_form->checkValue(['Status' => 'Exclude']);
-		$subscription_overlay->query('class:overlay-close-btn')->one()->click()->waitUntilNotVisible();
+		$subscription_overlay->query('class:btn-overlay-close')->one()->click()->waitUntilNotVisible();
 
 		// Close report overlay on Dashboard.
 		if ($dashboard) {
@@ -1363,11 +1359,14 @@ class testFormScheduledReport extends CWebTest {
 			}
 			// Trim trailing and leading spaces in expected values before comparison.
 			if (CTestArrayHelper::get($data, 'trim', false)) {
-				$data['fields'] = array_map('trim', $data['fields']);
+				$data['fields'] = CTestArrayHelper::trim($data['fields']);
 			}
 			$name = CTestArrayHelper::get($data, 'fields.Name', self::UPDATE_REPORT_NAME);
 			$this->assertEquals(1, CDBHelper::getCount('SELECT null FROM report WHERE name='.zbx_dbstr($name)));
 			$this->assertMessage(TEST_GOOD, $success_message);
+
+			// Trim spaces in the middle of a name after DB check; spaces in links are trimmed.
+			$name = CTestArrayHelper::get($data, 'trim', false) ? preg_replace('/\s+/', ' ', $name) : $name;
 
 			if ($action === 'dashboard') {
 				// Open report form page from dashboard.
@@ -1377,7 +1376,7 @@ class testFormScheduledReport extends CWebTest {
 					CPopupMenuElement::find()->waitUntilVisible()->one()->select('View related reports');
 					$table = COverlayDialogElement::find()->waitUntilReady()->one()->asTable();
 					$this->assertFalse($table->query('link', $name)->one(false)->isValid());
-					// Open another dahsboard and check related reports.
+					// Open another dashboard and check related reports.
 					$this->page->open('zabbix.php?action=dashboard.list')->waitUntilReady();
 					$this->query('link', $data['fields']['Dashboard'])->waitUntilClickable()->one()->click();
 				}

@@ -1,26 +1,21 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 #ifndef ZABBIX_MOCK_DATA_H
 #define ZABBIX_MOCK_DATA_H
 
-#include "common.h"
+#include "zbxtime.h"
 
 int	zbx_mock_data_init(void **state);
 int	zbx_mock_data_free(void **state);
@@ -45,7 +40,8 @@ typedef enum
 	ZBX_MOCK_NOT_A_BINARY,
 	ZBX_MOCK_NOT_AN_UINT64,
 	ZBX_MOCK_NOT_A_FLOAT,
-	ZBX_MOCK_NOT_AN_INT
+	ZBX_MOCK_NOT_AN_INT,
+	ZBX_MOCK_NOT_AN_UINT32
 }
 zbx_mock_error_t;
 
@@ -66,6 +62,7 @@ zbx_mock_error_t	zbx_mock_parameter_exists(const char *path);
 zbx_mock_error_t	zbx_mock_uint64(zbx_mock_handle_t object, zbx_uint64_t *value);
 zbx_mock_error_t	zbx_mock_float(zbx_mock_handle_t object, double *value);
 zbx_mock_error_t	zbx_mock_int(zbx_mock_handle_t object, int *value);
+zbx_mock_error_t	zbx_mock_uint32(zbx_mock_handle_t object, zbx_uint32_t *value);
 
 /* date/time support */
 #define ZBX_MOCK_TIMESTAMP_MAX_LEN	37
@@ -73,5 +70,8 @@ zbx_mock_error_t	zbx_mock_int(zbx_mock_handle_t object, int *value);
 zbx_mock_error_t	zbx_strtime_to_timespec(const char *strtime, zbx_timespec_t *ts);
 zbx_mock_error_t	zbx_time_to_strtime(time_t timestamp, char *buffer, size_t size);
 zbx_mock_error_t	zbx_timespec_to_strtime(const zbx_timespec_t *ts, char *buffer, size_t size);
+
+/* miscelanious functions */
+void	zbx_set_fopen_mock_callback(FILE *(*fopen_callback)(const char *, const char *));
 
 #endif	/* ZABBIX_MOCK_DATA_H */

@@ -1,21 +1,16 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -85,7 +80,6 @@
 				CRoleHelper::UI_MONITORING_MAPS => USER_TYPE_ZABBIX_USER,
 				CRoleHelper::UI_MONITORING_DISCOVERY => USER_TYPE_ZABBIX_ADMIN,
 				CRoleHelper::UI_SERVICES_SERVICES => USER_TYPE_ZABBIX_USER,
-				CRoleHelper::UI_SERVICES_ACTIONS => USER_TYPE_ZABBIX_ADMIN,
 				CRoleHelper::UI_SERVICES_SLA => USER_TYPE_ZABBIX_ADMIN,
 				CRoleHelper::UI_SERVICES_SLA_REPORT => USER_TYPE_ZABBIX_USER,
 				CRoleHelper::UI_INVENTORY_OVERVIEW => USER_TYPE_ZABBIX_USER,
@@ -98,18 +92,28 @@
 				CRoleHelper::UI_REPORTS_NOTIFICATIONS => USER_TYPE_ZABBIX_ADMIN,
 				CRoleHelper::UI_REPORTS_SCHEDULED_REPORTS => USER_TYPE_ZABBIX_ADMIN,
 				CRoleHelper::UI_CONFIGURATION_HOST_GROUPS => USER_TYPE_ZABBIX_ADMIN,
+				CRoleHelper::UI_CONFIGURATION_TEMPLATE_GROUPS => USER_TYPE_ZABBIX_ADMIN,
 				CRoleHelper::UI_CONFIGURATION_TEMPLATES => USER_TYPE_ZABBIX_ADMIN,
 				CRoleHelper::UI_CONFIGURATION_HOSTS => USER_TYPE_ZABBIX_ADMIN,
 				CRoleHelper::UI_CONFIGURATION_MAINTENANCE => USER_TYPE_ZABBIX_ADMIN,
-				CRoleHelper::UI_CONFIGURATION_ACTIONS => USER_TYPE_ZABBIX_ADMIN,
+				CRoleHelper::UI_CONFIGURATION_TRIGGER_ACTIONS => USER_TYPE_ZABBIX_ADMIN,
+				CRoleHelper::UI_CONFIGURATION_SERVICE_ACTIONS => USER_TYPE_ZABBIX_ADMIN,
+				CRoleHelper::UI_CONFIGURATION_DISCOVERY_ACTIONS => USER_TYPE_ZABBIX_ADMIN,
+				CRoleHelper::UI_CONFIGURATION_AUTOREGISTRATION_ACTIONS => USER_TYPE_ZABBIX_ADMIN,
+				CRoleHelper::UI_CONFIGURATION_INTERNAL_ACTIONS => USER_TYPE_ZABBIX_ADMIN,
 				CRoleHelper::UI_CONFIGURATION_EVENT_CORRELATION => USER_TYPE_SUPER_ADMIN,
 				CRoleHelper::UI_CONFIGURATION_DISCOVERY => USER_TYPE_ZABBIX_ADMIN,
 				CRoleHelper::UI_ADMINISTRATION_GENERAL => USER_TYPE_SUPER_ADMIN,
+				CRoleHelper::UI_ADMINISTRATION_AUDIT_LOG => USER_TYPE_SUPER_ADMIN,
+				CRoleHelper::UI_ADMINISTRATION_HOUSEKEEPING => USER_TYPE_SUPER_ADMIN,
+				CRoleHelper::UI_ADMINISTRATION_PROXY_GROUPS => USER_TYPE_SUPER_ADMIN,
 				CRoleHelper::UI_ADMINISTRATION_PROXIES => USER_TYPE_SUPER_ADMIN,
+				CRoleHelper::UI_ADMINISTRATION_MACROS => USER_TYPE_SUPER_ADMIN,
 				CRoleHelper::UI_ADMINISTRATION_AUTHENTICATION => USER_TYPE_SUPER_ADMIN,
 				CRoleHelper::UI_ADMINISTRATION_USER_GROUPS => USER_TYPE_SUPER_ADMIN,
 				CRoleHelper::UI_ADMINISTRATION_USER_ROLES => USER_TYPE_SUPER_ADMIN,
 				CRoleHelper::UI_ADMINISTRATION_USERS => USER_TYPE_SUPER_ADMIN,
+				CRoleHelper::UI_ADMINISTRATION_API_TOKENS => USER_TYPE_SUPER_ADMIN,
 				CRoleHelper::UI_ADMINISTRATION_MEDIA_TYPES => USER_TYPE_SUPER_ADMIN,
 				CRoleHelper::UI_ADMINISTRATION_SCRIPTS => USER_TYPE_SUPER_ADMIN,
 				CRoleHelper::UI_ADMINISTRATION_QUEUE => USER_TYPE_SUPER_ADMIN,
@@ -262,14 +266,15 @@
 				if (view.readonly) {
 					const url = new Curl('zabbix.php');
 					url.setArgument('action', 'userrole.edit');
+					url.setArgument('super_admin_role_clone', 1);
 
 					document
-						.querySelectorAll('#name, #user-type')
+						.querySelectorAll('#name, #type')
 						.forEach((element) => {
 							url.setArgument(element.getAttribute('name'), element.getAttribute('value'));
 						});
 
-					redirect(url.getUrl(), 'post', 'action', undefined, false, true);
+					redirect(url.getUrl(), 'post', 'action', undefined, true);
 				}
 
 				document
@@ -284,6 +289,7 @@
 				update_button.setAttribute('value', 'userrole.create');
 
 				document.getElementById('name').focus();
+				clearMessages();
 			}
 		}
 	}

@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 require_once 'vendor/autoload.php';
@@ -55,7 +50,7 @@ class CTableRowElement extends CElement {
 	 * @return CElementCollection
 	 */
 	public function getColumns() {
-		$headers = $this->parent->getHeadersText();
+		$headers = $this->parent->getColumnNames();
 		$columns = [];
 
 		foreach ($this->query($this->column_selector)->all() as $i => $column) {
@@ -73,7 +68,7 @@ class CTableRowElement extends CElement {
 	 * @return CElement
 	 */
 	public function getColumn($column) {
-		$headers = $this->parent->getHeadersText();
+		$headers = $this->parent->getColumnNames();
 
 		if (is_string($column)) {
 			$index = array_search($column, $headers);
@@ -141,5 +136,28 @@ class CTableRowElement extends CElement {
 	 */
 	public function isSelected($selected = true) {
 		return $this->query('xpath:.//input[@type="checkbox"]')->one()->isSelected($selected);
+	}
+
+	/**
+	 * Check text of defined columns.
+	 *
+	 * @param mixed   $expected		values to be checked in column
+	 *
+	 * @throws Exception
+	 */
+	public function assertValues($expected) {
+		if (!is_array($expected)) {
+			$expected = [$expected];
+		}
+
+		foreach ($expected as $column => $value) {
+			$column_value = $this->getColumn($column)->getText();
+
+			if ($value !== $column_value) {
+				throw new \Exception('Column "'.$column.'" value "'.$column_value.
+						'" is not equal to "'.$value.'".'
+				);
+			}
+		}
 	}
 }

@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -27,7 +22,7 @@ if ($data['uncheck']) {
 	uncheckTableRows('regex');
 }
 
-$widget = (new CWidget())
+$html_page = (new CHtmlPage())
 	->setTitle(_('Regular expressions'))
 	->setTitleSubmenu(getAdministrationGeneralSubmenu())
 	->setDocUrl(CDocHelper::getUrl(CDocHelper::ADMINISTRATION_REGEX_LIST))
@@ -58,19 +53,21 @@ foreach($data['regexs'] as $regexid => $regex) {
 	foreach($regex['expressions'] as $expression) {
 		$expressions[] = (new CTable())->addRow([
 			new CCol($numb++),
-			new CCol(' &raquo; '),
-			new CCol($expression['expression']),
+			new CCol([' ', RARR(), ' ']),
+			(new CCol($expression['expression']))->addClass(ZBX_STYLE_WORDWRAP),
 			new CCol(' ['.CRegexHelper::expression_type2str($expression['expression_type']).']')
 		]);
 	}
 
 	$table->addRow([
 		new CCheckBox('regexids['.$regexid.']', $regexid),
-		new CLink($regex['name'],
-			(new CUrl('zabbix.php'))
-				->setArgument('action', 'regex.edit')
-				->setArgument('regexid', $regexid)
-		),
+		(new CCol(
+			new CLink($regex['name'],
+				(new CUrl('zabbix.php'))
+					->setArgument('action', 'regex.edit')
+					->setArgument('regexid', $regexid)
+			),
+		))->addClass(ZBX_STYLE_WORDBREAK),
 		$expressions
 	]);
 }
@@ -78,8 +75,13 @@ foreach($data['regexs'] as $regexid => $regex) {
 $form->addItem([
 	$table,
 	new CActionButtonList('action', 'regexids', [
-		'regex.delete' => ['name' => _('Delete'), 'confirm' => _('Delete selected regular expressions?')]
+		'regex.delete' => [
+			'name' => _('Delete'),
+			'confirm_singular' => _('Delete selected regular expression?'),
+			'confirm_plural' => _('Delete selected regular expressions?'),
+			'csrf_token' => CCsrfTokenHelper::get('regex')
+		]
 	], 'regex')
 ]);
 
-$widget->addItem($form)->show();
+$html_page->addItem($form)->show();

@@ -1,27 +1,22 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
 class CLink extends CTag {
 
-	private	$use_sid = false;
+	private $csrf_token = '';
 	private	$confirm_message = '';
 	private $url;
 
@@ -34,12 +29,17 @@ class CLink extends CTag {
 		$this->url = $url;
 	}
 
-	/*
-	 * Add a "sid" argument into the URL.
-	 * POST method will be used for the "sid" argument.
+	/**
+	 * Adds CSRF token into the URL.
+	 * POST method will be used for CSRF_TOKEN_NAME argument.
+	 *
+	 * @param string $csrf_token  already generated CSRF token string.
+	 *
+	 * @return $this
 	 */
-	public function addSID() {
-		$this->use_sid = true;
+	public function addCsrfToken(string $csrf_token) {
+		$this->csrf_token = $csrf_token;
+
 		return $this;
 	}
 
@@ -76,15 +76,17 @@ class CLink extends CTag {
 			$this->setAttribute('role', 'button');
 		}
 
-		if ($this->use_sid) {
+		if ($this->csrf_token != '') {
 			if (array_key_exists(ZBX_SESSION_NAME, $_COOKIE)) {
 				$url .= (strpos($url, '&') !== false || strpos($url, '?') !== false) ? '&' : '?';
-				$url .= 'sid='.substr(CSessionHelper::getId(), 16, 16);
+				$url .= CSRF_TOKEN_NAME.'='.$this->csrf_token;
 			}
 			$confirm_script = ($this->confirm_message !== '')
-				? 'Confirm('.CHtml::encode(json_encode($this->confirm_message)).') && '
+				? 'Confirm('.json_encode($this->confirm_message).') && '
 				: '';
-			$this->onClick("javascript: return ".$confirm_script."redirect('".$url."', 'post', 'sid', true)");
+			$this->onClick("javascript: return ".$confirm_script."redirect('".$url."', 'post', '".
+				CSRF_TOKEN_NAME."', true)"
+			);
 			$this->setAttribute('href', 'javascript:void(0)');
 		}
 		else {

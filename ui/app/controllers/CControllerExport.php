@@ -1,31 +1,29 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
 class CControllerExport extends CController {
 
+	protected function init() {
+		$this->disableCsrfValidation();
+	}
+
 	protected function checkInput() {
 		$fields = [
 			'action' =>			'required|string',
 			'backurl' =>		'required|string',
-			'valuemapids' =>	'not_empty|array_db valuemaps.valuemapid',
 			'hostids' =>		'not_empty|array_db hosts.hostid',
 			'mediatypeids' =>	'not_empty|array_db media_type.mediatypeid',
 			'maps' =>			'not_empty|array_db sysmaps.sysmapid',
@@ -39,6 +37,10 @@ class CControllerExport extends CController {
 			$this->setResponse(new CControllerResponseFatal());
 		}
 
+		if (!CHtmlUrlValidator::validateSameSite($this->getInput('backurl'))) {
+			throw new CAccessDeniedException();
+		}
+
 		return $ret;
 	}
 
@@ -46,9 +48,6 @@ class CControllerExport extends CController {
 		switch ($this->getInput('action')) {
 			case 'export.mediatypes':
 				return $this->checkAccess(CRoleHelper::UI_ADMINISTRATION_MEDIA_TYPES);
-
-			case 'export.valuemaps':
-				return $this->checkAccess(CRoleHelper::UI_ADMINISTRATION_GENERAL);
 
 			case 'export.hosts':
 				return $this->checkAccess(CRoleHelper::UI_CONFIGURATION_HOSTS);
@@ -73,10 +72,6 @@ class CControllerExport extends CController {
 		];
 
 		switch ($action) {
-			case 'export.valuemaps':
-				$params['options']['valueMaps'] = $this->getInput('valuemapids', []);
-				break;
-
 			case 'export.hosts':
 				$params['options']['hosts'] = $this->getInput('hostids', []);
 				break;
@@ -109,7 +104,9 @@ class CControllerExport extends CController {
 			]);
 		}
 		else {
-			$response = new CControllerResponseRedirect($this->getInput('backurl', 'zabbix.php?action=dashboard.view'));
+			$response = new CControllerResponseRedirect(
+				new CUrl($this->getInput('backurl', 'zabbix.php?action=dashboard.view'))
+			);
 			CMessageHelper::setErrorTitle(_('Export failed'));
 		}
 

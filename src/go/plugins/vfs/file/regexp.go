@@ -1,37 +1,33 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 package file
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
-	"zabbix.com/pkg/zbxregexp"
+	"golang.zabbix.com/agent2/pkg/zbxregexp"
 )
 
-func (p *Plugin) exportRegexp(params []string) (result interface{}, err error) {
+func (p *Plugin) exportRegexp(params []string, timeout int) (result interface{}, err error) {
 	var startline, endline, curline uint64
 
 	start := time.Now()
@@ -46,9 +42,9 @@ func (p *Plugin) exportRegexp(params []string) (result interface{}, err error) {
 		return nil, errors.New("Invalid second parameter.")
 	}
 
-	var encoder string
+	var encoding string
 	if len(params) > 2 {
-		encoder = params[2]
+		encoding = params[2]
 	}
 
 	if len(params) < 4 || "" == params[3] {
@@ -75,35 +71,52 @@ func (p *Plugin) exportRegexp(params []string) (result interface{}, err error) {
 		output = params[5]
 	}
 
-	var rx *regexp.Regexp
-	if rx, err = regexp.Compile(params[1]); err != nil {
+	var compiledRegexp *regexp.Regexp
+	if compiledRegexp, err = regexp.Compile(params[1]); err != nil {
 		return nil, errors.New("Invalid first parameter.")
 	}
 
-	file, err := stdOs.Open(params[0])
-	if err != nil {
-		return nil, fmt.Errorf("Cannot open file %s: %s", params[0], err)
-	}
-	defer file.Close()
+	f, err := os.Open(params[0])
 
-	// Start reading from the file with a reader.
-	scanner := bufio.NewScanner(file)
-	curline = 0
-	for scanner.Scan() {
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	initial := true
+	undecodedBufNumBytes := 0
+	var undecodedBuf []byte
+	for 0 < undecodedBufNumBytes || initial {
 		elapsed := time.Since(start)
-		if elapsed.Seconds() > float64(p.options.Timeout) {
+
+		if elapsed.Seconds() > float64(timeout) {
 			return nil, errors.New("Timeout while processing item.")
 		}
 
+		initial = false
 		curline++
+		undecodedBuf, undecodedBufNumBytes, encoding, err = p.readTextLineFromFile(f, encoding)
+		if err != nil {
+			return nil, err
+		}
+		utf8_buf, utf8_bufNumBytes, err := decodeToUTF8(encoding, undecodedBuf, undecodedBufNumBytes)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to convert from encoding to utf8: %w", err)
+		}
+
+		utf8_bufStr := string(utf8_buf[:utf8_bufNumBytes])
+		utf8_bufStr = strings.TrimRight(utf8_bufStr, "\r\n")
+
 		if curline >= startline {
-			if out, ok := zbxregexp.ExecuteRegex(decode(encoder, scanner.Bytes()), rx, []byte(output)); ok {
+			if out, ok := zbxregexp.ExecuteRegex([]byte(utf8_bufStr), compiledRegexp, []byte(output)); ok {
 				return out, nil
 			}
 		}
+
 		if curline >= endline {
 			break
 		}
 	}
+
 	return "", nil
 }

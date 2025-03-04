@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 require_once dirname(__FILE__).'/../include/CWebTest.php';
@@ -24,7 +19,7 @@ require_once dirname(__FILE__).'/behaviors/CMessageBehavior.php';
 /**
  * @backup users
  *
- * @backup config
+ * @backup settings
  */
 class testLanguage extends CWebTest {
 
@@ -89,15 +84,15 @@ class testLanguage extends CWebTest {
 		$this->page->open('zabbix.php?action=gui.edit');
 
 		// Change default language.
-		$form = $this->query('xpath://form[@aria-labeledby="page-title-general"]')->one()->asForm();
+		$form = $this->query('xpath://form[@aria-labelledby="page-title-general"]')->one()->asForm();
 		$form->fill($data['field']);
 		$form->submit();
 		$this->page->waitUntilReady();
 		$this->checkLanguage($data['message'], $data['page_title'], $data['html_lang'], $data['defaultdb_lang']);
 
-		// Red info icon check.
-		$this->query('xpath://a[@class="icon-info status-red"]')->one()->click();
-		$this->assertEquals($data['info'], $this->query('class:red')->one()->getText());
+		// Yellow info icon check.
+		$this->query('xpath://button['.CXPathHelper::fromClass('zi-i-warning').']')->one()->click();
+		$this->assertEquals($data['info'], $this->query('class:hintbox-wrap')->one()->getText());
 
 		// After logout, warning message and login menu has system language.
 		$this->page->logout();
@@ -165,11 +160,11 @@ class testLanguage extends CWebTest {
 	public function testLanguage_User($data) {
 		$this->page->userLogin('user-zabbix', 'zabbix');
 		$this->page->open('zabbix.php?action=userprofile.edit');
-		$form = $this->query('name:user_form')->one()->asForm();
+		$form = $this->query('id:userprofile-form')->one()->asForm();
 
-		// Red info icon check.
-		$this->query('xpath://a[@class="icon-info status-red"]')->one()->click();
-		$this->assertEquals($data['info'], $this->query('class:red')->one()->getText());
+		// Yellow info icon check.
+		$this->query('xpath://button['.CXPathHelper::fromClass('zi-i-warning').']')->one()->click();
+		$this->assertEquals($data['info'], $this->query('class:hintbox-wrap')->one()->getText());
 
 		// Change user language to different from System.
 		$form->fill($data['field']);
@@ -263,7 +258,7 @@ class testLanguage extends CWebTest {
 		$this->assertEquals($data['html_lang'], $this->query('xpath://html')->one()->getAttribute('lang'));
 		$this->assertEquals($data['userdb_lang'], CDBHelper::getValue('SELECT lang FROM users WHERE username='.
 				zbx_dbstr($data['fields']['Username'])));
-		$this->assertEquals($data['defaultdb_lang'], CDBHelper::getValue('SELECT default_lang FROM config'));
+		$this->assertEquals($data['defaultdb_lang'], CDBHelper::getValue('SELECT value_str FROM settings WHERE name=\'default_lang\''));
 		$this->page->logout();
 	}
 
@@ -271,6 +266,6 @@ class testLanguage extends CWebTest {
 		$this->assertMessage(TEST_GOOD, $message);
 		$this->page->assertTitle($page_title);
 		$this->assertEquals($html_lang, $this->query('xpath://html')->one()->getAttribute('lang'));
-		$this->assertEquals($defaultdb_lang, CDBHelper::getValue('SELECT default_lang FROM config'));
+		$this->assertEquals($defaultdb_lang, CDBHelper::getValue('SELECT value_str FROM settings WHERE name=\'default_lang\''));
 	}
 }

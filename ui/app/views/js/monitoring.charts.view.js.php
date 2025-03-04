@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 ?>
 
@@ -27,25 +22,43 @@
 		_data: null,
 		_resize_observer: null,
 		_container: null,
+		_filter_tags: new Map(),
+		_filter_tagnames: new Set(),
 
-		init({filter_form_name, data}) {
+		init({filter_form_name, data, timeline}) {
 			this._filter_form = document.querySelector(`[name="${filter_form_name}"]`);
 			this._container = document.querySelector('main');
 			this._data = data;
 
 			this.initSubfilter();
 			this.initCharts();
+
+			timeControl.addObject('charts_view', timeline, {
+				id: 'timeline_1',
+				domid: 'charts_view',
+				loadSBox: 0,
+				loadImage: 0,
+				dynamic: 0
+			});
+
+			timeControl.processObjects();
 		},
 
 		initSubfilter() {
+			for (const element of this._filter_form.querySelectorAll('.js-subfilter-unset')) {
+				this.setSubfilter(element.dataset.tag, element.dataset.value || null);
+			}
+
 			this._filter_form.addEventListener('click', (e) => {
 				const link = e.target;
 
 				if (link.classList.contains('js-subfilter-set')) {
 					this.setSubfilter(link.getAttribute('data-tag'), link.getAttribute('data-value'));
+					this.submitSubfilter();
 				}
 				else if (link.classList.contains('js-subfilter-unset')) {
 					this.unsetSubfilter(link.getAttribute('data-tag'), link.getAttribute('data-value'));
+					this.submitSubfilter();
 				}
 			});
 		},
@@ -61,7 +74,7 @@
 
 			this._app = new ChartList( $('#charts'), this._data.timeline, this._data.config, this._container);
 			this._app.setCharts(this._data.charts);
-			this._app.onResize();
+			this._app.refresh();
 
 			this._resize_observer = new ResizeObserver(this._app.onResize.bind(this._app));
 			this._resize_observer.observe(this._container);
@@ -77,29 +90,32 @@
 		},
 
 		replaceSubfilter(subfilter) {
-			document.getElementById('subfilter').outerHTML = subfilter;
+			if (document.getElementById('subfilter') !== null) {
+				document.getElementById('subfilter').outerHTML = subfilter;
+			}
 		},
 
 		setSubfilter(tag, value) {
 			if (value !== null) {
-				this.filterAddVar(`subfilter_tags[${tag}][]`, value);
+				const tag_values = this._filter_tags.has(tag) ? this._filter_tags.get(tag) : [];
+
+				tag_values.push(value);
+				this._filter_tags.set(tag, tag_values);
 			}
 			else {
-				this.filterAddVar(`subfilter_tagnames[]`, tag);
+				this._filter_tagnames.add(tag);
 			}
-
-			this.submitSubfilter();
 		},
 
 		unsetSubfilter(tag, value) {
 			if (value !== null) {
-				document.querySelector(`[name^="subfilter_tags[${tag}]["][value="${value}"]`).remove();
+				const values = this._filter_tags.get(tag);
+
+				this._filter_tags.set(tag, values.filter((tag_value) => value !== tag_value));
 			}
 			else {
-				document.querySelector(`[name^="subfilter_tagnames["][value="${tag}"]`).remove();
+				this._filter_tagnames.delete(tag);
 			}
-
-			this.submitSubfilter();
 		},
 
 		filterAddVar(name, value) {
@@ -114,6 +130,20 @@
 
 		submitSubfilter() {
 			this.filterAddVar('subfilter_set', '1');
+
+			for (const element of this._filter_form.querySelectorAll('[name^="subfilter_tag"]')) {
+				element.remove();
+			}
+
+			this._filter_tags.forEach((values, tag) => {
+				for (let value of values) {
+					this.filterAddVar(`subfilter_tags[${encodeURIComponent(tag)}][]`, value);
+				}
+			});
+			this._filter_tagnames.forEach(tag => {
+				this.filterAddVar(`subfilter_tagnames[]`, tag);
+			});
+
 			this._filter_form.submit();
 		}
 	};
@@ -143,7 +173,7 @@
 		this.timeline = timeline;
 		this.dimensions = chart.dimensions;
 
-		this.curl = new Curl(chart.src, false);
+		this.curl = new Curl(chart.src);
 
 		if ('graphid' in chart) {
 			this.curl.setArgument('graphid', chart.graphid);
@@ -228,6 +258,7 @@
 		this.curl.setArgument('height', this.dimensions.graphHeight);
 		this.curl.setArgument('width', Math.max(1000, width));
 		this.curl.setArgument('profileIdx', 'web.charts.filter');
+		this.curl.setArgument('resolve_macros', 1);
 		this.curl.setArgument('_', (+new Date).toString(34));
 
 		const unsetLoading = this.setLoading(delay_loading);
@@ -243,27 +274,6 @@
 		this.$img.attr('src', this.curl.getUrl());
 
 		return promise;
-	};
-
-	/**
-	 * Start or pause timeout based Chart refresh.
-	 *
-	 * @param {number} seconds  Seconds to wait before reschedule. Zero seconds will pause schedule.
-	 * @param {number} delay_loading  (optional) Add "loading indicator" only when request exceeds delay.
-	 */
-	Chart.prototype.scheduleRefresh = function(seconds, delay_loading) {
-		if (this._timeoutid) {
-			clearTimeout(this._timeoutid);
-		}
-
-		if (!seconds) {
-			return;
-		}
-
-		this.refresh(delay_loading)
-			.finally(_ => {
-				this._timeoutid = setTimeout(() => this.scheduleRefresh(seconds, 0), seconds * 1000);
-			});
 	};
 
 	/**
@@ -372,10 +382,6 @@
 			clearTimeout(this._timeoutid);
 		}
 
-		for (const chart of this.charts) {
-			chart.scheduleRefresh(0);
-		}
-
 		this.updateListAndCharts(delay_loading)
 			.finally(_ => {
 				if (refresh_interval) {
@@ -430,7 +436,6 @@
 
 		if (this._prev_width === undefined) {
 			this._prev_width = width;
-			this.updateCharts();
 
 			return;
 		}

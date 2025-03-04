@@ -1,29 +1,22 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
 class CCorrelationHelper {
 	/**
 	 * Convert a correlation condition operator to string.
-	 *
-	 * @static
 	 *
 	 * @param int $operator
 	 *
@@ -43,8 +36,6 @@ class CCorrelationHelper {
 	/**
 	 * Returns correlation condition types or one type depending on input.
 	 *
-	 * @static
-	 *
 	 * @return array  Returns condition type and it's string translation as array key => value pair.
 	 */
 	public static function getConditionTypes(): array {
@@ -61,8 +52,6 @@ class CCorrelationHelper {
 	/**
 	 * Returns correlation operation types or one type depending on input.
 	 *
-	 * @static
-	 *
 	 * @return array  Returns operation type and it's string translation as array key => value pair.
 	 */
 	public static function getOperationTypes(): array {
@@ -74,8 +63,6 @@ class CCorrelationHelper {
 
 	/**
 	 * Return an array of operators supported by the given correlation condition.
-	 *
-	 * @static
 	 *
 	 * @param int $type  Correlation condition type.
 	 *
@@ -102,8 +89,6 @@ class CCorrelationHelper {
 	/**
 	 * Returns the HTML representation of a correlation condition.
 	 *
-	 * @static
-	 *
 	 * @param array $condition    Array of correlation condition data.
 	 * @param array $group_names  Host group names keyed by host group ID.
 	 *
@@ -116,44 +101,44 @@ class CCorrelationHelper {
 			case ZBX_CORR_CONDITION_OLD_EVENT_TAG:
 				$description[] = _('Old event tag name');
 				$description[] = ' '.self::getLabelByOperator((int) $condition['operator']).' ';
-				$description[] = italic(CHtml::encode($condition['tag']));
+				$description[] = italic($condition['tag']);
 				break;
 
 			case ZBX_CORR_CONDITION_NEW_EVENT_TAG:
 				$description[] = _('New event tag name');
 				$description[] = ' '.self::getLabelByOperator((int) $condition['operator']).' ';
-				$description[] = italic(CHtml::encode($condition['tag']));
+				$description[] = italic($condition['tag']);
 				break;
 
 			case ZBX_CORR_CONDITION_NEW_EVENT_HOSTGROUP:
 				$description[] = _('New event host group');
 				$description[] = ' '.self::getLabelByOperator((int) $condition['operator']).' ';
-				$description[] = italic(CHtml::encode(array_key_exists($condition['groupid'], $group_names)
+				$description[] = italic(array_key_exists($condition['groupid'], $group_names)
 					? $group_names[$condition['groupid']]
 					: _('Unknown')
-				));
+				);
 				break;
 
 			case ZBX_CORR_CONDITION_EVENT_TAG_PAIR:
 				$description[] = _('Value of old event tag').' ';
-				$description[] = italic(CHtml::encode($condition['oldtag']));
+				$description[] = italic($condition['oldtag']);
 				$description[] = ' '.self::getLabelByOperator((int) $condition['operator']).' '.
 					_('value of new event tag').' ';
-				$description[] = italic(CHtml::encode($condition['newtag']));
+				$description[] = italic($condition['newtag']);
 				break;
 
 			case ZBX_CORR_CONDITION_OLD_EVENT_TAG_VALUE:
 				$description[] = _('Value of old event tag').' ';
-				$description[] = italic(CHtml::encode($condition['tag']));
+				$description[] = italic($condition['tag']);
 				$description[] = ' '.self::getLabelByOperator((int) $condition['operator']).' ';
-				$description[] = italic(CHtml::encode($condition['value']));
+				$description[] = italic($condition['value']);
 				break;
 
 			case ZBX_CORR_CONDITION_NEW_EVENT_TAG_VALUE:
 				$description[] = _('Value of new event tag').' ';
-				$description[] = italic(CHtml::encode($condition['tag']));
+				$description[] = italic($condition['tag']);
 				$description[] = ' '.self::getLabelByOperator((int) $condition['operator']).' ';
-				$description[] = italic(CHtml::encode($condition['value']));
+				$description[] = italic($condition['value']);
 				break;
 		}
 

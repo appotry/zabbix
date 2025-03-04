@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 /**
@@ -29,6 +24,13 @@ interface IWaitable {
 	 * @return callable
 	 */
 	public function getReadyCondition();
+
+	/**
+	 * Condition describing state when object is not ready.
+	 *
+	 * @return callable
+	 */
+	public function getNotReadyCondition();
 
 	/**
 	 * Condition describing state when object is present.
@@ -73,6 +75,20 @@ interface IWaitable {
 	public function getNotClickableCondition();
 
 	/**
+	 * Condition describing state when object is enabled.
+	 *
+	 * @return callable
+	 */
+	public function getEnabledCondition();
+
+	/**
+	 * Condition describing state when object is not enabled.
+	 *
+	 * @return callable
+	 */
+	public function getNotEnabledCondition();
+
+	/**
 	 * Condition describing state when text is present within the object.
 	 *
 	 * @param string $text    text to be present
@@ -100,13 +116,31 @@ interface IWaitable {
 	public function getAttributesPresentCondition($attributes);
 
 	/**
-	 * Condition describing state when text is not present within the object.
+	 * Condition describing state when attribute is not present within the object.
 	 *
 	 * @param array $attributes    attributes to not be present
 	 *
 	 * @return callable
 	 */
 	public function getAttributesNotPresentCondition($attributes);
+
+	/**
+	 * Condition describing state when classes is present within the object.
+	 *
+	 * @param array $classes    classes to be present
+	 *
+	 * @return callable
+	 */
+	public function getClassesPresentCondition($classes);
+
+	/**
+	 * Condition describing state when classes is not present within the object.
+	 *
+	 * @param array $classes    classes to not be present
+	 *
+	 * @return callable
+	 */
+	public function getClassesNotPresentCondition($classes);
 
 	/**
 	 * Condition describing state when object is selected.

@@ -1,37 +1,36 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 #include "dir.h"
+#include "../sysinfo.h"
 
-#include "common.h"
-#include "sysinfo.h"
+#include "zbxalgo.h"
+#include "zbxjson.h"
+#include "zbxstr.h"
+#include "zbxnum.h"
+#include "zbxparam.h"
 #include "zbxregexp.h"
-#include "log.h"
 
 #if defined(_WINDOWS) || defined(__MINGW32__)
-#	include "disk.h"
+#	include "zbxwin32.h"
+#	include "zbxlog.h"
 #endif
 
 /******************************************************************************
  *                                                                            *
- * Purpose: checks if filename matches the include-regexp and doesn't match   *
- *          the exclude-regexp                                                *
+ * Purpose: Checks if filename matches the include-regexp and doesn't match   *
+ *          the exclude-regexp.                                               *
  *                                                                            *
  * Parameters: fname      - [IN] filename to be checked                       *
  *             regex_incl - [IN] regexp for filenames to include (NULL means  *
@@ -51,8 +50,8 @@ static int	filename_matches(const char *fname, const zbx_regexp_t *regex_incl, c
 
 /******************************************************************************
  *                                                                            *
- * Purpose: adds directory to processing queue after checking if current      *
- *          depth is less than 'max_depth'                                    *
+ * Purpose: Adds directory to processing queue after checking if current      *
+ *          depth is less than 'max_depth'.                                   *
  *                                                                            *
  * Parameters: list      - [IN/OUT] vector used to replace recursion          *
  *                                  with iterative approach                   *
@@ -85,8 +84,8 @@ static int	queue_directory(zbx_vector_ptr_t *list, char *path, int depth, int ma
 
 /******************************************************************************
  *                                                                            *
- * Purpose: compares two zbx_file_descriptor_t values to perform search       *
- *          within descriptor vector                                          *
+ * Purpose: Compares two zbx_file_descriptor_t values to perform search       *
+ *          within descriptor vector.                                         *
  *                                                                            *
  * Parameters: file_a - [IN] file descriptor A                                *
  *             file_b - [IN] file descriptor B                                *
@@ -99,8 +98,8 @@ static int	compare_descriptors(const void *file_a, const void *file_b)
 {
 	const zbx_file_descriptor_t	*fa, *fb;
 
-	fa = *((zbx_file_descriptor_t **)file_a);
-	fb = *((zbx_file_descriptor_t **)file_b);
+	fa = *((zbx_file_descriptor_t * const *)file_a);
+	fb = *((zbx_file_descriptor_t * const *)file_b);
 
 	return (fa->st_ino != fb->st_ino || fa->st_dev != fb->st_dev);
 }
@@ -109,8 +108,7 @@ static int	prepare_common_parameters(const AGENT_REQUEST *request, AGENT_RESULT 
 		zbx_regexp_t **regex_excl, zbx_regexp_t **regex_excl_dir, int *max_depth, char **dir,
 		zbx_stat_t *status, int depth_param, int excl_dir_param, int param_count)
 {
-	char	*dir_param, *regex_incl_str, *regex_excl_str, *regex_excl_dir_str, *max_depth_str;
-	const char	*error = NULL;
+	char	*dir_param, *regex_incl_str, *regex_excl_str, *regex_excl_dir_str, *max_depth_str, *error = NULL;
 
 	if (param_count < request->nparam)
 	{
@@ -136,7 +134,7 @@ static int	prepare_common_parameters(const AGENT_REQUEST *request, AGENT_RESULT 
 		{
 			SET_MSG_RESULT(result, zbx_dsprintf(NULL,
 					"Invalid regular expression in second parameter: %s", error));
-			zbx_regexp_err_msg_free(error);
+			zbx_free(error);
 			return FAIL;
 		}
 	}
@@ -147,7 +145,7 @@ static int	prepare_common_parameters(const AGENT_REQUEST *request, AGENT_RESULT 
 		{
 			SET_MSG_RESULT(result, zbx_dsprintf(NULL,
 					"Invalid regular expression in third parameter: %s", error));
-			zbx_regexp_err_msg_free(error);
+			zbx_free(error);
 			return FAIL;
 		}
 	}
@@ -158,7 +156,7 @@ static int	prepare_common_parameters(const AGENT_REQUEST *request, AGENT_RESULT 
 		{
 			SET_MSG_RESULT(result, zbx_dsprintf(NULL, "Invalid regular expression in %s parameter: %s",
 					(5 == excl_dir_param ? "sixth" : "eleventh"), error));
-			zbx_regexp_err_msg_free(error);
+			zbx_free(error);
 			return FAIL;
 		}
 	}
@@ -167,7 +165,7 @@ static int	prepare_common_parameters(const AGENT_REQUEST *request, AGENT_RESULT 
 	{
 		*max_depth = TRAVERSAL_DEPTH_UNLIMITED; /* <max_depth> default value */
 	}
-	else if (SUCCEED != is_uint31(max_depth_str, max_depth))
+	else if (SUCCEED != zbx_is_uint31(max_depth_str, max_depth))
 	{
 		SET_MSG_RESULT(result, zbx_dsprintf(NULL, "Invalid %s parameter.", (4 == depth_param ?
 						"fifth" : "sixth")));
@@ -205,9 +203,7 @@ static int	prepare_common_parameters(const AGENT_REQUEST *request, AGENT_RESULT 
 
 static int	prepare_mode_parameter(const AGENT_REQUEST *request, AGENT_RESULT *result, int *mode)
 {
-	char	*mode_str;
-
-	mode_str = get_rparam(request, 3);
+	char	*mode_str = get_rparam(request, 3);
 
 	if (NULL == mode_str || '\0' == *mode_str || 0 == strcmp(mode_str, "apparent"))	/* <mode> default value */
 	{
@@ -228,35 +224,34 @@ static int	prepare_mode_parameter(const AGENT_REQUEST *request, AGENT_RESULT *re
 
 static int	etype_to_mask(const char *etype)
 {
-	static const char	*template_list = ZBX_FT_TEMPLATE;
-	const char		*tmp;
-	int			ret = 1;
+	static const char	*template_list[] = {ZBX_FT_FILE_STR, ZBX_FT_DIR_STR, ZBX_FT_SYM_STR, ZBX_FT_SOCK_STR,
+						ZBX_FT_BDEV_STR, ZBX_FT_CDEV_STR, ZBX_FT_FIFO_STR, ZBX_FT_ALL_STR,
+						ZBX_FT_DEV_STR};
+	size_t			i;
 
-	for (tmp = template_list; '\0' != *tmp; tmp += strlen(tmp) + 1)
+	for (i = 0; i < sizeof(template_list) / sizeof(template_list[0]); i++)
 	{
-		if (0 == strcmp(etype, tmp))
+		if (0 == strcmp(etype, template_list[i]))
 			break;
-
-		ret <<= 1;
 	}
 
-	return ret;
+	return (1 << i);
 }
 
 int	zbx_etypes_to_mask(const char *etypes, AGENT_RESULT *result)
 {
-	int	n, num, ret = 0;
+	int	num, ret = 0;
 
 	if (NULL == etypes || '\0' == *etypes)
 		return 0;
 
-	num = num_param(etypes);
-	for (n = 1; n <= num; n++)
+	num = zbx_num_param(etypes);
+	for (int n = 1; n <= num; n++)
 	{
 		char	*etype;
 		int	type;
 
-		if (NULL == (etype = get_param_dyn(etypes, n, NULL)))
+		if (NULL == (etype = zbx_get_param_dyn(etypes, n, NULL)))
 			continue;
 
 		if (ZBX_FT_OVERFLOW & (type = etype_to_mask(etype)))
@@ -284,7 +279,7 @@ static int	parse_size_parameter(char *text, zbx_uint64_t *size_out)
 	if (NULL == text || '\0' == *text)
 		return SUCCEED;
 
-	return str2uint64(text, "KMGT", size_out);
+	return zbx_str2uint64(text, "KMGT", size_out);
 }
 
 static int	parse_age_parameter(char *text, time_t *time_out, time_t now)
@@ -294,7 +289,7 @@ static int	parse_age_parameter(char *text, time_t *time_out, time_t now)
 	if (NULL == text || '\0' == *text)
 		return SUCCEED;
 
-	if (SUCCEED != str2uint64(text, "smhdw", &seconds))
+	if (SUCCEED != zbx_str2uint64(text, "smhdw", &seconds))
 		return FAIL;
 
 	*time_out = now - (time_t)seconds;
@@ -414,17 +409,15 @@ static void	descriptors_vector_destroy(zbx_vector_ptr_t *descriptors)
  *          immediately stop whatever it is doing, clean up everything and    *
  *          return SYSINFO_RET_FAIL.                                          *
  *                                                                            *
- * Parameters: timeout_event - [IN] handle of a timeout event that was passed *
- *                                  to the metric function                    *
+ * Parameters: timeout_event - [IN] Handle of a timeout event that was passed *
+ *                                  to the metric function.                   *
  *                                                                            *
  * Return value: TRUE, if timeout or error was detected, FALSE otherwise.     *
  *                                                                            *
  ******************************************************************************/
 static BOOL	has_timed_out(HANDLE timeout_event)
 {
-	DWORD rc;
-
-	rc = WaitForSingleObject(timeout_event, 0);
+	DWORD rc = WaitForSingleObject(timeout_event, 0);
 
 	switch (rc)
 	{
@@ -434,7 +427,7 @@ static BOOL	has_timed_out(HANDLE timeout_event)
 			return FALSE;
 		case WAIT_FAILED:
 			zabbix_log(LOG_LEVEL_CRIT, "WaitForSingleObject() returned WAIT_FAILED: %s",
-					strerror_from_system(GetLastError()));
+					zbx_strerror_from_system(GetLastError()));
 			return TRUE;
 		default:
 			zabbix_log(LOG_LEVEL_CRIT, "WaitForSingleObject() returned 0x%x", (unsigned int)rc);
@@ -445,21 +438,19 @@ static BOOL	has_timed_out(HANDLE timeout_event)
 
 static int	get_file_info_by_handle(wchar_t *wpath, BY_HANDLE_FILE_INFORMATION *link_info, char **error)
 {
-	HANDLE	file_handle;
-
-	file_handle = CreateFile(wpath, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
+	HANDLE	file_handle = CreateFile(wpath, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
 			FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
 
 	if (INVALID_HANDLE_VALUE == file_handle)
 	{
-		*error = zbx_strdup(NULL, strerror_from_system(GetLastError()));
+		*error = zbx_strdup(NULL, zbx_strerror_from_system(GetLastError()));
 		return FAIL;
 	}
 
 	if (0 == GetFileInformationByHandle(file_handle, link_info))
 	{
 		CloseHandle(file_handle);
-		*error = zbx_strdup(NULL, strerror_from_system(GetLastError()));
+		*error = zbx_strdup(NULL, zbx_strerror_from_system(GetLastError()));
 		return FAIL;
 	}
 
@@ -509,7 +500,7 @@ static int	link_processed(DWORD attrib, wchar_t *wpath, zbx_vector_ptr_t *descri
 	return FAIL;
 }
 
-static int	vfs_dir_size(AGENT_REQUEST *request, AGENT_RESULT *result, HANDLE timeout_event)
+static int	vfs_dir_size_local(AGENT_REQUEST *request, AGENT_RESULT *result, HANDLE timeout_event)
 {
 	char			*dir = NULL;
 	int			mode, max_depth, ret = SYSINFO_RET_FAIL;
@@ -587,7 +578,7 @@ static int	vfs_dir_size(AGENT_REQUEST *request, AGENT_RESULT *result, HANDLE tim
 			goto err2;
 		}
 
-		if (SIZE_MODE_DISK == mode && 0 == (cluster_size = get_cluster_size(item->path, &error)))
+		if (SIZE_MODE_DISK == mode && 0 == (cluster_size = zbx_get_cluster_size(item->path, &error)))
 		{
 			SET_MSG_RESULT(result, error);
 			list.values_num++;
@@ -686,7 +677,7 @@ err1:
 	return ret;
 }
 #else /* not _WINDOWS or __MINGW32__ */
-static int	vfs_dir_size(AGENT_REQUEST *request, AGENT_RESULT *result)
+static int	vfs_dir_size_local(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	char			*dir = NULL;
 	int			mode, max_depth, ret = SYSINFO_RET_FAIL;
@@ -835,9 +826,9 @@ err1:
 }
 #endif
 
-int	VFS_DIR_SIZE(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	vfs_dir_size(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
-	return zbx_execute_threaded_metric(vfs_dir_size, request, result);
+	return zbx_execute_threaded_metric(vfs_dir_size_local, request, result);
 }
 
 #define EVALUATE_DIR_ENTITY()											\
@@ -908,9 +899,7 @@ static int	vfs_dir_info(AGENT_REQUEST *request, AGENT_RESULT *result, HANDLE tim
 		wchar_t			*wpath;
 		HANDLE			handle;
 		WIN32_FIND_DATA		data;
-		zbx_directory_item_t	*item;
-
-		item = list.values[--list.values_num];
+		zbx_directory_item_t	*item = list.values[--list.values_num];
 
 		name = zbx_dsprintf(NULL, "%s\\*", item->path);
 
@@ -1005,16 +994,7 @@ static int	vfs_dir_info(AGENT_REQUEST *request, AGENT_RESULT *result, HANDLE tim
 					break;
 				default:	/* not a directory => regular file */
 					if (0 != (types & ZBX_FT_FILE) && 0 != match)
-					{
-						wpath = zbx_utf8_to_unicode(path);
-						if (FAIL == link_processed(data.dwFileAttributes, wpath, &descriptors,
-								path))
-						{
-							EVALUATE_DIR_ENTITY()
-						}
-
-						zbx_free(wpath);
-					}
+						EVALUATE_DIR_ENTITY()
 free_path:
 					zbx_free(path);
 			}
@@ -1056,12 +1036,12 @@ err1:
 	return ret;
 }
 
-static int	vfs_dir_count(AGENT_REQUEST *request, AGENT_RESULT *result, HANDLE timeout_event)
+static int	vfs_dir_count_local(AGENT_REQUEST *request, AGENT_RESULT *result, HANDLE timeout_event)
 {
 	return vfs_dir_info(request, result, timeout_event, 1);
 }
 
-static int	vfs_dir_get(AGENT_REQUEST *request, AGENT_RESULT *result, HANDLE timeout_event)
+static int	vfs_dir_get_local(AGENT_REQUEST *request, AGENT_RESULT *result, HANDLE timeout_event)
 {
 	return vfs_dir_info(request, result, timeout_event, 0);
 }
@@ -1069,8 +1049,7 @@ static int	vfs_dir_get(AGENT_REQUEST *request, AGENT_RESULT *result, HANDLE time
 static int	vfs_dir_info(AGENT_REQUEST *request, AGENT_RESULT *result, int count_mode)
 {
 	char			*dir = NULL;
-	int			types, max_depth, ret = SYSINFO_RET_FAIL;
-	int			count = 0;
+	int			types, max_depth, ret = SYSINFO_RET_FAIL, count = 0;
 	zbx_vector_ptr_t	list;
 	zbx_stat_t		status;
 	zbx_regexp_t		*regex_incl = NULL, *regex_excl = NULL, *regex_excl_dir = NULL;
@@ -1102,11 +1081,9 @@ static int	vfs_dir_info(AGENT_REQUEST *request, AGENT_RESULT *result, int count_
 
 	while (0 < list.values_num)
 	{
-		zbx_directory_item_t	*item;
 		struct dirent		*entry;
 		DIR			*directory;
-
-		item = (zbx_directory_item_t *)list.values[--list.values_num];
+		zbx_directory_item_t	*item = (zbx_directory_item_t *)list.values[--list.values_num];
 
 		if (NULL == (directory = opendir(item->path)))
 		{
@@ -1201,23 +1178,23 @@ err1:
 	return ret;
 }
 
-static int	vfs_dir_count(AGENT_REQUEST *request, AGENT_RESULT *result)
+static int	vfs_dir_count_local(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	return vfs_dir_info(request, result, 1);
 }
 
-static int	vfs_dir_get(AGENT_REQUEST *request, AGENT_RESULT *result)
+static int	vfs_dir_get_local(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	return vfs_dir_info(request, result, 0);
 }
 #endif
 
-int	VFS_DIR_COUNT(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	vfs_dir_count(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
-	return zbx_execute_threaded_metric(vfs_dir_count, request, result);
+	return zbx_execute_threaded_metric(vfs_dir_count_local, request, result);
 }
 
-int	VFS_DIR_GET(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	vfs_dir_get(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
-	return zbx_execute_threaded_metric(vfs_dir_get, request, result);
+	return zbx_execute_threaded_metric(vfs_dir_get_local, request, result);
 }

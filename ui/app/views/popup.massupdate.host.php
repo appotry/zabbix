@@ -1,21 +1,16 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -25,8 +20,8 @@
 
 // create form
 $form = (new CForm())
+	->addItem((new CVar(CSRF_TOKEN_NAME, CCsrfTokenHelper::get('host')))->removeId())
 	->setId('massupdate-form')
-	->setAttribute('aria-labeledby', ZBX_STYLE_PAGE_TITLE)
 	->addVar('action', 'popup.massupdate.host')
 	->addVar('hostids', $data['hostids'], 'ids')
 	->addVar('tls_accept', HOST_ENCRYPTION_NONE)
@@ -36,19 +31,20 @@ $form = (new CForm())
 
 $host_tab = new CFormList('hostFormList');
 
-$link_templates = (new CTable())
-	->addRow(
+$host_tab->addRow(
+	(new CVisibilityBox('visible[templates]', 'linked-templates-field', _('Original')))
+		->setLabel(_('Link templates'))
+		->setAttribute('autofocus', 'autofocus'),
+	(new CDiv([
 		(new CRadioButtonList('mass_action_tpls', ZBX_ACTION_ADD))
 			->addValue(_('Link'), ZBX_ACTION_ADD)
 			->addValue(_('Replace'), ZBX_ACTION_REPLACE)
 			->addValue(_('Unlink'), ZBX_ACTION_REMOVE)
 			->setModern(true)
-	)
-	->addRow([
+			->addStyle('margin-bottom: 5px;'),
 		(new CMultiSelect([
 			'name' => 'templates[]',
 			'object_name' => 'templates',
-			'data' => [],
 			'popup' => [
 				'parameters' => [
 					'srctbl' => 'templates',
@@ -58,26 +54,17 @@ $link_templates = (new CTable())
 					'dstfld1' => 'templates_'
 				]
 			]
-		]))->setWidth(ZBX_TEXTAREA_STANDARD_WIDTH)
-	])
-	->addRow([
+		]))
+			->setWidth(ZBX_TEXTAREA_STANDARD_WIDTH)
+			->addStyle('margin-bottom: 5px;'),
 		(new CList())
 			->addClass(ZBX_STYLE_LIST_CHECK_RADIO)
 			->addItem((new CCheckBox('mass_clear_tpls'))->setLabel(_('Clear when unlinking')))
-	]);
-
-$host_tab->addRow(
-	(new CVisibilityBox('visible[templates]', 'linked-templates-div', _('Original')))
-		->setLabel(_('Link templates')),
-	(new CDiv($link_templates))
-		->setId('linked-templates-div')
-		->addStyle('margin-top: -5px;')
+	]))->setId('linked-templates-field')
 );
 
 $host_tab->addRow(
-	(new CVisibilityBox('visible[groups]', 'groups-div', _('Original')))
-		->setLabel(_('Host groups'))
-		->setAttribute('autofocus', 'autofocus'),
+	(new CVisibilityBox('visible[groups]', 'groups-field', _('Original')))->setLabel(_('Host groups')),
 	(new CDiv([
 		(new CRadioButtonList('mass_update_groups', ZBX_ACTION_ADD))
 			->addValue(_('Add'), ZBX_ACTION_ADD)
@@ -89,7 +76,6 @@ $host_tab->addRow(
 			'name' => 'groups[]',
 			'object_name' => 'hostGroup',
 			'add_new' => (CWebUser::getType() == USER_TYPE_SUPER_ADMIN),
-			'data' => [],
 			'popup' => [
 				'parameters' => [
 					'srctbl' => 'host_groups',
@@ -100,7 +86,7 @@ $host_tab->addRow(
 				]
 			]
 		]))->setWidth(ZBX_TEXTAREA_STANDARD_WIDTH)
-	]))->setId('groups-div')
+	]))->setId('groups-field')
 );
 
 // append description to form list
@@ -111,19 +97,53 @@ $host_tab->addRow(
 		->setMaxlength(DB::getFieldLength('hosts', 'description'))
 );
 
-// append proxy to form list
-$proxy_select = (new CSelect('proxy_hostid'))
-	->setId('proxy_hostid')
-	->setValue(0)
-	->addOption(new CSelectOption(0, _('(no proxy)')));
-
-foreach ($data['proxies'] as $proxie) {
-	$proxy_select->addOption(new CSelectOption($proxie['proxyid'], $proxie['host']));
-}
-
+// Append "Monitored by" to form list.
 $host_tab->addRow(
-	(new CVisibilityBox('visible[proxy_hostid]', 'proxy_hostid', _('Original')))->setLabel(_('Monitored by proxy')),
-	$proxy_select
+	(new CVisibilityBox('visible[monitored_by]', 'monitored-by-field', _('Original')))->setLabel(_('Monitored by')),
+	(new CDiv([
+		(new CRadioButtonList('monitored_by', ZBX_MONITORED_BY_SERVER))
+			->addValue(_('Server'), ZBX_MONITORED_BY_SERVER)
+			->addValue(_('Proxy'), ZBX_MONITORED_BY_PROXY)
+			->addValue(_('Proxy group'), ZBX_MONITORED_BY_PROXY_GROUP)
+			->setModern(),
+		(new CDiv(
+			(new CMultiSelect([
+				'name' => 'proxyid',
+				'object_name' => 'proxies',
+				'multiple' => false,
+				'popup' => [
+					'parameters' => [
+						'srctbl' => 'proxies',
+						'srcfld1' => 'proxyid',
+						'srcfld2' => 'name',
+						'dstfrm' => $form->getName(),
+						'dstfld1' => 'proxyid'
+					]
+				]
+			]))->setWidth(ZBX_TEXTAREA_STANDARD_WIDTH),
+		))
+			->addClass('js-field-proxy')
+			->addStyle('margin-top: 5px;'),
+		(new CDiv(
+			(new CMultiSelect([
+				'name' => 'proxy_groupid',
+				'object_name' => 'proxy_groups',
+				'multiple' => false,
+				'popup' => [
+					'parameters' => [
+						'srctbl' => 'proxy_groups',
+						'srcfld1' => 'proxy_groupid',
+						'srcfld2' => 'name',
+						'dstfrm' => $form->getName(),
+						'dstfld1' => 'proxy_groupid'
+					]
+				]
+			]))
+				->setWidth(ZBX_TEXTAREA_STANDARD_WIDTH)
+		))
+			->addClass('js-field-proxy-group')
+			->addStyle('margin-top: 5px;')
+	]))->setId('monitored-by-field')
 );
 
 // append status to form list
@@ -158,13 +178,13 @@ $ipmi_tab->addRow(
 )
 ->addRow(
 	(new CVisibilityBox('visible[ipmi_username]', 'ipmi_username', _('Original')))->setLabel(_('Username')),
-	(new CTextBox('ipmi_username', ''))
+	(new CTextBox('ipmi_username', '', false, DB::getFieldLength('hosts', 'ipmi_username')))
 		->setWidth(ZBX_TEXTAREA_SMALL_WIDTH)
 		->disableAutocomplete()
 )
 ->addRow(
 	(new CVisibilityBox('visible[ipmi_password]', 'ipmi_password', _('Original')))->setLabel(_('Password')),
-	(new CTextBox('ipmi_password', ''))
+	(new CTextBox('ipmi_password', '', false, DB::getFieldLength('hosts', 'ipmi_password')))
 		->setWidth(ZBX_TEXTAREA_SMALL_WIDTH)
 		->disableAutocomplete()
 );
@@ -173,21 +193,20 @@ $inventory_tab = new CFormList('inventoryFormList');
 
 // append inventories to form list
 $inventory_tab->addRow(
-	(new CVisibilityBox('visible[inventory_mode]', 'inventory_mode_div', _('Original')))->setLabel(_('Inventory mode')),
-	(new CDiv(
-		(new CRadioButtonList('inventory_mode', HOST_INVENTORY_DISABLED))
-			->addValue(_('Disabled'), HOST_INVENTORY_DISABLED)
-			->addValue(_('Manual'), HOST_INVENTORY_MANUAL)
-			->addValue(_('Automatic'), HOST_INVENTORY_AUTOMATIC)
-			->setModern(true)
-	))->setId('inventory_mode_div')
+	(new CVisibilityBox('visible[inventory_mode]', 'inventory_mode', _('Original')))->setLabel(_('Inventory mode')),
+	(new CRadioButtonList('inventory_mode', HOST_INVENTORY_DISABLED))
+		->setId('inventory_mode')
+		->addValue(_('Disabled'), HOST_INVENTORY_DISABLED)
+		->addValue(_('Manual'), HOST_INVENTORY_MANUAL)
+		->addValue(_('Automatic'), HOST_INVENTORY_AUTOMATIC)
+		->setModern(true)
 );
 
 $tags_tab = new CFormList('tagsFormList');
 
 // append tags table to form list
 $tags_tab->addRow(
-	(new CVisibilityBox('visible[tags]', 'tags-div', _('Original')))->setLabel(_('Tags')),
+	(new CVisibilityBox('visible[tags]', 'tags-field', _('Original')))->setLabel(_('Tags')),
 	(new CDiv([
 		(new CRadioButtonList('mass_update_tags', ZBX_ACTION_ADD))
 			->addValue(_('Add'), ZBX_ACTION_ADD)
@@ -196,15 +215,15 @@ $tags_tab->addRow(
 			->setModern(true)
 			->addStyle('margin-bottom: 10px;'),
 		renderTagTable([['tag' => '', 'value' => '']])
-			->setHeader([_('Name'), _('Value'), _('Action')])
-			->setId('tags-table')
-	]))->setId('tags-div')
+			->setHeader([_('Name'), _('Value'), ''])
+			->addClass('tags-table')
+	]))->setId('tags-field')
 );
 
 $hostInventoryTable = DB::getSchema('host_inventory');
 foreach ($data['inventories'] as $field => $fieldInfo) {
 
-	if ($hostInventoryTable['fields'][$field]['type'] == DB::FIELD_TYPE_TEXT) {
+	if ($hostInventoryTable['fields'][$field]['type'] & DB::FIELD_TYPE_TEXT) {
 		$fieldInput = (new CTextArea('host_inventory['.$field.']', ''))
 			->setAdaptiveWidth(ZBX_TEXTAREA_BIG_WIDTH);
 	}
@@ -222,7 +241,7 @@ foreach ($data['inventories'] as $field => $fieldInfo) {
 
 $encryption_tab = new CFormList('encryption');
 
-$encryption_table = (new CFormList('encryption'))
+$encryption_table = (new CFormList('encryption-field'))
 	->addRow(_('Connections to host'),
 		(new CRadioButtonList('tls_connect', HOST_ENCRYPTION_NONE))
 			->addValue(_('No encryption'), HOST_ENCRYPTION_NONE)
@@ -270,10 +289,8 @@ $encryption_table = (new CFormList('encryption'))
 	);
 
 $encryption_tab->addRow(
-	(new CVisibilityBox('visible[encryption]', 'encryption_div', _('Original')))->setLabel(_('Connections')),
-	(new CDiv($encryption_table))
-		->setId('encryption_div')
-		->addStyle('margin-top: -5px;')
+	(new CVisibilityBox('visible[encryption]', 'encryption-field', _('Original')))->setLabel(_('Connections')),
+	$encryption_table->addStyle('margin-top: -5px;')
 );
 
 // append tabs to form

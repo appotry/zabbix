@@ -1,21 +1,16 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -55,20 +50,8 @@ class CToken extends CApiService {
 			'token' =>					['type' => API_STRING_UTF8, 'flags' => API_ALLOW_NULL | API_NORMALIZE, 'length' => 64, 'default' => null],
 			'valid_at' =>				['type' => API_INT32, 'flags' => API_ALLOW_NULL, 'default' => null],
 			'expired_at' =>				['type' => API_INT32, 'flags' => API_ALLOW_NULL, 'default' => null],
-			'filter' =>					['type' => API_OBJECT, 'flags' => API_ALLOW_NULL, 'default' => null, 'fields' => [
-				'tokenid' =>				['type' => API_IDS, 'flags' => API_ALLOW_NULL | API_NORMALIZE],
-				'name' =>					['type' => API_STRINGS_UTF8, 'flags' => API_ALLOW_NULL | API_NORMALIZE],
-				'userid' =>					['type' => API_IDS, 'flags' => API_ALLOW_NULL | API_NORMALIZE],
-				'lastaccess' =>				['type' => API_INTS32, 'flags' => API_ALLOW_NULL | API_NORMALIZE],
-				'status' =>					['type' => API_INTS32, 'flags' => API_ALLOW_NULL | API_NORMALIZE, 'in' => implode(',', [ZBX_AUTH_TOKEN_ENABLED, ZBX_AUTH_TOKEN_DISABLED])],
-				'expires_at' =>				['type' => API_INTS32, 'flags' => API_ALLOW_NULL | API_NORMALIZE],
-				'created_at' =>				['type' => API_INTS32, 'flags' => API_ALLOW_NULL | API_NORMALIZE],
-				'creator_userid' =>			['type' => API_IDS, 'flags' => API_ALLOW_NULL | API_NORMALIZE]
-			]],
-			'search' =>					['type' => API_OBJECT, 'flags' => API_ALLOW_NULL, 'default' => null, 'fields' => [
-				'name' =>					['type' => API_STRINGS_UTF8, 'flags' => API_ALLOW_NULL | API_NORMALIZE],
-				'description' =>			['type' => API_STRINGS_UTF8, 'flags' => API_ALLOW_NULL | API_NORMALIZE]
-			]],
+			'filter' =>					['type' => API_FILTER, 'flags' => API_ALLOW_NULL, 'default' => null, 'fields' => ['tokenid', 'name', 'userid', 'lastaccess', 'status', 'expires_at', 'created_at', 'creator_userid']],
+			'search' =>					['type' => API_FILTER, 'flags' => API_ALLOW_NULL, 'default' => null, 'fields' => ['name', 'description']],
 			'searchByAny' =>			['type' => API_BOOLEAN, 'default' => false],
 			'startSearch' =>			['type' => API_FLAG, 'default' => false],
 			'excludeSearch' =>			['type' => API_FLAG, 'default' => false],
@@ -273,7 +256,7 @@ class CToken extends CApiService {
 	 *
 	 * @throws APIException  if token already exists.
 	 */
-	protected function checkDuplicateNames(array $tokens, array $db_tokens = null): void {
+	protected function checkDuplicateNames(array $tokens, ?array $db_tokens = null): void {
 		$names_by_userid = [];
 
 		foreach ($tokens as $token) {
@@ -343,7 +326,7 @@ class CToken extends CApiService {
 	 *
 	 * @throws APIException  if the input is invalid
 	 */
-	protected function validateUpdate(array &$tokens, array &$db_tokens = null): void {
+	protected function validateUpdate(array &$tokens, ?array &$db_tokens = null): void {
 		$api_input_rules = ['type' => API_OBJECTS, 'flags' => API_NOT_EMPTY | API_NORMALIZE, 'uniq' => [['tokenid']], 'fields' => [
 			'tokenid' =>		['type' => API_ID, 'flags' => API_REQUIRED],
 			'name' =>			['type' => API_STRING_UTF8, 'flags' => API_NOT_EMPTY, 'length' => DB::getFieldLength('token', 'name')],
@@ -382,8 +365,6 @@ class CToken extends CApiService {
 
 	/**
 	 * @param array $tokenids
-	 *
-	 * @static
 	 *
 	 * @param array $tokenids
 	 */

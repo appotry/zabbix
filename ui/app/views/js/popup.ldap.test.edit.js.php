@@ -1,21 +1,16 @@
-<?php declare(strict_types = 1);
+<?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -43,7 +38,7 @@ window.ldap_test_edit_popup = new class {
 		this.overlay.setLoading();
 
 		const fields = this.trimFields(getFormFields(this.form));
-		const curl = new Curl(this.form.getAttribute('action'), false);
+		const curl = new Curl(this.form.getAttribute('action'));
 
 		fetch(curl.getUrl(), {
 			method: 'POST',
@@ -52,6 +47,12 @@ window.ldap_test_edit_popup = new class {
 		})
 			.then((response) => response.json())
 			.then((response) => {
+				if ('provisioning' in response) {
+					this.appendProvisioning(document.getElementById('provisioning_role'), response.provisioning.role);
+					this.appendProvisioning(document.getElementById('provisioning_groups'), response.provisioning.groups);
+					this.appendProvisioning(document.getElementById('provisioning_medias'), response.provisioning.medias);
+				}
+
 				if ('error' in response) {
 					throw {error: response.error};
 				}
@@ -80,6 +81,27 @@ window.ldap_test_edit_popup = new class {
 			.finally(() => {
 				this.overlay.unsetLoading();
 			});
+	}
+
+	appendProvisioning(parent, names) {
+		let span;
+		parent.innerHTML = '';
+
+		if (names.length > 0) {
+			for (const name of names) {
+				span = document.createElement('span');
+				span.innerText = name;
+				span.classList.add(<?= json_encode(ZBX_STYLE_TAG) ?>);
+
+				parent.appendChild(span);
+			}
+		}
+		else {
+			span = document.createElement('span');
+			span.innerText = <?= json_encode(_('No value')) ?>;
+			span.classList.add(<?= json_encode(ZBX_STYLE_DISABLED) ?>);
+			parent.appendChild(span);
+		}
 	}
 
 	removePopupMessages() {

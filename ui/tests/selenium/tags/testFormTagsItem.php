@@ -1,35 +1,33 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
+
 
 require_once dirname(__FILE__).'/../common/testFormTags.php';
 
 /**
  * @dataSource EntitiesTags
  * @backup items
+ *
+ * TODO: remove ignoreBrowserErrors after DEV-4233
+ * @ignoreBrowserErrors
  */
 class testFormTagsItem extends testFormTags {
 	public $update_name = 'Item with tags for updating';
 	public $clone_name = 'Item with tags for cloning';
 	public $remove_name = 'Item for tags removing';
 	public $link;
-	public $saved_link = 'items.php?form=update&context=host&itemid=';
 	public $host = 'Host for tags testing';
 	public $template = 'Template for tags testing';
 
@@ -40,7 +38,7 @@ class testFormTagsItem extends testFormTags {
 	 */
 	public function testFormTagsItem_Create($data) {
 		$hostid = CDataHelper::get('EntitiesTags.hostids.'.$this->host);
-		$this->link = 'items.php?filter_set=1&filter_hostids[0]='.$hostid.'&context=host';
+		$this->link = 'zabbix.php?action=item.list&filter_set=1&filter_hostids%5B0%5D='.$hostid.'&context=host';
 		$this->checkTagsCreate($data, 'item');
 	}
 
@@ -51,7 +49,7 @@ class testFormTagsItem extends testFormTags {
 	 */
 	public function testFormTagsItem_Update($data) {
 		$hostid = CDataHelper::get('EntitiesTags.hostids.'.$this->host);
-		$this->link = 'items.php?filter_set=1&filter_hostids[0]='.$hostid.'&context=host';
+		$this->link = 'zabbix.php?action=item.list&filter_set=1&filter_hostids%5B0%5D='.$hostid.'&context=host';
 		$this->checkTagsUpdate($data, 'item');
 	}
 
@@ -60,28 +58,28 @@ class testFormTagsItem extends testFormTags {
 	 */
 	public function testFormTagsItem_Clone() {
 		$hostid = CDataHelper::get('EntitiesTags.hostids.Host with tags for cloning');
-		$this->link = 'items.php?filter_set=1&filter_hostids[0]='.$hostid.'&context=host';
-		$this->executeCloning('item', 'Clone');
+		$this->link = 'zabbix.php?action=item.list&filter_set=1&filter_hostids%5B0%5D='.$hostid.'&context=host';
+		$this->executeCloning('item');
 	}
 
 	/**
-	 * Test host full cloning with Item.
+	 * Test host cloning with Item.
 	 */
-	public function testFormTagsItem_HostFullClone() {
+	public function testFormTagsItem_HostClone() {
 		$this->host = 'Host with tags for cloning';
 		$hostid = CDataHelper::get('EntitiesTags.hostids.'.$this->host);
-		$this->link = 'items.php?filter_set=1&filter_hostids[0]='.$hostid.'&context=host';
-		$this->executeFullCloning('item', 'Host');
+		$this->link = 'zabbix.php?action=item.list&filter_set=1&filter_hostids%5B0%5D='.$hostid.'&context=host';
+		$this->executeCloningByParent('item', 'Host');
 	}
 
 	/**
-	 * Test template full cloning with Item.
+	 * Test template cloning with Item.
 	 */
-	public function testFormTagsItem_TemplateFullClone() {
+	public function testFormTagsItem_TemplateClone() {
 		$templateid = CDataHelper::get('EntitiesTags.templateids.'.$this->template);
-		$this->link = 'items.php?filter_set=1&filter_hostids[0]='.$templateid.'&context=template';
-		$this->clone_name = 'Template item with tags for full cloning';
-		$this->executeFullCloning('item', 'Template');
+		$this->link = 'zabbix.php?action=item.list&filter_set=1&filter_hostids%5B0%5D='.$templateid.'&context=template';
+		$this->clone_name = 'Template item with tags for cloning';
+		$this->executeCloningByParent('item', 'Template');
 	}
 
 	/**
@@ -89,7 +87,7 @@ class testFormTagsItem extends testFormTags {
 	 */
 	public function testFormTagsItem_CopyToHost() {
 		$hostid = CDataHelper::get('EntitiesTags.hostids.Host with tags for cloning');
-		$this->link = 'items.php?filter_set=1&filter_hostids[0]='.$hostid.'&context=host';
+		$this->link = 'zabbix.php?action=item.list&filter_set=1&filter_hostids%5B0%5D='.$hostid.'&context=host';
 		$this->executeCopy('item', 'Host', 'Empty host');
 	}
 
@@ -98,7 +96,7 @@ class testFormTagsItem extends testFormTags {
 	 */
 	public function testFormTagsItem_CopyToHostGroup() {
 		$hostid = CDataHelper::get('EntitiesTags.hostids.Host with tags for cloning');
-		$this->link = 'items.php?filter_set=1&filter_hostids[0]='.$hostid.'&context=host';
+		$this->link = 'zabbix.php?action=item.list&filter_set=1&filter_hostids%5B0%5D='.$hostid.'&context=host';
 		$this->executeCopy('item', 'Host group', 'Group to copy graph');
 	}
 
@@ -107,7 +105,7 @@ class testFormTagsItem extends testFormTags {
 	 */
 	public function testFormTagsItem_CopyToTemplate() {
 		$hostid = CDataHelper::get('EntitiesTags.hostids.Host with tags for cloning');
-		$this->link = 'items.php?filter_set=1&filter_hostids[0]='.$hostid.'&context=host';
+		$this->link = 'zabbix.php?action=item.list&filter_set=1&filter_hostids%5B0%5D='.$hostid.'&context=host';
 		$this->executeCopy('item', 'Template', 'Empty template');
 	}
 
@@ -118,7 +116,7 @@ class testFormTagsItem extends testFormTags {
 	 */
 	public function testFormTagsItem_InheritedHostTags($data) {
 		$hostid = CDataHelper::get('EntitiesTags.hostids.'.$this->host);
-		$this->link = 'items.php?filter_set=1&filter_hostids[0]='.$hostid.'&context=host';
+		$this->link = 'zabbix.php?action=item.list&filter_set=1&filter_hostids%5B0%5D='.$hostid.'&context=host';
 		$this->checkInheritedTags($data, 'item', 'Host');
 	}
 
@@ -129,7 +127,7 @@ class testFormTagsItem extends testFormTags {
 	 */
 	public function testFormTagsItem_InheritedTemplateTags($data) {
 		$templateid = CDataHelper::get('EntitiesTags.templateids.'.$this->template);
-		$this->link = 'items.php?filter_set=1&filter_hostids[0]='.$templateid.'&context=template';
+		$this->link = 'zabbix.php?action=item.list&filter_set=1&filter_hostids%5B0%5D='.$templateid.'&context=template';
 		$this->checkInheritedTags($data, 'item', 'Template');
 	}
 
@@ -141,8 +139,8 @@ class testFormTagsItem extends testFormTags {
 	public function testFormTagsItem_InheritedElementTags($data) {
 		$templateid = CDataHelper::get('EntitiesTags.templateids.'.$this->template);
 		$hostid = CDataHelper::get('EntitiesTags.hostids.'.$this->host);
-		$this->link = 'items.php?filter_set=1&context=template&filter_hostids[0]='.$templateid;
-		$host_link = 'items.php?filter_set=1&context=host&filter_hostids[0]='.$hostid;
+		$this->link = 'zabbix.php?action=item.list&filter_set=1&context=template&filter_hostids%5B0%5D='.$templateid;
+		$host_link = 'zabbix.php?action=item.list&filter_set=1&context=host&filter_hostids%5B0%5D='.$hostid;
 
 		$this->checkInheritedElementTags($data, 'item', $host_link);
 	}
@@ -152,7 +150,7 @@ class testFormTagsItem extends testFormTags {
 	 */
 	public function testFormTagsItem_RemoveTags() {
 		$hostid = CDataHelper::get('EntitiesTags.hostids.'.$this->host);
-		$this->link = 'items.php?filter_set=1&filter_hostids[0]='.$hostid.'&context=host';
+		$this->link = 'zabbix.php?action=item.list&filter_set=1&filter_hostids%5B0%5D='.$hostid.'&context=host';
 		$this->clearTags('item');
 	}
 }

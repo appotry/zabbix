@@ -1,33 +1,50 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
 require_once dirname(__FILE__).'/../include/CAPITest.php';
 
 /**
+ * @onBefore prepareTestData
+ *
  * @backup hstgrp
  * @backup hosts
  */
 class testTemplate extends CAPITest {
 
-	public static function dataProviderCreate() {
+	private static $data = [
+		'templateids' => [
+			'api_vendor_test' => null
+		]
+	];
+
+	public function prepareTestData() {
+		$templates_data = [
+			[
+				'host' => 'api_vendor_test',
+				'groups' => ['groupid' => 1],
+				'vendor_name' => 'Zabbix',
+				'vendor_version' => '6.4-0'
+			]
+		];
+		$templates = CDataHelper::call('template.create', $templates_data);
+		$this->assertArrayHasKey('templateids', $templates);
+		self::$data['templateids']['api_vendor_test'] = $templates['templateids'][0];
+	}
+
+	public function dataProviderCreate() {
 		return [
 			[
 				'request' => [
@@ -54,14 +71,14 @@ class testTemplate extends CAPITest {
 					'host' => 'test-template-04',
 					'groups' => ['groupid' => 9999]
 				],
-				'expected_error' => 'No permissions to referred object or it does not exist!'
+				'expected_error' => 'Invalid parameter "/1/groups/1": object does not exist, or you have no permissions to it.'
 			],
 			[
 				'request' => [
 					'host' => 'test-template-05',
 					'groups' => ['groupid' => 1]
 				],
-				'expected_error' => 'No permissions to referred object or it does not exist!',
+				'expected_error' => 'Invalid parameter "/1/groups/1": object does not exist, or you have no permissions to it.',
 				'user' => ['user' => 'zabbix-admin', 'password' => 'zabbix']
 			],
 			[
@@ -157,7 +174,7 @@ class testTemplate extends CAPITest {
 						'templates' => ['templateid' => 99999]
 					]
 				],
-				'expected_error' => 'No permissions to referred object or it does not exist!'
+				'expected_error' => 'Invalid parameter "/1/templates/1": object does not exist, or you have no permissions to it.'
 			],
 			[
 				'request' => [
@@ -167,8 +184,79 @@ class testTemplate extends CAPITest {
 						'templates' => ['templateid' => 10047 /* "Zabbix server health" */]
 					]
 				],
-				'expected_error' => 'No permissions to referred object or it does not exist!',
+				'expected_error' => 'Invalid parameter "/1/groups/1": object does not exist, or you have no permissions to it.',
 				'user' => ['user' => 'zabbix-admin', 'password' => 'zabbix']
+			],
+			[
+				'request' => [
+					[
+						'host' => 'vendor-template-error',
+						'groups' => ['groupid' => 1],
+						'vendor_name' => 'Zabbix'
+					]
+				],
+				'expected_error' => 'Invalid parameter "/1": both vendor_name and vendor_version should be either present or empty.'
+			],
+			[
+				'request' => [
+					[
+						'host' => 'vendor-template-error',
+						'groups' => ['groupid' => 1],
+						'vendor_name' => '',
+						'vendor_version' => '6.4-0'
+					]
+				],
+				'expected_error' => 'Invalid parameter "/1": both vendor_name and vendor_version should be either present or empty.'
+			]
+		];
+	}
+
+	public function dataProviderUpdate() {
+		return [
+			[
+				'request' => [
+					[
+						'templateid' => 'api_vendor_test',
+						'vendor_name' => '',
+						'vendor_version' => ''
+					]
+				]
+			],
+			[
+				'request' => [
+					[
+						'templateid' => 'api_vendor_test',
+						'vendor_name' => 'ZABBIX'
+					]
+				],
+				'expected_error' => 'Invalid parameter "/1": both vendor_name and vendor_version should be either present or empty.'
+			],
+			[
+				'request' => [
+					[
+						'templateid' => 'api_vendor_test',
+						'vendor_name' => 'Zabbix',
+						'vendor_version' => '6.4-0'
+					]
+				]
+			],
+			// The next two test cases depends on the previous one.
+			[
+				'request' => [
+					[
+						'templateid' => 'api_vendor_test',
+						'vendor_name' => 'ZABBIX'
+					]
+				]
+			],
+			[
+				'request' => [
+					[
+						'templateid' => 'api_vendor_test',
+						'vendor_version' => ''
+					]
+				],
+				'expected_error' => 'Invalid parameter "/1": both vendor_name and vendor_version should be either present or empty.'
 			]
 		];
 	}
@@ -176,7 +264,7 @@ class testTemplate extends CAPITest {
 	/**
 	 * @dataProvider dataProviderCreate
 	 */
-	public function testTemplate_Create(array $request, string $expected_error = null, array $user = null) {
+	public function testTemplate_Create(array $request, ?string $expected_error = null, ?array $user = null) {
 		if ($user !== null) {
 			$this->authorize($user['user'], $user['password']);
 		}
@@ -272,7 +360,7 @@ class testTemplate extends CAPITest {
 					['templateid' => $templateids[2]]
 				]
 			]
-		], 'Cannot link template "test-template-double-link-01" to template "test-template-double-link-04" because its parent template "test-template-double-link-01" will be linked twice.');
+		], 'Cannot link template "test-template-double-link-03" to template "test-template-double-link-04", because its parent template "test-template-double-link-01" would be linked twice.');
 	}
 
 	public function testTemplate_CreateTriggerDependency() {
@@ -480,5 +568,42 @@ class testTemplate extends CAPITest {
 				]
 			]
 		], 'Cannot link template "test-template-trigger-expression-02" without template "test-template-trigger-expression-01" to template "test-template-trigger-expression-05" due to expression of trigger "trigger".');
+	}
+
+	/**
+	 * @dataProvider dataProviderUpdate
+	 */
+	public function testTemplate_Update(array $request, ?string $expected_error = null, ?array $user = null) {
+		if ($user !== null) {
+			$this->authorize($user['user'], $user['password']);
+		}
+
+		foreach ($request as &$request_item) {
+			$request_item['templateid'] = self::$data['templateids'][$request_item['templateid']];
+		}
+		unset($request_item);
+
+		$this->call('template.update', $request, $expected_error);
+
+		if ($expected_error === null) {
+			$fields = array_reduce($request, 'array_replace', []);
+			$db_templates = $this->call('template.get', [
+				'output' => array_keys($fields),
+				'templateids' => array_column($request, 'templateid'),
+				'preservekeys' => true
+			])['result'];
+			$templates = [];
+
+			foreach ($request as &$request_item) {
+				$templateid = $request_item['templateid'];
+
+				if (array_key_exists($templateid, $db_templates)) {
+					$templates[$templateid] = array_intersect_key($db_templates[$templateid], $request_item);
+				}
+			}
+			unset($request_item);
+
+			$this->assertEquals($templates, $db_templates);
+		}
 	}
 }

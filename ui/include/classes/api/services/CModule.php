@@ -1,21 +1,16 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -51,15 +46,8 @@ class CModule extends CApiService {
 		$api_input_rules = ['type' => API_OBJECT, 'fields' => [
 			// filter
 			'moduleids' =>				['type' => API_IDS, 'flags' => API_ALLOW_NULL | API_NORMALIZE, 'default' => null],
-			'filter' =>					['type' => API_OBJECT, 'flags' => API_ALLOW_NULL, 'default' => null, 'fields' => [
-				'moduleid' =>				['type' => API_IDS, 'flags' => API_ALLOW_NULL | API_NORMALIZE],
-				'id' =>						['type' => API_STRINGS_UTF8, 'flags' => API_ALLOW_NULL | API_NORMALIZE],
-				'relative_path' =>			['type' => API_STRINGS_UTF8, 'flags' => API_ALLOW_NULL | API_NORMALIZE],
-				'status' =>					['type' => API_INTS32, 'flags' => API_ALLOW_NULL | API_NORMALIZE, 'in' => implode(',', [MODULE_STATUS_DISABLED, MODULE_STATUS_ENABLED])]
-			]],
-			'search' =>					['type' => API_OBJECT, 'flags' => API_ALLOW_NULL, 'default' => null, 'fields' => [
-				'relative_path' =>			['type' => API_STRINGS_UTF8, 'flags' => API_ALLOW_NULL | API_NORMALIZE]
-			]],
+			'filter' =>					['type' => API_FILTER, 'flags' => API_ALLOW_NULL, 'default' => null, 'fields' => ['moduleid', 'id', 'relative_path', 'status']],
+			'search' =>					['type' => API_FILTER, 'flags' => API_ALLOW_NULL, 'default' => null, 'fields' => ['relative_path']],
 			'searchByAny' =>			['type' => API_BOOLEAN, 'default' => false],
 			'startSearch' =>			['type' => API_FLAG, 'default' => false],
 			'excludeSearch' =>			['type' => API_FLAG, 'default' => false],
@@ -135,11 +123,9 @@ class CModule extends CApiService {
 	}
 
 	/**
-	 * @static
-	 *
 	 * @param array $modules
 	 *
-	 * @throws APIException if the input is invalid.
+	 * @throws APIException|JsonException
 	 */
 	private static function validateCreate(array &$modules): void {
 		$api_input_rules = ['type' => API_OBJECTS, 'flags' => API_NOT_EMPTY | API_NORMALIZE, 'fields' => [
@@ -154,7 +140,7 @@ class CModule extends CApiService {
 		}
 
 		foreach ($modules as &$module) {
-			$module['config'] = json_encode($module['config']);
+			$module['config'] = json_encode($module['config'], JSON_THROW_ON_ERROR);
 		}
 		unset($module);
 	}
@@ -198,14 +184,12 @@ class CModule extends CApiService {
 	}
 
 	/**
-	 * @static
-	 *
 	 * @param array      $modules
 	 * @param array|null $db_modules
 	 *
-	 * @throws APIException if the input is invalid.
+	 * @throws APIException|JsonException
 	 */
-	private static function validateUpdate(array &$modules, array &$db_modules = null): void {
+	private static function validateUpdate(array &$modules, ?array &$db_modules = null): void {
 		$api_input_rules = ['type' => API_OBJECTS, 'flags' => API_NOT_EMPTY | API_NORMALIZE, 'uniq' => [['moduleid']], 'fields' => [
 			'moduleid' =>	['type' => API_ID, 'flags' => API_REQUIRED],
 			'status' =>		['type' => API_INT32, 'in' => implode(',', [MODULE_STATUS_DISABLED, MODULE_STATUS_ENABLED])],
@@ -228,7 +212,7 @@ class CModule extends CApiService {
 
 		foreach ($modules as &$module) {
 			if (array_key_exists('config', $module)) {
-				$module['config'] = json_encode($module['config']);
+				$module['config'] = json_encode($module['config'], JSON_THROW_ON_ERROR);
 			}
 		}
 		unset($module);

@@ -1,20 +1,15 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 #include "zbxmocktest.h"
@@ -138,7 +133,7 @@ static void test_queue_ptr_compact_head_tail(void)
 	mock_read_values(zbx_mock_get_parameter_handle("in.values"), &values);
 
 	zbx_queue_ptr_create(&queue);
-	zbx_queue_ptr_reserve(&queue, values.values_num * 1.5);
+	zbx_queue_ptr_reserve(&queue, (int)(values.values_num * 1.5));
 	zbx_mock_assert_int_eq("allocated memory", queue.alloc_num, (int)(values.values_num * 1.5 + 1));
 
 	/* move tail/head positions towards the end of queue buffer so that pushing all values will */
@@ -241,7 +236,7 @@ static void test_queue_ptr_remove_head_tail(void)
 	/* try removing value that is not in queue */
 
 	zbx_queue_ptr_create(&queue);
-	zbx_queue_ptr_reserve(&queue, values.values_num * 1.5);
+	zbx_queue_ptr_reserve(&queue, (int)(values.values_num * 1.5));
 	queue.tail_pos = values.values_num;
 	queue.head_pos = queue.tail_pos;
 
@@ -257,7 +252,7 @@ static void test_queue_ptr_remove_head_tail(void)
 	for (j = 0; j < values.values_num; j++)
 	{
 		zbx_queue_ptr_create(&queue);
-		zbx_queue_ptr_reserve(&queue, values.values_num * 1.5);
+		zbx_queue_ptr_reserve(&queue, (int)(values.values_num * 1.5));
 		queue.tail_pos = values.values_num;
 		queue.head_pos = queue.tail_pos;
 
@@ -272,7 +267,7 @@ static void test_queue_ptr_remove_head_tail(void)
 	zbx_vector_ptr_destroy(&values);
 }
 
-static int get_type(const char *str)
+static int	get_step_type_int(const char *str)
 {
 	if (0 == strcmp(str, "RANGE"))
 		return RANGE;
@@ -293,7 +288,7 @@ void	zbx_mock_test_entry(void **state)
 {
 	ZBX_UNUSED(state);
 
-	switch (get_type(zbx_mock_get_parameter_string("in.type")))
+	switch (get_step_type_int(zbx_mock_get_parameter_string("in.type")))
 	{
 		case RANGE:
 			test_queue_range();
