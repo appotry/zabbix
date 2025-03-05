@@ -1,723 +1,661 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
-require_once dirname(__FILE__).'/../include/CAPITest.php';
+require_once __DIR__.'/../include/CAPITest.php';
+require_once __DIR__.'/../include/helpers/CTestDataHelper.php';
 
 /**
- * @backup items
+ * @onBefore prepareTestData
+ * @onAfter  cleanTestData
  */
 class testDependentItems extends CAPITest {
 
-	private static function getItems($hostid, $master_itemid, $prefix, $from, $to) {
-		$items = [];
+	private const DEPENDENT_ITEM_TEST_COUNT = 300;
 
-		for ($i = $from; $i <= $to; $i++) {
-			$items[] = [
-				'hostid' => $hostid,
-				'name' => $prefix.'.'.$i,
-				'type' => 18,			// ITEM_TYPE_DEPENDENT
-				'key_' => $prefix.'.'.$i,
-				'value_type' => 1,		// ITEM_VALUE_TYPE_STR
-				'master_itemid' => $master_itemid
-			];
-		}
-
-		return $items;
+	public static function prepareTestData(): void {
+		CTestDataHelper::createObjects([
+			'template_groups' => [
+				['name' => 'dependent.items.tests.template.group']
+			],
+			'host_groups' => [
+				['name' => 'dependent.items.tests.host.group']
+			],
+			'templates' => [
+				[
+					'host' => 't.dep',
+					'items' => [
+						['key_' => 'template.master.item'],
+						[
+							'key_' => 'template.dependent.item.level1',
+							'master_itemid' => ':item:template.master.item'
+						],
+						[
+							'key_' => 'template.dependent.item.level2',
+							'master_itemid' => ':item:template.dependent.item.level1'
+						],
+						[
+							'key_' => 'template.dependent.item.level3',
+							'master_itemid' => ':item:template.dependent.item.level2'
+						]
+					],
+					'lld_rules' => [
+						[
+							'key_' => 'template.discovery.rule',
+							'item_prototypes' => [
+								['key_' => 'template.master.item.prototype[{#LLD}]'],
+								[
+									'key_' => 'template.dependent.item.prototype.level1[{#LLD}]',
+									'master_itemid' => ':item_prototype:template.master.item.prototype[{#LLD}]'
+								],
+								[
+									'key_' => 'template.dependent.item.prototype.level2[{#LLD}]',
+									'master_itemid' => ':item_prototype:template.dependent.item.prototype.level1[{#LLD}]'
+								],
+								[
+									'key_' => 'template.dependent.item.prototype.level3[{#LLD}]',
+									'master_itemid' => ':item_prototype:template.dependent.item.prototype.level2[{#LLD}]'
+								]
+							]
+						]
+					]
+				]
+			],
+			'hosts' => [
+				[
+					'host' => 'h.dep',
+					'items' => [
+						['key_' => 'master.item'],
+						[
+							'key_' => 'dependent.item.level1',
+							'master_itemid' => ':item:master.item'
+						],
+						[
+							'key_' => 'dependent.item.level2',
+							'master_itemid' => ':item:dependent.item.level1'
+						],
+						[
+							'key_' => 'dependent.item.level3',
+							'master_itemid' => ':item:dependent.item.level2'
+						],
+						['key_' => 'independent.item']
+					],
+					'lld_rules' => [
+						[
+							'key_' => 'discovery.rule',
+							'item_prototypes' => [
+								[
+									'key_' => 'master.item.prototype[{#LLD}]',
+									'discovered_items' => [
+										['key_' => 'master.item.discovered[eth0]']
+									]
+								],
+								[
+									'key_' => 'dependent.item.prototype.level1[{#LLD}]',
+									'master_itemid' => ':item_prototype:master.item.prototype[{#LLD}]'
+								],
+								[
+									'key_' => 'dependent.item.prototype.level2[{#LLD}]',
+									'master_itemid' => ':item_prototype:dependent.item.prototype.level1[{#LLD}]'
+								],
+								[
+									'key_' => 'dependent.item.prototype.level3[{#LLD}]',
+									'master_itemid' => ':item_prototype:dependent.item.prototype.level2[{#LLD}]'
+								]
+							]
+						],
+						[
+							'key_' => 'dependent.discovery.rule',
+							'master_itemid' => ':item:master.item'
+						]
+					]
+				],
+				[
+					'host' => 'h.discovered.items',
+					'items' => [
+						['key_' => 'master.for.discovered.item']
+					],
+					'lld_rules' => [
+						[
+							'key_' => 'discovered.items.rule',
+							'item_prototypes' => [
+								[
+									'key_' => 'item.prototype.for.discovered.item[{#LLD}]',
+									'master_itemid' => ':item:master.for.discovered.item',
+									'discovered_items' => [
+										[
+											'key_' => 'discovered.dependent.item[eth0]',
+											'master_itemid' => ':item:master.for.discovered.item'
+										]
+									]
+								]
+							]
+						]
+					]
+				],
+				[
+					'host' => 'h.dep.other',
+					'items' => [
+						['key_' => 'master.item.other']
+					],
+					'lld_rules' => [
+						[
+							'key_' => 'discovery.rule.other',
+							'item_prototypes' => [
+								['key_' => 'master.item.prototype.other[{#LLD}]'],
+								[
+									'key_' => 'dependent.item.prototype.other.level1[{#LLD}]',
+									'master_itemid' => ':item_prototype:master.item.prototype.other[{#LLD}]'
+								]
+							]
+						],
+						[
+							'key_' => 'independent.rule',
+							'item_prototypes' => [
+								['key_' => 'independent.item.prototype[{#LLD}]']
+							]
+						]
+					]
+				]
+			]
+		]);
 	}
 
-	private static function getItemPrototypes($hostid, $ruleid, $master_itemid, $prefix, $from, $to) {
-		$items = [];
-
-		for ($i = $from; $i <= $to; $i++) {
-			$items[] = [
-				'hostid' => $hostid,
-				'ruleid' => $ruleid,
-				'name' => $prefix.'.'.$i,
-				'type' => 18,			// ITEM_TYPE_DEPENDENT
-				'key_' => $prefix.'.'.$i,
-				'value_type' => 1,		// ITEM_VALUE_TYPE_STR
-				'master_itemid' => $master_itemid
-			];
-		}
-
-		return $items;
-	}
-
-	private static function getDiscoveryRule($hostid, $master_itemid, $prefix, $from, $to) {
-		$items = [];
-
-		for ($i = $from; $i <= $to; $i++) {
-			$items[] = [
-				'hostid' => $hostid,
-				'name' => $prefix.'.'.$i,
-				'type' => 18,			// ITEM_TYPE_DEPENDENT
-				'key_' => $prefix.'.'.$i,
-				'value_type' => 1,		// ITEM_VALUE_TYPE_STR
-				'master_itemid' => $master_itemid
-			];
-		}
-
-		return $items;
+	public static function cleanTestData(): void {
+		CTestDataHelper::cleanUp();
 	}
 
 	public static function getTestCases() {
+		$nonexistent_itemid = 9999;
+
 		return [
-			// Simple update master item.
-			[
-				'error' => null,
+			'Simple update master item.' => [
 				'method' => 'item.update',
-				'request_data' => [
-					'itemid' => 1001	// dependent.items.template.1:master.item.1
-				]
+				'params' => [
+					'itemid' => ':item:master.item'
+				],
+				'error' => null
 			],
-			// Simple update master item prototype.
-			[
-				'error' => null,
+			'Simple update master item prototype.' => [
 				'method' => 'itemprototype.update',
-				'request_data' => [
-					'itemid' => 1018	// dependent.items.template.1:master.item.proto.1
-				]
+				'params' => [
+					'itemid' => ':item_prototype:master.item.prototype[{#LLD}]'
+				],
+				'error' => null
 			],
-			// Simple update discovered master item.
-			[
-				'error' => null,
+			'Simple update discovered master item.' => [
 				'method' => 'item.update',
-				'request_data' => [
-					'itemid' => 2304	// dependent.items.host.7:net.if[eth0]
-				]
+				'params' => [
+					'itemid' => ':discovered_item:master.item.discovered[eth0]'
+				],
+				'error' => null
 			],
-			// Simple update dependent item.
-			[
-				'error' => null,
+			'Simple update dependent item.' => [
 				'method' => 'item.update',
-				'request_data' => [
-					'itemid' => 1015	// dependent.items.template.1:dependent.item.1.2.2.2
-				]
+				'params' => [
+					'itemid' => ':item:dependent.item.level1'
+				],
+				'error' => null
 			],
-			// Simple update dependent item prototype.
-			[
-				'error' => null,
+			'Simple update dependent item prototype.' => [
 				'method' => 'itemprototype.update',
-				'request_data' => [
-					'itemid' => 1032	// dependent.items.template.1:dependent.item.proto.1.2.2.2
-				]
+				'params' => [
+					'itemid' => ':item_prototype:dependent.item.prototype.level1[{#LLD}]'
+				],
+				'error' => null
 			],
-			// Simple update discovered dependent item.
-			[
-				'error' => null,
+			'Simple update discovered dependent item.' => [
 				'method' => 'item.update',
-				'request_data' => [
-					'itemid' => 2305	// dependent.items.host.7:net.if.in[eth0]
-				]
+				'params' => [
+					'itemid' => ':discovered_item:discovered.dependent.item[eth0]'
+				],
+				'error' => null
 			],
-			// Simple update dependent discovery rule.
-			[
-				'error' => null,
+			'Simple update dependent discovery rule.' => [
 				'method' => 'discoveryrule.update',
-				'request_data' => [
-					'itemid' => 1034	// dependent.items.template.1:dependent.discovery.rule.1.1
-				]
+				'params' => [
+					'itemid' => ':lld_rule:discovery.rule'
+				],
+				'error' => null
 			],
-			// Set incorrect master_itemid for item (create).
-			[
-				'error' => 'Incorrect value for field "master_itemid": Item "2499" does not exist or you have no access to this item.',
+
+			'Set incorrect master_itemid for item (create).' => [
 				'method' => 'item.create',
-				// 1015: dependent.items.host.8
-				// 2499: this ID does not exists in the DB
-				'request_data' => self::getItems(1015, 2499, 'dependent.item.1', 2, 2)
+				'params' => CTestDataHelper::prepareItem([
+					'key_' => 'dependent.error',
+					'hostid' => ':host:h.dep',
+					'master_itemid' => $nonexistent_itemid
+				]),
+				'error' => 'Invalid parameter "/1/master_itemid": an item ID is expected.'
 			],
-			// Set incorrect master_itemid for item (update).
-			[
-				'error' => 'Incorrect value for field "master_itemid": Item "2499" does not exist or you have no access to this item.',
+			'Set incorrect master_itemid for item (update).' => [
 				'method' => 'item.update',
-				'request_data' => [
-					'itemid' => 2402,		// dependent.items.host.8:dependent.item.1.1
-					'master_itemid' => 2499	// this ID does not exists in the DB
-				]
+				'params' => [
+					'itemid' => ':item:dependent.item.level1',
+					'master_itemid' => $nonexistent_itemid
+				],
+				'error' => 'Invalid parameter "/1/master_itemid": an item ID is expected.'
 			],
-			// Set incorrect master_itemid for item prototype (create).
-			[
-				'error' => 'Incorrect value for field "master_itemid": Item "2499" does not exist or you have no access to this item.',
-				'method' => 'itemprototype.create',
-				// 1015: dependent.items.host.8
-				// 2403: dependent.items.host.8:discovery.rule.1
-				// 2499: this ID does not exists in the DB
-				'request_data' => self::getItemPrototypes(1015, 2403, 2499, 'dependent.item.proto.1', 2, 2)
-			],
-			// Set incorrect master_itemid for item prototype (update).
-			[
-				'error' => 'Incorrect value for field "master_itemid": Item "2499" does not exist or you have no access to this item.',
-				'method' => 'itemprototype.update',
-				'request_data' => [
-					'itemid' => 2405,		// dependent.items.host.8:dependent.item.proto.1.1
-					'master_itemid' => 2499	// this ID does not exists in the DB
-				]
-			],
-			// Set incorrect master_itemid for discovery rule (create).
-			[
-				'error' => 'Incorrect value for field "master_itemid": Item "2499" does not exist or you have no access to this item.',
-				'method' => 'discoveryrule.create',
-				// 1015: dependent.items.host.8
-				// 2499: this ID does not exists in the DB
-				'request_data' => self::getDiscoveryRule(1015, 2499, 'dependent.discovery.rule.1', 2, 2)
-			],
-			// Set incorrect master_itemid for discovery rule (update).
-			[
-				'error' => 'Incorrect value for field "master_itemid": Item "2499" does not exist or you have no access to this item.',
-				'method' => 'discoveryrule.update',
-				'request_data' => [
-					'itemid' => 2409,		// dependent.items.host.8:dependent.discovery.rule.1.1
-					'master_itemid' => 2499	// this ID does not exists in the DB
-				]
-			],
-			// Set master_itemid from other host for item (create).
-			[
-				'error' => 'Incorrect value for field "master_itemid": hostid of dependent item and master item should match.',
+			'Set incorrect master_itemid for item prototype (create).' => [
 				'method' => 'item.create',
-				// 1015: dependent.items.host.8
-				// 2501: dependent.items.host.9:master.item.1
-				'request_data' => self::getItems(1015, 2501, 'dependent.item.1', 2, 2)
+				'params' => CTestDataHelper::prepareItemPrototype([
+					'key_' => 'dependent.item.prototype.new',
+					'hostid' => ':host:h.dep',
+					'master_itemid' => $nonexistent_itemid
+				]),
+				'error' => 'Invalid parameter "/1/master_itemid": an item ID is expected.'
 			],
-			// Set master_itemid from other host for item (update).
-			[
-				'error' => 'Incorrect value for field "master_itemid": hostid of dependent item and master item should match.',
-				'method' => 'item.update',
-				'request_data' => [
-					'itemid' => 2402,		// dependent.items.host.8:dependent.item.1.1
-					'master_itemid' => 2501	// dependent.items.host.9:master.item.1
-				]
-			],
-			// Set master_itemid from other host for item prototype (create).
-			[
-				'error' => 'Incorrect value for field "master_itemid": hostid of dependent item and master item should match.',
-				'method' => 'itemprototype.create',
-				// 1015: dependent.items.host.8
-				// 2403: dependent.items.host.8:discovery.rule.1
-				// 2504: dependent.items.host.9:master.item.proto.1
-				'request_data' => self::getItemPrototypes(1015, 2403, 2504, 'dependent.item.proto.1', 2, 2)
-			],
-			// Set master_itemid from other host for item prototype (update).
-			[
-				'error' => 'Incorrect value for field "master_itemid": hostid of dependent item and master item should match.',
+			'Set incorrect master_itemid for item prototype (update).' => [
 				'method' => 'itemprototype.update',
-				'request_data' => [
-					'itemid' => 2405,		// dependent.items.host.8:dependent.item.proto.1.1
-					'master_itemid' => 2504	// dependent.items.host.9:master.item.proto.1
-				]
+				'params' => [
+					'itemid' => ':item_prototype:dependent.item.prototype.level1[{#LLD}]',
+					'master_itemid' => $nonexistent_itemid
+				],
+				'error' => 'Invalid parameter "/1/master_itemid": an item/item prototype ID is expected.'
 			],
-			// Set master_itemid from other discovery rule (create).
-			[
-				'error' => 'Incorrect value for field "master_itemid": ruleid of dependent item and master item should match.',
-				'method' => 'itemprototype.create',
-				// 1015: dependent.items.host.8
-				// 2403: dependent.items.host.8:discovery.rule.1
-				// 2407: dependent.items.host.8:master.item.proto.2
-				'request_data' => self::getItemPrototypes(1015, 2403, 2407, 'dependent.item.proto.1', 2, 2)
-			],
-			// Set master_itemid from other discovery rule (update).
-			[
-				'error' => 'Incorrect value for field "master_itemid": ruleid of dependent item and master item should match.',
-				'method' => 'itemprototype.update',
-				'request_data' => [
-					'itemid' => 2405,		// dependent.items.host.8:dependent.item.proto.1.1
-					'master_itemid' => 2407	// dependent.items.host.8:master.item.proto.2
-				]
-			],
-			// Set master_itemid from other host for discovery rule (create).
-			[
-				'error' => 'Incorrect value for field "master_itemid": hostid of dependent item and master item should match.',
+			'Set incorrect master_itemid for discovery rule (create).' => [
 				'method' => 'discoveryrule.create',
-				// 1015: dependent.items.host.8
-				// 2501: dependent.items.host.9:master.item.1
-				'request_data' => self::getDiscoveryRule(1015, 2501, 'dependent.discovery.rule.1', 2, 2)
+				'params' => CTestDataHelper::prepareLldRule([
+					'key_' => 'discovery.rule.error',
+					'hostid' => ':host:h.dep',
+					'master_itemid' => $nonexistent_itemid
+				]),
+				'error' => 'Invalid parameter "/1/master_itemid": an item ID is expected.'
 			],
-			// Set master_itemid from other host for discovery rule (update).
-			[
-				'error' => 'Incorrect value for field "master_itemid": hostid of dependent item and master item should match.',
+			'Set incorrect master_itemid for discovery rule (update).' => [
 				'method' => 'discoveryrule.update',
-				'request_data' => [
-					'itemid' => 2409,		// dependent.items.host.8:dependent.discovery.rule.1.1
-					'master_itemid' => 2501	// dependent.items.host.9:master.item.1
-				]
+				'params' => [
+					'itemid' => ':lld_rule:dependent.discovery.rule',
+					'master_itemid' => $nonexistent_itemid
+				],
+				'error' => 'Invalid parameter "/1/master_itemid": an item ID is expected.'
 			],
-			// Create dependent item, which depends on discovered item.
-			[
-				'error' => 'Incorrect value for field "master_itemid": Item "2304" does not exist or you have no access to this item.',
+			'Set master_itemid from other host for item (create).' => [
 				'method' => 'item.create',
-				// 1014: dependent.items.host.7
-				// 2304: dependent.items.host.7:net.if[eth0]
-				'request_data' => self::getItems(1014, 2304, 'item', 1, 1)
+				'params' => CTestDataHelper::prepareItem([
+					'key_' => 'dependent.item.new',
+					'hostid' => ':host:h.dep',
+					'master_itemid' => ':item:master.item.other:host:h.dep.other'
+				]),
+				'error' => 'Invalid parameter "/1/master_itemid": cannot be an item ID from another host or template.'
 			],
-			// Create dependent item prototype, which depends on discovered item.
-			[
-				'error' => 'Incorrect value for field "master_itemid": Item "2304" does not exist or you have no access to this item.',
+			'Set master_itemid from other host for item (update).' => [
+				'method' => 'item.update',
+				'params' => [
+					'itemid' => ':item:dependent.item.level1:host:h.dep',
+					'master_itemid' => ':item:master.item.other:host:h.dep.other'
+				],
+				'error' => 'Invalid parameter "/1/master_itemid": cannot be an item ID from another host or template.'
+			],
+			'Set master_itemid from other host for item prototype (create).' => [
 				'method' => 'itemprototype.create',
-				// 1014: dependent.items.host.7
-				// 2301: dependent.items.host.7:net.if.discovery
-				// 2304: dependent.items.host.7:net.if[eth0]
-				'request_data' => self::getItemPrototypes(1014, 2301, 2304, 'item.proto', 1, 1)
+				'params' => CTestDataHelper::prepareItemPrototype([
+					'key_' => 'dependent.item.prototype.other.new[{#LLD}]',
+					'hostid' => ':host:h.dep.other',
+					'ruleid' => ':lld_rule:discovery.rule.other',
+					'master_itemid' => ':item_prototype:master.item.prototype[{#LLD}]:host:h.dep'
+				]),
+				'error' => 'Invalid parameter "/1/master_itemid": cannot be an item/item prototype ID from another host or template.'
 			],
-			// Create dependent discovery rule, which depends on discovered item.
-			[
-				'error' => 'Incorrect value for field "master_itemid": Item "2304" does not exist or you have no access to this item.',
+			'Set master_itemid from other host for item prototype (update).' => [
+				'method' => 'itemprototype.update',
+				'params' => [
+					'itemid' => ':item_prototype:dependent.item.prototype.other.level1[{#LLD}]:host:h.dep.other',
+					'master_itemid' => ':item_prototype:master.item.prototype[{#LLD}]:host:h.dep'
+				],
+				'error' => 'Invalid parameter "/1/master_itemid": cannot be an item/item prototype ID from another host or template.'
+			],
+			'Set master_itemid from other discovery rule for item prototype (create).' => [
+				'method' => 'itemprototype.create',
+				'params' => CTestDataHelper::prepareItemPrototype([
+					'key_' => 'dependent.item.prototype.new[{#LLD}]',
+					'hostid' => ':host:h.dep',
+					'ruleid' => ':lld_rule:discovery.rule',
+					'master_itemid' => ':item_prototype:master.item.prototype.other[{#LLD}]'
+				]),
+				'error' => 'Invalid parameter "/1/master_itemid": cannot be an item/item prototype ID from another host or template.'
+			],
+			'Set master_itemid from other discovery rule for item prototype (update).' => [
+				'method' => 'itemprototype.update',
+				'params' => [
+					'itemid' => ':item_prototype:dependent.item.prototype.level1[{#LLD}]:host:h.dep',
+					'master_itemid' => ':item_prototype:master.item.prototype.other[{#LLD}]:host:h.dep.other'
+				],
+				'error' => 'Invalid parameter "/1/master_itemid": cannot be an item/item prototype ID from another host or template.'
+			],
+			'Set master_itemid from other discovery rule for LLD rule (create).' => [
 				'method' => 'discoveryrule.create',
-				// 1014: dependent.items.host.7
-				// 2304: dependent.items.host.7:net.if[eth0]
-				'request_data' => self::getDiscoveryRule(1014, 2304, 'discovery.rule', 1, 1)
+				'params' => CTestDataHelper::prepareLldRule([
+					'key_' => 'discovery.rule.new',
+					'hostid' => ':host:h.dep',
+					'master_itemid' => ':item:master.item.other:host:h.dep.other'
+				]),
+				'error' => 'Invalid parameter "/1/master_itemid": cannot be an item ID from another host or template.'
 			],
-			// Simple update templated master item.
-			[
-				'error' => null,
-				'method' => 'item.update',
-				'request_data' => [
-					'itemid' => 1301	// dependent.items.host.1:master.item.1
-				]
-			],
-			// Simple update templated master item prototype.
-			[
-				'error' => null,
-				'method' => 'itemprototype.update',
-				'request_data' => [
-					'itemid' => 1318	// dependent.items.host.1:master.item.proto.1
-				]
-			],
-			// Simple update templated dependent item.
-			[
-				'error' => null,
-				'method' => 'item.update',
-				'request_data' => [
-					'itemid' => 1315	// dependent.items.host.1:dependent.item.1.2.2.2
-				]
-			],
-			// Simple update templated dependent item prototype.
-			[
-				'error' => null,
-				'method' => 'itemprototype.update',
-				'request_data' => [
-					'itemid' => 1332	// dependent.items.host.1:dependent.item.proto.1.2.2.2
-				]
-			],
-			// Simple update templated dependent discovery rule.
-			[
-				'error' => null,
+			'Set master_itemid from other discovery rule for LLD rule (update).' => [
 				'method' => 'discoveryrule.update',
-				'request_data' => [
-					'itemid' => 1334	// dependent.items.host.1:dependent.discovery.rule.1.1
-				]
+				'params' => [
+					'itemid' => ':lld_rule:dependent.discovery.rule:host:h.dep',
+					'master_itemid' => ':item:master.item.other:host:h.dep.other'
+				],
+				'error' => 'Invalid parameter "/1/master_itemid": cannot be an item ID from another host or template.'
 			],
-			// Circular dependency to itself (update).
-			[
-				'error' => 'Incorrect value for field "master_itemid": circular item dependency is not allowed.',
-				'method' => 'item.update',
-				'request_data' => [
-					'itemid' => 1015,	// dependent.items.template.1:dependent.item.1.2.2.2
-					'master_itemid' => 1015
-				]
-			],
-			// Circular dependency to itself (update).
-			[
-				'error' => 'Incorrect value for field "master_itemid": circular item dependency is not allowed.',
-				'method' => 'itemprototype.update',
-				'request_data' => [
-					'itemid' => 1032,	// dependent.items.template.1:dependent.item.proto.1.2.2.2
-					'master_itemid' => 1032
-				]
-			],
-			// Circular dependency to itself (update).
-			[
-				'error' => 'Incorrect value for field "master_itemid": Item "1034" does not exist or you have no access to this item.',
-				'method' => 'discoveryrule.update',
-				'request_data' => [
-					'itemid' => 1034,	// dependent.items.template.1:dependent.discovery.rule.1.1
-					'master_itemid' => 1034
-				]
-			],
-			// Circular dependency to between several items (update).
-			[
-				'error' => 'Incorrect value for field "master_itemid": circular item dependency is not allowed.',
-				'method' => 'item.update',
-				'request_data' => [
-					'itemid' => 1003,	// dependent.items.template.1:dependent.item.1.2
-					'master_itemid' => 1015
-				]
-			],
-			// Circular dependency to between several item prototypes (update).
-			[
-				'error' => 'Incorrect value for field "master_itemid": circular item dependency is not allowed.',
-				'method' => 'itemprototype.update',
-				'request_data' => [
-					'itemid' => 1020,	// dependent.items.template.1:dependent.item.proto.1.2
-					'master_itemid' => 1032
-				]
-			],
-			// Set "master_itemid" for not-dependent item (create).
-			[
-				'error' => 'Incorrect value for field "master_itemid": should be empty.',
+
+			// Dependencies on discovered items not allowed.
+			'Create dependent item, which depends on discovered item.' => [
 				'method' => 'item.create',
-				'request_data' => [
-					'hostid' => 1001,		// dependent.items.template.1
-					'name' => 'trap.2',
-					'type' => 2,			// ITEM_TYPE_TRAPPER
-					'key_' => 'trap.2',
-					'value_type' => 1,		// ITEM_VALUE_TYPE_STR
-					'master_itemid' => 1001	// dependent.items.template.1:master.item.1
-				]
+				'params' => CTestDataHelper::prepareItem([
+					'key_' => 'dependent.on.master.discovered',
+					'hostid' => ':host:h.dep',
+					'master_itemid' => ':discovered_item:master.item.discovered[eth0]'
+				]),
+				'error' => 'Invalid parameter "/1/master_itemid": an item ID is expected.'
 			],
-			// Set "master_itemid" for not-dependent item prototype (create).
-			[
-				'error' => 'Incorrect value for field "master_itemid": should be empty.',
+			'Create dependent item prototype, which depends on discovered item.' => [
 				'method' => 'itemprototype.create',
-				'request_data' => [
-					'hostid' => 1001,		// dependent.items.template.1
-					'ruleid' => 1017,		// dependent.items.template.1:discovery.rule.1
-					'name' => 'item.proto.2',
-					'type' => 2,			// ITEM_TYPE_TRAPPER
-					'key_' => 'item.proto.2',
-					'value_type' => 1,		// ITEM_VALUE_TYPE_STR
-					'master_itemid' => 1001	// dependent.items.template.1:master.item.1
-				]
+				'params' => CTestDataHelper::prepareItemPrototype([
+					'key_' => 'item.prototype.dependent.on.master.discovered[{#LLD}]',
+					'hostid' => ':host:h.dep',
+					'ruleid' => ':lld_rule:discovery.rule',
+					'master_itemid' => ':discovered_item:master.item.discovered[eth0]'
+				]),
+				'error' => 'Invalid parameter "/1/master_itemid": an item/item prototype ID is expected.'
 			],
-			// Set "master_itemid" for not-dependent discovery rule (create).
-			[
-				'error' => 'Incorrect value for field "master_itemid": should be empty.',
+			'Create dependent discovery rule, which depends on discovered item.' => [
 				'method' => 'discoveryrule.create',
-				'request_data' => [
-					'hostid' => 1001,		// dependent.items.template.1
-					'name' => 'discovery.rule.2',
+				'params' => CTestDataHelper::prepareLldRule([
+					'key_' => 'lld_rule.dependent.on.master.discovered',
+					'hostid' => ':host:h.dep',
+					'master_itemid' => ':discovered_item:master.item.discovered[eth0]'
+				]),
+				'error' => 'Invalid parameter "/1/master_itemid": an item ID is expected.'
+			],
+
+			'Simple update templated master item.' => [
+				'method' => 'item.update',
+				'params' => [
+					'itemid' => ':item:template.master.item'
+				],
+				'error' => null
+			],
+			'Simple update templated dependent item.' => [
+				'method' => 'item.update',
+				'params' => [
+					'itemid' => ':item:template.dependent.item.level1'
+				],
+				'error' => null
+			],
+			'Simple update templated master item prototype.' => [
+				'method' => 'itemprototype.update',
+				'params' => [
+					'itemid' => ':item_prototype:template.master.item.prototype[{#LLD}]'
+				],
+				'error' => null
+			],
+			'Simple update templated dependent item prototype.' => [
+				'method' => 'itemprototype.update',
+				'params' => [
+					'itemid' => ':item_prototype:template.dependent.item.prototype.level1[{#LLD}]'
+				],
+				'error' => null
+			],
+			'Simple update templated dependent discovery rule.' => [
+				'method' => 'discoveryrule.update',
+				'params' => [
+					'itemid' => ':lld_rule:template.discovery.rule'
+				],
+				'error' => null
+			],
+
+			'Circular dependency to itself (item.update).' => [
+				'method' => 'item.update',
+				'params' => [
+					'itemid' => ':item:dependent.item.level1',
+					'master_itemid' => ':item:dependent.item.level1'
+				],
+				'error' => 'Invalid parameter "/1/master_itemid": circular item dependency is not allowed.'
+			],
+			'Circular dependency to itself (itemprototype.update).' => [
+				'method' => 'itemprototype.update',
+				'params' => [
+					'itemid' => ':item_prototype:dependent.item.prototype.level1[{#LLD}]',
+					'master_itemid' => ':item_prototype:dependent.item.prototype.level1[{#LLD}]'
+				],
+				'error' => 'Invalid parameter "/1/master_itemid": circular item dependency is not allowed.'
+			],
+			'Circular dependency to itself (discoveryrule.update).' => [
+				'method' => 'discoveryrule.update',
+				'params' => [
+					'itemid' => ':lld_rule:dependent.discovery.rule',
+					'master_itemid' => ':lld_rule:dependent.discovery.rule'
+				],
+				'error' => 'Invalid parameter "/1/master_itemid": an item ID is expected.'
+			],
+			'Circular dependency to descendant item (update).' => [
+				'method' => 'item.update',
+				'params' => [
+					'itemid' => ':item:master.item',
+					'type' => ITEM_TYPE_DEPENDENT,
+					'master_itemid' => ':item:dependent.item.level2'
+				],
+				'error' => 'Invalid parameter "/1/master_itemid": circular item dependency is not allowed.'
+			],
+			'Circular dependency to descendant item prototypes (update).' => [
+				'method' => 'itemprototype.update',
+				'params' => [
+					'itemid' => ':item_prototype:master.item.prototype[{#LLD}]',
+					'type' => ITEM_TYPE_DEPENDENT,
+					'master_itemid' => ':item_prototype:dependent.item.prototype.level2[{#LLD}]'
+				],
+				'error' => 'Invalid parameter "/1/master_itemid": circular item dependency is not allowed.'
+			],
+
+			'Set "master_itemid" for not-dependent item (create).' => [
+				'method' => 'item.create',
+				'params' => CTestDataHelper::prepareItem([
+					'key_' => 'item.error',
+					'hostid' => ':host:h.dep',
+					'type' => ITEM_TYPE_TRAPPER,
+					'master_itemid' => ':item:master.item'
+				]),
+				'error' => 'Invalid parameter "/1/master_itemid": value must be 0.'
+			],
+			'Set "master_itemid" for not-dependent item prototype (create).' => [
+				'method' => 'itemprototype.create',
+				'params' => CTestDataHelper::prepareItemPrototype([
+					'key_' => 'item.error[{#LLD}]',
+					'hostid' => ':host:h.dep',
+					'ruleid' => ':lld_rule:discovery.rule',
+					'type' => ITEM_TYPE_TRAPPER,
+					'master_itemid' => ':item:master.item'
+				]),
+				'error' => 'Invalid parameter "/1/master_itemid": value must be 0.'
+			],
+			'Set "master_itemid" for not-dependent discovery rule (create).' => [
+				'method' => 'discoveryrule.create',
+				'params' => CTestDataHelper::prepareLldRule([
 					'key_' => 'discovery.rule.2',
-					'type' => 2,
-					'master_itemid' => 1001	// dependent.items.template.1:master.item.1
-				]
+					'hostid' => ':host:h.dep',
+					'type' => ITEM_TYPE_TRAPPER,
+					'master_itemid' => ':item:master.item'
+				]),
+				'error' => 'Invalid parameter "/1/master_itemid": value must be 0.'
 			],
-			// Set "master_itemid" for not-dependent item (update).
-			[
-				'error' => 'Incorrect value for field "master_itemid": should be empty.',
+
+			'Set "master_itemid" for not-dependent item (update).' => [
 				'method' => 'item.update',
-				'request_data' => [
-					'itemid' => 1016,		// dependent.items.template.1:trap.1
-					'master_itemid' => 1001	// dependent.items.template.1:master.item.1
-				]
+				'params' => [
+					'itemid' => ':item:independent.item',
+					'master_itemid' => ':item:master.item'
+				],
+				'error' => 'Invalid parameter "/1/master_itemid": value must be 0.'
 			],
-			// Set "master_itemid" for not-dependent item prototype (update).
-			[
-				'error' => 'Incorrect value for field "master_itemid": should be empty.',
+			'Set "master_itemid" for not-dependent item prototype (update).' => [
 				'method' => 'itemprototype.update',
-				'request_data' => [
-					'itemid' => 1033,		// dependent.items.template.1:item.proto.1
-					'master_itemid' => 1001	// dependent.items.template.1:master.item.1
-				]
+				'params' => [
+					'itemid' => ':item_prototype:independent.item.prototype[{#LLD}]',
+					'master_itemid' => ':item:master.item'
+				],
+				'error' => 'Invalid parameter "/1/master_itemid": value must be 0.'
 			],
-			// Set "master_itemid" for not-dependent discovery rule (update).
-			[
-				'error' => 'Incorrect value for field "master_itemid": should be empty.',
+			'Set "master_itemid" for not-dependent discovery rule (update).' => [
 				'method' => 'discoveryrule.update',
-				'request_data' => [
-					'itemid' => 1017,		// dependent.items.template.1:discovery.rule.1
-					'master_itemid' => 1001	// dependent.items.template.1:master.item.1
-				]
+				'params' => [
+					'itemid' => ':lld_rule:independent.rule',
+					'master_itemid' => ':item:master.item'
+				],
+				'error' => 'Invalid parameter "/1/master_itemid": value must be 0.'
 			],
-			// Check for maximum depth for the items tree (create). Add 4th level.
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum number of dependency levels reached.',
+
+			'Create 4th level dependent item on the template level.' => [
 				'method' => 'item.create',
-				// 1001: dependent.items.template.1
-				// 1008: dependent.items.template.1:dependent.item.1.1.1.1
-				'request_data' => self::getItems(1001, 1008, 'dependent.item.1.1.1.1', 1, 1)
+				'params' => CTestDataHelper::prepareItem([
+					'key_' => 'template.dependent.item.level4',
+					'hostid' => ':template:t.dep',
+					'master_itemid' => ':item:template.dependent.item.level3'
+				]),
+				'error' => null
 			],
-			// Check for maximum depth for the item prototypes tree (create). Add 4th level.
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum number of dependency levels reached.',
+			'Create 4th level dependent item prototype on the template level.' => [
 				'method' => 'itemprototype.create',
-				// 1001: dependent.items.template.1
-				// 1017: dependent.items.template.1:discovery.rule.1
-				// 1025: dependent.items.template.1:dependent.item.proto.1.1.1.1
-				'request_data' => self::getItemPrototypes(1001, 1017, 1025, 'dependent.item.1.1.1.1', 1, 1)
+				'params' => CTestDataHelper::prepareItemPrototype([
+					'key_' => 'template.dependent.item.prototype.level4[{#LLD}]',
+					'hostid' => ':template:t.dep',
+					'ruleid' => ':lld_rule:template.discovery.rule',
+					'master_itemid' => ':item_prototype:template.dependent.item.prototype.level3[{#LLD}]'
+				]),
+				'error' => null
 			],
-			// Check for maximum depth of the discovery rule tree (create). Add 4th level.
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum number of dependency levels reached.',
+			'Create 4th level dependent LLD rule on the template level.' => [
 				'method' => 'discoveryrule.create',
-				// 1001: dependent.items.template.1
-				// 1008: dependent.items.template.1:dependent.item.1.1.1.1
-				'request_data' => self::getDiscoveryRule(1001, 1008, 'dependent.discovery.rule.1.1.1.1', 1, 1)
+				'params' => CTestDataHelper::prepareLldRule([
+					'key_' => 'template.dependent.lld.rule.level4',
+					'hostid' => ':template:t.dep',
+					'master_itemid' => ':item:template.dependent.item.level3'
+				]),
+				'error' => null
 			],
-			// Check for maximum depth of the items tree (update). Add 4th level.
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum number of dependency levels reached.',
-				'method' => 'item.update',
-				'request_data' => [
-					'itemid' => 1016,		// dependent.items.template.1:trap.1
-					'type' => 18,			// ITEM_TYPE_DEPENDENT
-					'master_itemid' => 1008	// dependent.items.template.1:dependent.item.1.1.1.1
-				]
-			],
-			// Check for maximum depth of the item prototypes tree (update). Add 4th level.
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum number of dependency levels reached.',
-				'method' => 'itemprototype.update',
-				'request_data' => [
-					'itemid' => 1033,		// dependent.items.template.1:item.proto.1
-					'type' => 18,			// ITEM_TYPE_DEPENDENT
-					'master_itemid' => 1025	// dependent.items.template.1:dependent.item.proto.1.1.1.1
-				]
-			],
-			// Check for maximum depth of the discovery rule tree (update). Add 4th level.
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum number of dependency levels reached.',
-				'method' => 'discoveryrule.update',
-				'request_data' => [
-					'itemid' => 1017,		// dependent.items.template.1:discovery.rule.1
-					'type' => 18,			// ITEM_TYPE_DEPENDENT
-					'master_itemid' => 1008	// dependent.items.template.1:dependent.item.1.1.1.1
-				]
-			],
-			// Check for maximum depth of the items tree (update). Add 4th level at the top.
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum number of dependency levels reached.',
-				'method' => 'item.update',
-				'request_data' => [
-					'itemid' => 1702,		// dependent.items.template.4:item.2
-					'type' => 18,			// ITEM_TYPE_DEPENDENT
-					'master_itemid' => 1701	// dependent.items.template.4:item.1
-				]
-			],
-			// Check for maximum depth of the mixed tree (update). Add 4th level at the top.
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum number of dependency levels reached.',
-				'method' => 'item.update',
-				'request_data' => [
-					'itemid' => 1902,		// dependent.items.template.5:item.2
-					'type' => 18,			// ITEM_TYPE_DEPENDENT
-					'master_itemid' => 1901	// dependent.items.template.5:item.1
-				]
-			],
-			// Check for maximum depth of the item prototypes tree (update). Add 4th level at the top.
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum number of dependency levels reached.',
-				'method' => 'itemprototype.update',
-				'request_data' => [
-					'itemid' => 2103,		// dependent.items.template.6:item.proto.2
-					'type' => 18,			// ITEM_TYPE_DEPENDENT
-					'master_itemid' => 2102	// dependent.items.template.6:item.proto.1
-				]
-			],
-			// Check for maximum depth of the items tree (link a template).
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum number of dependency levels reached.',
-				'method' => 'template.update',
-				'request_data' => [
-					'templateid' => 1005,	// dependent.items.template.2
-					'hosts' => [
-						['hostid' => 1006]	// dependent.items.host.2
-					]
-				]
-			],
-			// Check for maximum depth of the mixed tree (link a template).
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum number of dependency levels reached.',
-				'method' => 'template.update',
-				'request_data' => [
-					'templateid' => 1005,	// dependent.items.template.2
-					'hosts' => [
-						['hostid' => 1007]	// dependent.items.host.3
-					]
-				]
-			],
-			// Check for maximum count of items in the tree on the template level.
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum dependent items count reached.',
+			'Create 4th level dependent item on the host level.' => [
 				'method' => 'item.create',
-				// 1001: dependent.items.template.1
-				// 1001: dependent.items.template.1:master.item.1
-				'request_data' => self::getItems(1001, 1001, 'dependent.item.1', 3, 9987)
+				'params' => CTestDataHelper::prepareItem([
+					'key_' => 'dependent.item.level4',
+					'hostid' => ':host:h.dep',
+					'master_itemid' => ':item:dependent.item.level3'
+				]),
+				'error' => null
 			],
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum dependent items count reached.',
-				'method' => 'item.create',
-				// 1001: dependent.items.template.1
-				// 1002: dependent.items.template.1:dependent.item.1.1
-				// 1003: dependent.items.template.1:dependent.item.1.2
-				'request_data' => array_merge(
-					self::getItems(1001, 1002, 'dependent.item.1.1', 3, 5495),
-					self::getItems(1001, 1003, 'dependent.item.1.2', 3, 4494)
-				)
+			'Create 4th level dependent item prototype on the host level' => [
+				'method' => 'itemprototype.create',
+				'params' => CTestDataHelper::prepareItemPrototype([
+					'key_' => 'template.dependent.item.prototype.level4[{#LLD}]',
+					'hostid' => ':host:h.dep',
+					'ruleid' => ':lld_rule:discovery.rule',
+					'master_itemid' => ':item_prototype:dependent.item.prototype.level3[{#LLD}]'
+				])
 			],
-			// Check for maximum count of discovery rule in the tree on the template level.
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum dependent items count reached.',
+			'Create 4th level dependent LLD rule on the host level.' => [
 				'method' => 'discoveryrule.create',
-				// 1001: dependent.items.template.1
-				// 1001: dependent.items.template.1:master.item.1
-				'request_data' => self::getDiscoveryRule(1001, 1001, 'dependent.discovery.rule.1', 2, 9986)
+				'params' => CTestDataHelper::prepareLldRule([
+					'key_' => 'dependent.lld.rule.level4',
+					'hostid' => ':host:h.dep',
+					'master_itemid' => ':item:dependent.item.level3'
+				]),
+				'error' => null
 			],
-			// Check for maximum count of discovery rule in the tree on the template level.
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum dependent items count reached.',
-				'method' => 'discoveryrule.create',
-				// 1001: dependent.items.template.1
-				// 1002: dependent.items.template.1:dependent.item.1.1
-				// 1003: dependent.items.template.1:dependent.item.1.2
-				'request_data' => array_merge(
-					self::getDiscoveryRule(1001, 1002, 'dependent.discovery.rule.1.1', 1, 5493),
-					self::getDiscoveryRule(1001, 1003, 'dependent.discovery.rule.1.2', 1, 4492)
-				)
-			],
-			// Check for maximum count of items in the tree on the host level.
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum dependent items count reached.',
+			'Create many items (on the template level) which depends on the same master item.' => [
 				'method' => 'item.create',
-				// 1004: dependent.items.host.1
-				// 1301: dependent.items.host.1:master.item.1
-				'request_data' => self::getItems(1004, 1301, 'dependent.item.1', 3, 9987)
+				'params' => CTestDataHelper::prepareItemSet([
+					'key_' => 'template.dependent.item.set.1',
+					'hostid' => ':template:t.dep',
+					'master_itemid' => ':item:template.dependent.item.level2'
+				], 1, self::DEPENDENT_ITEM_TEST_COUNT),
+				'error' => null
 			],
-			// Check for maximum count of items in the tree on the host level.
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum dependent items count reached.',
-				'method' => 'item.create',
-				// 1004: dependent.items.host.1
-				// 1302: dependent.items.host.1:dependent.item.1.1
-				// 1303: dependent.items.host.1:dependent.item.1.2
-				'request_data' => array_merge(
-					self::getItems(1004, 1302, 'dependent.item.1.1', 3, 5495),
-					self::getItems(1004, 1303, 'dependent.item.1.2', 3, 4494)
-				)
+			'Create many item prototypes (on the template level) which depends on the same master item prototype.' => [
+				'method' => 'itemprototype.create',
+				'params' => CTestDataHelper::prepareItemPrototypeSet([
+					'key_' => 'template.dependent.item.prototype.set[{#LLD}]',
+					'hostid' => ':template:t.dep',
+					'ruleid' => ':lld_rule:template.discovery.rule',
+					'master_itemid' => ':item_prototype:template.dependent.item.prototype.level2[{#LLD}]'
+				], 1, self::DEPENDENT_ITEM_TEST_COUNT),
+				'error' => null
 			],
-			// Check for maximum count of discovery rule in the tree on the host level.
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum dependent items count reached.',
+			'Create many LLD rules (on the template level) which depends on the same master item.' => [
 				'method' => 'discoveryrule.create',
-				// 1004: dependent.items.host.1
-				// 1301: dependent.items.host.1:master.item.1
-				'request_data' => self::getDiscoveryRule(1004, 1301, 'dependent.discovery.rule.1', 2, 9986)
+				'params' => CTestDataHelper::prepareLldRuleSet([
+					'key_' => 'template.dependent.lld.rule.set',
+					'hostid' => ':template:t.dep',
+					'master_itemid' => ':item:template.dependent.item.level2'
+				], 1, self::DEPENDENT_ITEM_TEST_COUNT),
+				'error' => null
 			],
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum dependent items count reached.',
-				'method' => 'discoveryrule.create',
-				// 1004: dependent.items.host.1
-				// 1302: dependent.items.host.1:dependent.item.1.1
-				// 1303: dependent.items.host.1:dependent.item.1.2
-				'request_data' => array_merge(
-					self::getDiscoveryRule(1004, 1302, 'dependent.discovery.rule.1.1', 1, 5493),
-					self::getDiscoveryRule(1004, 1303, 'dependent.discovery.rule.1.2', 1, 4492)
-				)
-			],
-			// Check for maximum count of items in the tree on the template level.
-			[
-				'error' => null,
+			'Create many items (on the host level) which depends on the same master item.' => [
 				'method' => 'item.create',
-				// 1001: dependent.items.template.1
-				// 1002: dependent.items.template.1:dependent.item.1.1
-				// 1003: dependent.items.template.1:dependent.item.1.2
-				'request_data' => array_merge(
-					self::getItems(1001, 1002, 'dependent.item.1.1', 3, 9494),
-					self::getItems(1001, 1003, 'dependent.item.1.2', 3, 494)
-				)
+				'params' => CTestDataHelper::prepareItemSet([
+					'key_' => 'dependent.item.set',
+					'hostid' => ':host:h.dep',
+					'master_itemid' => ':item:dependent.item.level2'
+				], 1, self::DEPENDENT_ITEM_TEST_COUNT),
+				'error' => null
 			],
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum dependent items count reached.',
-				'method' => 'item.create',
-				// 1001: dependent.items.template.1
-				// 1003: dependent.items.template.1:dependent.item.1.2
-				'request_data' => array_merge(self::getItems(1001, 1003, 'dependent.item.1.2', 495, 9495))
+			'Create many item prototypes (on the host level) which depends on the same master item prototype.' => [
+				'method' => 'itemprototype.create',
+				'params' => CTestDataHelper::prepareItemPrototypeSet([
+					'key_' => 'dependent.item.prototype.set[{#LLD}]',
+					'hostid' => ':host:h.dep',
+					'ruleid' => ':lld_rule:discovery.rule',
+					'master_itemid' => ':item_prototype:dependent.item.prototype.level2[{#LLD}]'
+				], 1, self::DEPENDENT_ITEM_TEST_COUNT),
+				'error' => null
 			],
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum dependent items count reached.',
+			'Create many LLD rules (on the host level) which depends on the same master item.' => [
 				'method' => 'discoveryrule.create',
-				// 1001: dependent.items.template.1
-				// 1001: dependent.items.template.1:master.item.1
-				'request_data' => self::getDiscoveryRule(1001, 1001, 'dependent.discovery.rule.1', 2, 2)
-			],
-			// Check for maximum count of item prototypes in the tree on the template level.
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum dependent items count reached.',
-				'method' => 'itemprototype.create',
-				// 1001: dependent.items.template.1
-				// 1017: dependent.items.template.1:discovery.rule.1
-				// 1018: dependent.items.template.1:master.item.proto.1
-				'request_data' => self::getItemPrototypes(1001, 1017, 1018, 'dependent.item.proto.1', 3, 9988)
-			],
-			// Check for maximum count of item prototypes in the tree on the template level.
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum dependent items count reached.',
-				'method' => 'itemprototype.create',
-				// 1001: dependent.items.template.1
-				// 1017: dependent.items.template.1:discovery.rule.1
-				// 1019: dependent.items.template.1:dependent.item.proto.1.1
-				// 1020: dependent.items.template.1:dependent.item.proto.1.2
-				'request_data' => array_merge(
-					self::getItemPrototypes(1001, 1017, 1019, 'dependent.item.proto.1.1', 3, 5495),
-					self::getItemPrototypes(1001, 1017, 1020, 'dependent.item.proto.1.2', 3, 4495)
-				)
-			],
-			// Check for maximum count of item prototypes in the tree on the host level.
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum dependent items count reached.',
-				'method' => 'itemprototype.create',
-				// 1004: dependent.items.host.1
-				// 1317: dependent.items.template.1:discovery.rule.1
-				// 1318: dependent.items.host.1:master.item.proto.1
-				'request_data' => self::getItemPrototypes(1004, 1317, 1318, 'dependent.item.proto.1', 3, 9988)
-			],
-			// Check for maximum count of item prototypes in the tree on the host level.
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum dependent items count reached.',
-				'method' => 'itemprototype.create',
-				// 1004: dependent.items.host.1
-				// 1317: dependent.items.template.1:discovery.rule.1
-				// 1319: dependent.items.host.1:dependent.item.proto.1.1
-				// 1320: dependent.items.host.1:dependent.item.proto.1.2
-				'request_data' => array_merge(
-					self::getItemPrototypes(1004, 1317, 1319, 'dependent.item.proto.1.1', 3, 5495),
-					self::getItemPrototypes(1004, 1317, 1320, 'dependent.item.proto.1.2', 3, 4495)
-				)
-			],
-			// Check for maximum count of item prototypes in the tree on the template level.
-			[
-				'error' => null,
-				'method' => 'itemprototype.create',
-				// 1001: dependent.items.template.1
-				// 1017: dependent.items.template.1:discovery.rule.1
-				// 1019: dependent.items.template.1:dependent.item.proto.1.1
-				// 1020: dependent.items.template.1:dependent.item.proto.1.2
-				'request_data' => array_merge(
-					self::getItemPrototypes(1001, 1017, 1019, 'dependent.item.proto.1.1', 3, 5495),
-					self::getItemPrototypes(1001, 1017, 1020, 'dependent.item.proto.1.2', 3, 4494)
-				)
-			],
-			[
-				'error' => 'Incorrect value for field "master_itemid": maximum dependent items count reached.',
-				'method' => 'itemprototype.create',
-				// 1001: dependent.items.template.1
-				// 1017: dependent.items.template.1:discovery.rule.1
-				// 1020: dependent.items.template.1:dependent.item.proto.1.2
-				'request_data' => array_merge(
-					self::getItemPrototypes(1001, 1017, 1020, 'dependent.item.proto.1.2', 4495, 5494)
-				)
+				'params' => CTestDataHelper::prepareLldRuleSet([
+					'key_' => 'dependent.lld.rule.set',
+					'hostid' => ':host:h.dep',
+					'master_itemid' => ':item:dependent.item.level2'
+				], 1, self::DEPENDENT_ITEM_TEST_COUNT),
+				'error' => null
 			]
 		];
 	}
+
 	/**
 	 * @dataProvider getTestCases
 	 */
-	public function testDependentItems_Update($error, $method, $request_data) {
-		$this->call($method, $request_data, $error);
+	public function testDependentItems_API(string $method, array $params, ?string $error = null) {
+		$api_object = substr($method, 0, strpos($method, '.'));
+		$params = array_key_exists(0, $params) ? $params : [$params];
+
+		foreach ($params as &$param) {
+			if ($api_object === 'host') {
+				CTestDataHelper::convertHostReferences($param);
+			}
+			elseif ($api_object === 'item') {
+				CTestDataHelper::convertItemReferences($param);
+			}
+			elseif ($api_object === 'itemprototype') {
+				CTestDataHelper::convertItemPrototypeReferences($param);
+			}
+			elseif ($api_object === 'discoveryrule') {
+				CTestDataHelper::convertLldRuleReferences($param);
+			}
+		}
+		unset($param);
+
+		return $this->call($method, $params, $error);
 	}
 }

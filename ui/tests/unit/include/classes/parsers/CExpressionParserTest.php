@@ -1,21 +1,16 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -75,6 +70,9 @@ class CExpressionParserTest extends TestCase {
 			['{TRIGGER.VALUE}', null, CParser::PARSE_SUCCESS],
 			['{$USERMACRO}', null, CParser::PARSE_SUCCESS, ['usermacros' => true]],
 			['{$USERMACRO}', ['error' => 'incorrect expression starting from "{$USERMACRO}"', 'match' => ''], CParser::PARSE_FAIL],
+			['{FUNCTION.VALUE} + {FUNCTION.VALUE9} + {FUNCTION.RECOVERY.VALUE} + {FUNCTION.RECOVERY.VALUE9}', null, CParser::PARSE_SUCCESS, ['macros_n' => ['{FUNCTION.VALUE}', '{FUNCTION.RECOVERY.VALUE}']]],
+			['{FUNCTION.VALUE} + {FUNCTION.VALUE9} + {FUNCTION.RECOVERY.VALUE} + {FUNCTION.RECOVERY.VALUE9}', null, CParser::PARSE_SUCCESS, ['macros_n' => ['{FUNCTION.VALUE}', '{FUNCTION.RECOVERY.VALUE}'], 'calculated' => true]],
+			['{FUNCTION.VALUE1}', ['error' => 'incorrect expression starting from "{FUNCTION.VALUE1}"', 'match' => ''], CParser::PARSE_FAIL],
 
 			['{TRIGGER.VALUE}=1', null, CParser::PARSE_SUCCESS],
 			['{$USERMACRO}=1', null, CParser::PARSE_SUCCESS, ['usermacros' => true]],
@@ -1822,6 +1820,10 @@ class CExpressionParserTest extends TestCase {
 
 			['find(/host/key,,"like","\\")=0', null, CParser::PARSE_FAIL],
 			['find(/host/key,,"like","\\\\")=0', null, CParser::PARSE_SUCCESS],
+			['find(/host/key,,"like","\\\\")=0', null, CParser::PARSE_FAIL, ['escape_backslashes' => false]],
+			['find(/host/key,,"like","\\r")=0', null, CParser::PARSE_FAIL],
+			['find(/host/key,,"like","\\r")=0', null, CParser::PARSE_SUCCESS, ['escape_backslashes' => false]],
+			['find(/host/key,,"like","\\\\r")=0', null, CParser::PARSE_SUCCESS],
 			['find(/host/key,,"like","\\"")=0', null, CParser::PARSE_SUCCESS],
 			['find(/host/key,,"like","\\\\\\"")=0', null, CParser::PARSE_SUCCESS],
 			['find(/host/key,,"like","\\""")=0', null, CParser::PARSE_FAIL],
@@ -2198,7 +2200,16 @@ class CExpressionParserTest extends TestCase {
 			['last(/*/agent.ping) = 1 or last(/host2/*) = 1 or last(/*/*) or last(/{HOST.HOST}/key)', ['error' => 'incorrect expression starting from "last(/{HOST.HOST}/key)"', 'match' => 'last(/*/agent.ping) = 1 or last(/host2/*) = 1 or last(/*/*)'], CParser::PARSE_SUCCESS_CONT, ['calculated' => true]],
 			['last(/*/agent.ping) = 1 or last(/host2/*) = 1 or last(/*/*) or last(/{HOST.HOST}/key)', null, CParser::PARSE_SUCCESS, ['calculated' => true, 'host_macro' => true]],
 			['last(/*/agent.ping) = {TRIGGER.VALUE}', ['error' => 'incorrect expression starting from "{TRIGGER.VALUE}"', 'match' => 'last(/*/agent.ping)'], CParser::PARSE_SUCCESS_CONT, ['calculated' => true]],
-			['last(/*/agent.ping) = 1 or last(/host2/*) = 1', null, CParser::PARSE_FAIL]
+			['last(/*/agent.ping) = 1 or last(/host2/*) = 1', null, CParser::PARSE_FAIL],
+
+			// aggregate count
+			['count(count_foreach(/host/key, 1), "eq")', null, CParser::PARSE_SUCCESS, ['calculated' => true]],
+			['count(count_foreach(/host/key, 1), "eq", 1)', null, CParser::PARSE_SUCCESS, ['calculated' => true]],
+			['count(count_foreach(/host/key, 1), "eq", "1")', null, CParser::PARSE_SUCCESS, ['calculated' => true]],
+			['count(last_foreach(/host/key, 1),,)', null, CParser::PARSE_FAIL, ['calculated' => true]],
+			['count(last_foreach(/host/key, 1), , )', null, CParser::PARSE_FAIL, ['calculated' => true]],
+			['count(last_foreach(/host/key, 1),"", )', null, CParser::PARSE_FAIL, ['calculated' => true]],
+			['count(last_foreach(/host/key, 1),"eq", )', null, CParser::PARSE_FAIL, ['calculated' => true]]
 		];
 	}
 
@@ -2231,10 +2242,10 @@ class CExpressionParserTest extends TestCase {
 	public static function dataProviderTokens() {
 		return [
 			[
-				'((-12 + {$MACRO})) = 1K or not {{#M}.regsub("^([0-9]+)", \1)} and {TRIGGER.VALUE} and "\\"str\\"" = func(/host/key, #25:now/M, "eq", "str") or math() or min( last(/host/key), {$MACRO}, 123, "abc" , min(min(/host/key, 1d:now/d), 125) + 10 )',
+				'((-12 + {$MACRO} + {{$MACRO}.regsub("^([a-z]+)", \1)})) = 1K or not {{#M}.regsub("^([0-9]+)", \1)} and {TRIGGER.VALUE} and "\\"str\\"" = func(/host/key, #25:now/M, "eq", "str") or math() or min( last(/host/key), {$MACRO}, {{$MACRO}.regsub("^([0-9]+)", \1)}, 123, "abc" , min(min(/host/key, 1d:now/d), 125) + 10 ) or {{TRIGGER.VALUE}.regsub("^(\d+)$", \1)} or {{FUNCTION.VALUE}.regsub("^(\d+)$", \1)} or {{FUNCTION.RECOVERY.VALUE5}.regsub("^(\d+)$", \1)}',
 				[
-					'match' => '((-12 + {$MACRO})) = 1K or not {{#M}.regsub("^([0-9]+)", \1)} and {TRIGGER.VALUE} and "\\"str\\"" = func(/host/key, #25:now/M, "eq", "str") or math() or min( last(/host/key), {$MACRO}, 123, "abc" , min(min(/host/key, 1d:now/d), 125) + 10 )',
-					'length' => 237,
+					'match' => '((-12 + {$MACRO} + {{$MACRO}.regsub("^([a-z]+)", \1)})) = 1K or not {{#M}.regsub("^([0-9]+)", \1)} and {TRIGGER.VALUE} and "\\"str\\"" = func(/host/key, #25:now/M, "eq", "str") or math() or min( last(/host/key), {$MACRO}, {{$MACRO}.regsub("^([0-9]+)", \1)}, 123, "abc" , min(min(/host/key, 1d:now/d), 125) + 10 ) or {{TRIGGER.VALUE}.regsub("^(\d+)$", \1)} or {{FUNCTION.VALUE}.regsub("^(\d+)$", \1)} or {{FUNCTION.RECOVERY.VALUE5}.regsub("^(\d+)$", \1)}',
+					'length' => 451,
 					'tokens' => [
 						[
 							'type' => CExpressionParserResult::TOKEN_TYPE_OPEN_BRACE,
@@ -2276,26 +2287,38 @@ class CExpressionParserTest extends TestCase {
 							'length' => 8
 						],
 						[
+							'type' => CExpressionParserResult::TOKEN_TYPE_OPERATOR,
+							'pos' => 17,
+							'match' => '+',
+							'length' => 1
+						],
+						[
+							'type' => CExpressionParserResult::TOKEN_TYPE_USER_MACRO,
+							'pos' => 19,
+							'match' => '{{$MACRO}.regsub("^([a-z]+)", \1)}',
+							'length' => 34
+						],
+						[
 							'type' => CExpressionParserResult::TOKEN_TYPE_CLOSE_BRACE,
-							'pos' => 16,
+							'pos' => 53,
 							'match' => ')',
 							'length' => 1
 						],
 						[
 							'type' => CExpressionParserResult::TOKEN_TYPE_CLOSE_BRACE,
-							'pos' => 17,
+							'pos' => 54,
 							'match' => ')',
 							'length' => 1
 						],
 						[
 							'type' => CExpressionParserResult::TOKEN_TYPE_OPERATOR,
-							'pos' => 19,
+							'pos' => 56,
 							'match' => '=',
 							'length' => 1
 						],
 						[
 							'type' => CExpressionParserResult::TOKEN_TYPE_NUMBER,
-							'pos' => 21,
+							'pos' => 58,
 							'match' => '1K',
 							'length' => 2,
 							'data' => [
@@ -2304,55 +2327,55 @@ class CExpressionParserTest extends TestCase {
 						],
 						[
 							'type' => CExpressionParserResult::TOKEN_TYPE_OPERATOR,
-							'pos' => 24,
+							'pos' => 61,
 							'match' => 'or',
 							'length' => 2
 						],
 						[
 							'type' => CExpressionParserResult::TOKEN_TYPE_OPERATOR,
-							'pos' => 27,
+							'pos' => 64,
 							'match' => 'not',
 							'length' => 3
 						],
 						[
 							'type' => CExpressionParserResult::TOKEN_TYPE_LLD_MACRO,
-							'pos' => 31,
+							'pos' => 68,
 							'match' => '{{#M}.regsub("^([0-9]+)", \1)}',
 							'length' => 30
 						],
 						[
 							'type' => CExpressionParserResult::TOKEN_TYPE_OPERATOR,
-							'pos' => 62,
+							'pos' => 99,
 							'match' => 'and',
 							'length' => 3
 						],
 						[
 							'type' => CExpressionParserResult::TOKEN_TYPE_MACRO,
-							'pos' => 66,
+							'pos' => 103,
 							'match' => '{TRIGGER.VALUE}',
 							'length' => 15
 						],
 						[
 							'type' => CExpressionParserResult::TOKEN_TYPE_OPERATOR,
-							'pos' => 82,
+							'pos' => 119,
 							'match' => 'and',
 							'length' => 3
 						],
 						[
 							'type' => CExpressionParserResult::TOKEN_TYPE_STRING,
-							'pos' => 86,
+							'pos' => 123,
 							'match' => '"\\"str\\""',
 							'length' => 9
 						],
 						[
 							'type' => CExpressionParserResult::TOKEN_TYPE_OPERATOR,
-							'pos' => 96,
+							'pos' => 133,
 							'match' => '=',
 							'length' => 1
 						],
 						[
 							'type' => CExpressionParserResult::TOKEN_TYPE_HIST_FUNCTION,
-							'pos' => 98,
+							'pos' => 135,
 							'match' => 'func(/host/key, #25:now/M, "eq", "str")',
 							'length' => 39,
 							'data' => [
@@ -2360,7 +2383,7 @@ class CExpressionParserTest extends TestCase {
 								'parameters' => [
 									[
 										'type' => CHistFunctionParser::PARAM_TYPE_QUERY,
-										'pos' => 103,
+										'pos' => 140,
 										'match' => '/host/key',
 										'length' => 9,
 										'data' => [
@@ -2374,7 +2397,7 @@ class CExpressionParserTest extends TestCase {
 									],
 									[
 										'type' => CHistFunctionParser::PARAM_TYPE_PERIOD,
-										'pos' => 114,
+										'pos' => 151,
 										'match' => '#25:now/M',
 										'length' => 9,
 										'data' => [
@@ -2384,13 +2407,13 @@ class CExpressionParserTest extends TestCase {
 									],
 									[
 										'type' => CHistFunctionParser::PARAM_TYPE_QUOTED,
-										'pos' => 125,
+										'pos' => 162,
 										'match' => '"eq"',
 										'length' => 4
 									],
 									[
 										'type' => CHistFunctionParser::PARAM_TYPE_QUOTED,
-										'pos' => 131,
+										'pos' => 168,
 										'match' => '"str"',
 										'length' => 5
 									]
@@ -2399,13 +2422,13 @@ class CExpressionParserTest extends TestCase {
 						],
 						[
 							'type' => CExpressionParserResult::TOKEN_TYPE_OPERATOR,
-							'pos' => 138,
+							'pos' => 175,
 							'match' => 'or',
 							'length' => 2
 						],
 						[
 							'type' => CExpressionParserResult::TOKEN_TYPE_MATH_FUNCTION,
-							'pos' => 141,
+							'pos' => 178,
 							'match' => 'math()',
 							'length' => 6,
 							'data' => [
@@ -2415,28 +2438,28 @@ class CExpressionParserTest extends TestCase {
 						],
 						[
 							'type' => CExpressionParserResult::TOKEN_TYPE_OPERATOR,
-							'pos' => 148,
+							'pos' => 185,
 							'match' => 'or',
 							'length' => 2
 						],
 						[
 							'type' => CExpressionParserResult::TOKEN_TYPE_MATH_FUNCTION,
-							'pos' => 151,
-							'match' => 'min( last(/host/key), {$MACRO}, 123, "abc" , min(min(/host/key, 1d:now/d), 125) + 10 )',
-							'length' => 86,
+							'pos' => 188,
+							'match' => 'min( last(/host/key), {$MACRO}, {{$MACRO}.regsub("^([0-9]+)", \1)}, 123, "abc" , min(min(/host/key, 1d:now/d), 125) + 10 )',
+							'length' => 122,
 							'data' => [
 								'function' => 'min',
 								'parameters' => [
 									[
 										'type' => CExpressionParserResult::TOKEN_TYPE_EXPRESSION,
-										'pos' => 156,
+										'pos' => 193,
 										'match' => 'last(/host/key)',
 										'length' => 15,
 										'data' => [
 											'tokens' => [
 												[
 													'type' => CExpressionParserResult::TOKEN_TYPE_HIST_FUNCTION,
-													'pos' => 156,
+													'pos' => 193,
 													'match' => 'last(/host/key)',
 													'length' => 15,
 													'data' => [
@@ -2444,7 +2467,7 @@ class CExpressionParserTest extends TestCase {
 														'parameters' => [
 															[
 																'type' => CHistFunctionParser::PARAM_TYPE_QUERY,
-																'pos' => 161,
+																'pos' => 198,
 																'match' => '/host/key',
 																'length' => 9,
 																'data' => [
@@ -2464,14 +2487,14 @@ class CExpressionParserTest extends TestCase {
 									],
 									[
 										'type' => CExpressionParserResult::TOKEN_TYPE_EXPRESSION,
-										'pos' => 173,
+										'pos' => 210,
 										'match' => '{$MACRO}',
 										'length' => 8,
 										'data' => [
 											'tokens' => [
 												[
 													'type' => CExpressionParserResult::TOKEN_TYPE_USER_MACRO,
-													'pos' => 173,
+													'pos' => 210,
 													'match' => '{$MACRO}',
 													'length' => 8
 												]
@@ -2480,14 +2503,30 @@ class CExpressionParserTest extends TestCase {
 									],
 									[
 										'type' => CExpressionParserResult::TOKEN_TYPE_EXPRESSION,
-										'pos' => 183,
+										'pos' => 220,
+										'match' => '{{$MACRO}.regsub("^([0-9]+)", \1)}',
+										'length' => 34,
+										'data' => [
+											'tokens' => [
+												[
+													'type' => CExpressionParserResult::TOKEN_TYPE_USER_MACRO,
+													'pos' => 220,
+													'match' => '{{$MACRO}.regsub("^([0-9]+)", \1)}',
+													'length' => 34
+												]
+											]
+										]
+									],
+									[
+										'type' => CExpressionParserResult::TOKEN_TYPE_EXPRESSION,
+										'pos' => 256,
 										'match' => '123',
 										'length' => 3,
 										'data' => [
 											'tokens' => [
 												[
 													'type' => CExpressionParserResult::TOKEN_TYPE_NUMBER,
-													'pos' => 183,
+													'pos' => 256,
 													'match' => '123',
 													'length' => 3,
 													'data' => [
@@ -2499,14 +2538,14 @@ class CExpressionParserTest extends TestCase {
 									],
 									[
 										'type' => CExpressionParserResult::TOKEN_TYPE_EXPRESSION,
-										'pos' => 188,
+										'pos' => 261,
 										'match' => '"abc"',
 										'length' => 5,
 										'data' => [
 											'tokens' => [
 												[
 													'type' => CExpressionParserResult::TOKEN_TYPE_STRING,
-													'pos' => 188,
+													'pos' => 261,
 													'match' => '"abc"',
 													'length' => 5
 												]
@@ -2515,14 +2554,14 @@ class CExpressionParserTest extends TestCase {
 									],
 									[
 										'type' => CExpressionParserResult::TOKEN_TYPE_EXPRESSION,
-										'pos' => 196,
+										'pos' => 269,
 										'match' => 'min(min(/host/key, 1d:now/d), 125) + 10',
 										'length' => 39,
 										'data' => [
 											'tokens' => [
 												[
 													'type' => CExpressionParserResult::TOKEN_TYPE_MATH_FUNCTION,
-													'pos' => 196,
+													'pos' => 269,
 													'match' => 'min(min(/host/key, 1d:now/d), 125)',
 													'length' => 34,
 													'data' => [
@@ -2530,14 +2569,14 @@ class CExpressionParserTest extends TestCase {
 														'parameters' => [
 															[
 																'type' => CExpressionParserResult::TOKEN_TYPE_EXPRESSION,
-																'pos' => 200,
+																'pos' => 273,
 																'match' => 'min(/host/key, 1d:now/d)',
 																'length' => 24,
 																'data' => [
 																	'tokens' => [
 																		[
 																			'type' => CExpressionParserResult::TOKEN_TYPE_HIST_FUNCTION,
-																			'pos' => 200,
+																			'pos' => 273,
 																			'match' => 'min(/host/key, 1d:now/d)',
 																			'length' => 24,
 																			'data' => [
@@ -2545,7 +2584,7 @@ class CExpressionParserTest extends TestCase {
 																				'parameters' => [
 																					[
 																						'type' => CHistFunctionParser::PARAM_TYPE_QUERY,
-																						'pos' => 204,
+																						'pos' => 277,
 																						'match' => '/host/key',
 																						'length' => 9,
 																						'data' => [
@@ -2559,7 +2598,7 @@ class CExpressionParserTest extends TestCase {
 																					],
 																					[
 																						'type' => CHistFunctionParser::PARAM_TYPE_PERIOD,
-																						'pos' => 215,
+																						'pos' => 288,
 																						'match' => '1d:now/d',
 																						'length' => 8,
 																						'data' => [
@@ -2575,14 +2614,14 @@ class CExpressionParserTest extends TestCase {
 															],
 															[
 																'type' => CExpressionParserResult::TOKEN_TYPE_EXPRESSION,
-																'pos' => 226,
+																'pos' => 299,
 																'match' => '125',
 																'length' => 3,
 																'data' => [
 																	'tokens' => [
 																		[
 																			'type' => CExpressionParserResult::TOKEN_TYPE_NUMBER,
-																			'pos' => 226,
+																			'pos' => 299,
 																			'match' => '125',
 																			'length' => 3,
 																			'data' => [
@@ -2597,13 +2636,13 @@ class CExpressionParserTest extends TestCase {
 												],
 												[
 													'type' => CExpressionParserResult::TOKEN_TYPE_OPERATOR,
-													'pos' => 231,
+													'pos' => 304,
 													'match' => '+',
 													'length' => 1
 												],
 												[
 													'type' => CExpressionParserResult::TOKEN_TYPE_NUMBER,
-													'pos' => 233,
+													'pos' => 306,
 													'match' => '10',
 													'length' => 2,
 													'data' => [
@@ -2615,10 +2654,46 @@ class CExpressionParserTest extends TestCase {
 									]
 								]
 							]
+						],
+						[
+							'type' => CExpressionParserResult::TOKEN_TYPE_OPERATOR,
+							'pos' => 311,
+							'match' => 'or',
+							'length' => 2
+						],
+						[
+							'type' => CExpressionParserResult::TOKEN_TYPE_MACRO,
+							'pos' => 314,
+							'match' => '{{TRIGGER.VALUE}.regsub("^(\d+)$", \1)}',
+							'length' => 39
+						],
+						[
+							'type' => CExpressionParserResult::TOKEN_TYPE_OPERATOR,
+							'pos' => 354,
+							'match' => 'or',
+							'length' => 2
+						],
+						[
+							'type' => CExpressionParserResult::TOKEN_TYPE_MACRO,
+							'pos' => 357,
+							'match' => '{{FUNCTION.VALUE}.regsub("^(\d+)$", \1)}',
+							'length' => 40
+						],
+						[
+							'type' => CExpressionParserResult::TOKEN_TYPE_OPERATOR,
+							'pos' => 398,
+							'match' => 'or',
+							'length' => 2
+						],
+						[
+							'type' => CExpressionParserResult::TOKEN_TYPE_MACRO,
+							'pos' => 401,
+							'match' => '{{FUNCTION.RECOVERY.VALUE5}.regsub("^(\d+)$", \1)}',
+							'length' => 50
 						]
 					]
 				],
-				['usermacros' => true, 'lldmacros' => true]
+				['usermacros' => true, 'lldmacros' => true, 'macros_n' => ['{FUNCTION.VALUE}', '{FUNCTION.RECOVERY.VALUE}']]
 			],
 			[
 				'{52735} > 0 or min({52736}, {52737}, 5M + {$MACRO})',

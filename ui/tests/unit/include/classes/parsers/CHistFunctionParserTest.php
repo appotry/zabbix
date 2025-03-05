@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -783,7 +778,7 @@ class CHistFunctionParserTest extends TestCase {
 							]
 						],
 						[
-							'type' => CHistFunctionParser::PARAM_TYPE_UNQUOTED,
+							'type' => CHistFunctionParser::PARAM_TYPE_EMPTY,
 							'pos' => 15,
 							'match' => '',
 							'length' => 0
@@ -826,6 +821,41 @@ class CHistFunctionParserTest extends TestCase {
 					]
 				],
 				['/host/key', '{$PERIOD}:{$OFFSET}']
+			],
+			[
+				'last(/host/key, {{$PERIOD}.regsub("^([0-9]+)", \1)}:{{$OFFSET}.regsub("^([0-9]+)", \1)})', 0, ['usermacros' => true],
+				[
+					'rc' => CParser::PARSE_SUCCESS,
+					'match' => 'last(/host/key, {{$PERIOD}.regsub("^([0-9]+)", \1)}:{{$OFFSET}.regsub("^([0-9]+)", \1)})',
+					'function' => 'last',
+					'parameters' => [
+						[
+							'type' => CHistFunctionParser::PARAM_TYPE_QUERY,
+							'pos' => 5,
+							'match' => '/host/key',
+							'length' => 9,
+							'data' => [
+								'host' => 'host',
+								'item' => 'key',
+								'filter' => [
+									'match' => '',
+									'tokens' => []
+								]
+							]
+						],
+						[
+							'type' => CHistFunctionParser::PARAM_TYPE_PERIOD,
+							'pos' => 16,
+							'match' => '{{$PERIOD}.regsub("^([0-9]+)", \1)}:{{$OFFSET}.regsub("^([0-9]+)", \1)}',
+							'length' => 71,
+							'data' => [
+								'sec_num' => '{{$PERIOD}.regsub("^([0-9]+)", \1)}',
+								'time_shift' => '{{$OFFSET}.regsub("^([0-9]+)", \1)}'
+							]
+						]
+					]
+				],
+				['/host/key', '{{$PERIOD}.regsub("^([0-9]+)", \1)}:{{$OFFSET}.regsub("^([0-9]+)", \1)}']
 			],
 			[
 				'last(/host/key, {$PERIOD}:now-{$ONE_HOUR} )', 0, ['usermacros' => true],
@@ -1018,19 +1048,19 @@ class CHistFunctionParserTest extends TestCase {
 							'length' => 15
 						],
 						[
-							'type' => CHistFunctionParser::PARAM_TYPE_UNQUOTED,
+							'type' => CHistFunctionParser::PARAM_TYPE_EMPTY,
 							'pos' => 100,
 							'match' => '',
 							'length' => 0
 						],
 						[
-							'type' => CHistFunctionParser::PARAM_TYPE_UNQUOTED,
+							'type' => CHistFunctionParser::PARAM_TYPE_EMPTY,
 							'pos' => 102,
 							'match' => '',
 							'length' => 0
 						],
 						[
-							'type' => CHistFunctionParser::PARAM_TYPE_UNQUOTED,
+							'type' => CHistFunctionParser::PARAM_TYPE_EMPTY,
 							'pos' => 103,
 							'match' => '',
 							'length' => 0
@@ -1143,6 +1173,47 @@ class CHistFunctionParserTest extends TestCase {
 				['/host/key', '\\1h\\']
 			],
 			[
+				'nodata(/host/key, "\\\\1h\\ ")', 0, ['escape_backslashes' => false],
+				[
+					'rc' => CParser::PARSE_SUCCESS,
+					'match' => 'nodata(/host/key, "\\\\1h\\ ")',
+					'function' => 'nodata',
+					'parameters' => [
+						[
+							'type' => CHistFunctionParser::PARAM_TYPE_QUERY,
+							'pos' => 7,
+							'match' => '/host/key',
+							'length' => 9,
+							'data' => [
+								'host' => 'host',
+								'item' => 'key',
+								'filter' => [
+									'match' => '',
+									'tokens' => []
+								]
+							]
+						],
+						[
+							'type' => CHistFunctionParser::PARAM_TYPE_QUOTED,
+							'pos' => 18,
+							'match' => '"\\\\1h\\ "',
+							'length' => 8
+						]
+					]
+				],
+				['/host/key', '\\\\1h\\ ']
+			],
+			[
+				'nodata(/host/key, "\\\\1h\\\\")', 0, ['escape_backslashes' => false],
+				[
+					'rc' => CParser::PARSE_FAIL,
+					'match' => '',
+					'function' => '',
+					'parameters' => []
+				],
+				[]
+			],
+			[
 				'nodata(/host/key, "\\"")', 0, [],
 				[
 					'rc' => CParser::PARSE_SUCCESS,
@@ -1195,7 +1266,7 @@ class CHistFunctionParserTest extends TestCase {
 							]
 						],
 						[
-							'type' => CHistFunctionParser::PARAM_TYPE_UNQUOTED,
+							'type' => CHistFunctionParser::PARAM_TYPE_EMPTY,
 							'pos' => 15,
 							'match' => '',
 							'length' => 0

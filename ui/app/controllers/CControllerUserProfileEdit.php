@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -24,7 +19,7 @@
  */
 class CControllerUserProfileEdit extends CControllerUserEditGeneral {
 
-	protected function checkInput() {
+	protected function checkInput(): bool {
 		$locales = array_keys(getLocales());
 		$locales[] = LANG_DEFAULT;
 		$themes = array_keys(APP::getThemes());
@@ -32,6 +27,7 @@ class CControllerUserProfileEdit extends CControllerUserEditGeneral {
 
 		$fields = [
 			'change_password' =>	'in 1',
+			'current_password' =>	'string',
 			'password1' =>			'string',
 			'password2' =>			'string',
 			'lang' =>				'db users.lang|in '.implode(',', $locales),
@@ -48,15 +44,11 @@ class CControllerUserProfileEdit extends CControllerUserEditGeneral {
 
 		if (CWebUser::$data['type'] > USER_TYPE_ZABBIX_USER) {
 			$fields += [
-				'medias' =>			'array',
-				'new_media' =>		'array',
-				'enable_media' =>	'int32',
-				'disable_media' =>	'int32'
+				'medias' =>			'array'
 			];
 		}
 
 		$ret = $this->validateInput($fields);
-
 		if (!$ret) {
 			$this->setResponse(new CControllerResponseFatal());
 		}
@@ -64,18 +56,15 @@ class CControllerUserProfileEdit extends CControllerUserEditGeneral {
 		return $ret;
 	}
 
-	protected function checkPermissions() {
+	protected function checkPermissions(): bool {
 		if (CWebUser::isGuest() || !CWebUser::isLoggedIn()) {
 			return false;
 		}
 
 		$users = API::User()->get([
 			'output' => ['username', 'name', 'surname', 'lang', 'theme', 'autologin', 'autologout', 'refresh',
-				'rows_per_page', 'url', 'timezone'
+				'rows_per_page', 'url', 'timezone', 'provisioned'
 			],
-			'selectMedias' => (CWebUser::$data['type'] > USER_TYPE_ZABBIX_USER)
-				? ['mediatypeid', 'period', 'sendto', 'severity', 'active']
-				: null,
 			'userids' => CWebUser::$data['userid'],
 			'editable' => true
 		]);
@@ -92,51 +81,40 @@ class CControllerUserProfileEdit extends CControllerUserEditGeneral {
 	/**
 	 * Set user medias if user is at least admin and set messages in data.
 	 */
-	protected function doAction() {
-
+	protected function doAction(): void {
 		$data = [
-			'userid' => CWebUser::$data['userid'],
-			'username' => $this->user['username'],
-			'name' => $this->user['name'],
-			'surname' => $this->user['surname'],
-			'change_password' => $this->hasInput('change_password') || $this->hasInput('password1'),
+			'current_password' => '',
 			'password1' => '',
 			'password2' => '',
 			'lang' => $this->user['lang'],
 			'timezone' => $this->user['timezone'],
-			'timezones' => $this->timezones,
 			'theme' => $this->user['theme'],
 			'autologin' => $this->user['autologin'],
 			'autologout' => $this->user['autologout'],
 			'refresh' => $this->user['refresh'],
 			'rows_per_page' => $this->user['rows_per_page'],
 			'url' => $this->user['url'],
-			'messages' => $this->getInput('messages', []) + getMessageSettings(),
-			'form_refresh' => 0,
-			'action' => $this->getAction()
+			'form_refresh' => 0
 		];
 
-		if (CWebUser::$data['type'] > USER_TYPE_ZABBIX_USER) {
-			$data['medias'] = $this->user['medias'];
-		}
-
 		// Overwrite with input variables.
-		$this->getInputs($data, ['password1', 'password2', 'lang', 'timezone', 'theme', 'autologin', 'autologout',
-			'refresh', 'rows_per_page', 'url', 'form_refresh'
-		]);
+		$this->getInputs($data, array_keys($data));
 
-		$data['password_requirements'] = $this->getPasswordRequirements();
-
-		if (CWebUser::$data['type'] > USER_TYPE_ZABBIX_USER) {
-			if ($data['form_refresh'] != 0) {
-				$data['medias'] = $this->getInput('medias', []);
-			}
-
-			$data = $this->setUserMedias($data);
-		}
+		$data += [
+			'userid' => CWebUser::$data['userid'],
+			'username' => $this->user['username'],
+			'name' => $this->user['name'],
+			'surname' => $this->user['surname'],
+			'change_password' => $this->hasInput('change_password') || $this->hasInput('password1'),
+			'timezones' => $this->timezones,
+			'action' => $this->getAction(),
+			'internal_auth' => CWebUser::$data['auth_type'] == ZBX_AUTH_INTERNAL,
+			'password_requirements' => $this->getPasswordRequirements(),
+			'readonly' => $this->user['provisioned'] == CUser::PROVISION_STATUS_YES
+		];
 
 		$response = new CControllerResponseData($data);
-		$response->setTitle(_('User profile'));
+		$response->setTitle(_('Profile'));
 		$this->setResponse($response);
 	}
 }

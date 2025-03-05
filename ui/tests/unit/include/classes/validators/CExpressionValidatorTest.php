@@ -1,21 +1,16 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -50,9 +45,17 @@ class CExpressionValidatorTest extends TestCase {
 
 			['avg(last_foreach(/host/key, 1))', ['calculated' => true], ['rc' => true, 'error' => null]],
 			['count(last_foreach(/host/key, 1))', ['calculated' => true], ['rc' => true, 'error' => null]],
+			['kurtosis(last_foreach(/host/key, 1))', ['calculated' => true], ['rc' => true, 'error' => null]],
+			['mad(last_foreach(/host/key, 1))', ['calculated' => true], ['rc' => true, 'error' => null]],
 			['max(last_foreach(/host/key, 1))', ['calculated' => true], ['rc' => true, 'error' => null]],
 			['min(last_foreach(/host/key, 1))', ['calculated' => true], ['rc' => true, 'error' => null]],
+			['skewness(last_foreach(/host/key, 1))', ['calculated' => true], ['rc' => true, 'error' => null]],
+			['stddevpop(last_foreach(/host/key, 1))', ['calculated' => true], ['rc' => true, 'error' => null]],
+			['stddevsamp(last_foreach(/host/key, 1))', ['calculated' => true], ['rc' => true, 'error' => null]],
 			['sum(last_foreach(/host/key, 1))', ['calculated' => true], ['rc' => true, 'error' => null]],
+			['sumofsquares(last_foreach(/host/key, 1))', ['calculated' => true], ['rc' => true, 'error' => null]],
+			['varpop(last_foreach(/host/key, 1))', ['calculated' => true], ['rc' => true, 'error' => null]],
+			['varsamp(last_foreach(/host/key, 1))', ['calculated' => true], ['rc' => true, 'error' => null]],
 
 			['avg(max_foreach(/host/key, 1))', ['calculated' => true], ['rc' => true, 'error' => null]],
 			['count(max_foreach(/host/key, 1))', ['calculated' => true], ['rc' => true, 'error' => null]],
@@ -132,6 +135,21 @@ class CExpressionValidatorTest extends TestCase {
 			['foo(avg_foreach(/host/key, 1))', ['calculated' => true], ['rc' => false, 'error' => 'unknown function "foo"']],
 
 			// More than one parameter for aggregating math function.
+			['avg(count_foreach(/host/key, 20m), "eq", 1)', ['calculated' => true], ['rc' => false, 'error' => 'incorrect usage of function "count_foreach"']],
+			['avg(count_foreach(/host/key, 20m), 1, 1)', ['calculated' => true], ['rc' => false, 'error' => 'incorrect usage of function "count_foreach"']],
+			['avg(count_foreach(/host/key, 20m, "eq", 1))', ['calculated' => true], ['rc' => true, 'error' => null]],
+			['count(count_foreach(/host/key, 20m, , ))', ['calculated' => true], ['rc' => true, 'error' => null]],
+			['count(count_foreach(/host/key, 20m), "eq", 2)', ['calculated' => true], ['rc' => true, 'error' => null]],
+			['count(count_foreach(/host/key, 20m, "eq"))', ['calculated' => true], ['rc' => true, 'error' => null]],
+			['count(count_foreach(/host/key, 20m, "eq", ))', ['calculated' => true], ['rc' => true, 'error' => null]],
+			['count(count_foreach(/host/key, 20m, 1, 1), "eq", 2)', ['calculated' => true], ['rc' => false, 'error' => 'invalid third parameter in function "count_foreach"']],
+			['count(count_foreach(/host/key, 20m, "eq", 1), "eq", 2)', ['calculated' => true], ['rc' => true, 'error' => null]],
+			['count(last_foreach(/host/key, 1))', ['calculated' => true], ['rc' => true, 'error' => null]],
+			['count(last_foreach(/host/key, 1), 1, 1)', ['calculated' => true], ['rc' => false, 'error' => 'incorrect usage of function "count"']],
+			['count(last_foreach(/host/key, 1), "eq")', ['calculated' => true], ['rc' => true, 'error' => null]],
+			['count(last_foreach(/host/key, 1), "eq", 1)', ['calculated' => true], ['rc' => true, 'error' => null]],
+			['count(last_foreach(/host/key, 1), "eq", "string")', ['calculated' => true], ['rc' => true, 'error' => null]],
+			['count(last_foreach(/host/key, 1), "eq", 1, 1)', ['calculated' => true], ['rc' => false, 'error' => 'invalid number of parameters in function "count"']],
 			['sum(avg_foreach(/host/key, 1), 1)', ['calculated' => true], ['rc' => false, 'error' => 'incorrect usage of function "avg_foreach"']],
 			['sum(1, avg_foreach(/host/key, 1))', ['calculated' => true], ['rc' => false, 'error' => 'incorrect usage of function "avg_foreach"']],
 			['sum(avg_foreach(/host/key, 1), avg_foreach(/host/key, 1))', ['calculated' => true], ['rc' => false, 'error' => 'incorrect usage of function "avg_foreach"']],
@@ -146,7 +164,19 @@ class CExpressionValidatorTest extends TestCase {
 			['foo(1, 2, 3)', [], ['rc' => false, 'error' => 'unknown function "foo"']],
 			['change(1, 2, 3)', [], ['rc' => false, 'error' => 'incorrect usage of function "change"']],
 			['count(123)', [], ['rc' => false, 'error' => 'incorrect usage of function "count"']],
-			['avg(bucket_rate_foreach(/host/*, 1))', ['calculated' => true], ['rc' => false, 'error' => 'incorrect usage of function "bucket_rate_foreach"']]
+			['avg(bucket_rate_foreach(/host/*, 1))', ['calculated' => true], ['rc' => false, 'error' => 'incorrect usage of function "bucket_rate_foreach"']],
+			['jsonpath(/host/item)', [], ['rc' => false, 'error' => 'incorrect usage of function "jsonpath"']],
+			['jsonpath(/host/item, "$.path")', [], ['rc' => false, 'error' => 'incorrect usage of function "jsonpath"']],
+			['jsonpath(last(/host/item))', [], ['rc' => false, 'error' => 'invalid number of parameters in function "jsonpath"']],
+			['jsonpath(last(/host/item), "$.path")', [], ['rc' => true, 'error' => null]],
+			['jsonpath(last(/host/item), "$.path", "fallback")', [], ['rc' => true, 'error' => null]],
+			['jsonpath(last(/host/item), "$.path", "fallback", "extra param")', [], ['rc' => false, 'error' => 'invalid number of parameters in function "jsonpath"']],
+			['xmlxpath(/host/item)', [], ['rc' => false, 'error' => 'incorrect usage of function "xmlxpath"']],
+			['xmlxpath(/host/item, "/path")', [], ['rc' => false, 'error' => 'incorrect usage of function "xmlxpath"']],
+			['xmlxpath(last(/host/item))', [], ['rc' => false, 'error' => 'invalid number of parameters in function "xmlxpath"']],
+			['xmlxpath(last(/host/item), "/path")', [], ['rc' => true, 'error' => null]],
+			['xmlxpath(last(/host/item), "/path", "fallback")', [], ['rc' => true, 'error' => null]],
+			['xmlxpath(last(/host/item), "/path", "fallback", "extra param")', [], ['rc' => false, 'error' => 'invalid number of parameters in function "xmlxpath"']]
 		];
 	}
 

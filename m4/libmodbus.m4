@@ -1,49 +1,38 @@
 # LIBMODBUS_CHECK_CONFIG ([DEFAULT-ACTION])
 #
-# Zabbix
-# Copyright (C) 2001-2022 Zabbix SIA
+# Copyright (C) 2001-2025 Zabbix SIA
 #
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
-# (at your option) any later version.
+# This program is free software: you can redistribute it and/or modify it under the terms of
+# the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+# This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+# without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+# See the GNU Affero General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+# You should have received a copy of the GNU Affero General Public License along with this program.
+# If not, see <https://www.gnu.org/licenses/>.
 #
 
 AC_DEFUN([LIBMODBUS30_TRY_LINK],
 [
-AC_TRY_LINK(
-[
+AC_LINK_IFELSE([AC_LANG_PROGRAM([[
 #include "modbus.h"
-],
-[
+]], [[
   modbus_t  *mdb_ctx;
   mdb_ctx = modbus_new_tcp("127.0.0.1", 502);
   modbus_set_response_timeout(mdb_ctx, NULL);
-],
-found_libmodbus="30",)
+]])],[found_libmodbus="30"],[])
 ])dnl
 
 AC_DEFUN([LIBMODBUS31_TRY_LINK],
 [
-AC_TRY_LINK(
-[
+AC_LINK_IFELSE([AC_LANG_PROGRAM([[
 #include "modbus.h"
-],
-[
+]], [[
   modbus_t  *mdb_ctx;
   mdb_ctx = modbus_new_tcp("127.0.0.1", 502);
   modbus_set_response_timeout(mdb_ctx, 1, 0)
-],
-found_libmodbus="31",)
+]])],[found_libmodbus="31"],[])
 ])dnl
 
 AC_DEFUN([LIBMODBUS_ACCEPT_VERSION],
@@ -71,7 +60,7 @@ AC_DEFUN([LIBMODBUS_CHECK_CONFIG],
 [
   AC_ARG_WITH(libmodbus,[
 If you want to use MODBUS based checks:
-AC_HELP_STRING([--with-libmodbus@<:@=DIR@:>@],[use MODBUS package @<:@default=no@:>@, DIR is the MODBUS library install directory.])],
+AS_HELP_STRING([--with-libmodbus@<:@=DIR@:>@],[use MODBUS package @<:@default=no@:>@, DIR is the MODBUS library install directory.])],
     [
       if test "$withval" = "no"; then
         want_libmodbus="no"
@@ -91,16 +80,18 @@ AC_HELP_STRING([--with-libmodbus@<:@=DIR@:>@],[use MODBUS package @<:@default=no
 
   if test "x$want_libmodbus" = "xyes"; then
     AC_REQUIRE([PKG_PROG_PKG_CONFIG])
-    PKG_PROG_PKG_CONFIG()
+    m4_ifdef([PKG_PROG_PKG_CONFIG], [PKG_PROG_PKG_CONFIG()], [:])
     test -z "$PKG_CONFIG" && AC_MSG_ERROR([Not found pkg-config library])
     m4_pattern_allow([^PKG_CONFIG_LIBDIR$])
 
     if test "x$_libmodbus_dir" = "xno"; then
-      PKG_CHECK_EXISTS(libmodbus,[
-        LIBMODBUS_LIBS=`$PKG_CONFIG --libs libmodbus`
-      ],[
-        AC_MSG_ERROR([Not found libmodbus package])
-      ])
+      m4_ifdef([PKG_CHECK_EXISTS], [
+        PKG_CHECK_EXISTS(libmodbus,[
+          LIBMODBUS_LIBS=`$PKG_CONFIG --libs libmodbus`
+        ],[
+          AC_MSG_ERROR([Not found libmodbus package])
+        ])
+      ], [:])
       LIBMODBUS_CFLAGS=`$PKG_CONFIG --cflags libmodbus`
       LIBMODBUS_LDFLAGS=""
       _libmodbus_version=`$PKG_CONFIG --modversion libmodbus`

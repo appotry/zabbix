@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 /**
@@ -26,8 +21,8 @@ class COverlayDialogElement extends CElement {
 	/**
 	 * @inheritdoc
 	 */
-	public function waitUntilReady() {
-		$this->query('xpath:.//div[contains(@class, "is-loading")]')->waitUntilNotPresent();
+	public function waitUntilReady($timeout = null) {
+		$this->query('xpath:.//div[contains(@class, "is-loading")]')->waitUntilNotPresent($timeout);
 
 		return $this;
 	}
@@ -35,8 +30,11 @@ class COverlayDialogElement extends CElement {
 	/**
 	 * @inheritdoc
 	 */
-	public static function find() {
-		return (new CElementQuery('xpath://div['.CXPathHelper::fromClass('overlay-dialogue modal').']'))->asOverlayDialog();
+	public static function find($index = null) {
+		$suffix = ($index !== null) ? '['.($index + 1).']' : '';
+
+		return (new CElementQuery('xpath://div['.CXPathHelper::fromClass('overlay-dialogue modal').']'.
+				$suffix))->asOverlayDialog();
 	}
 
 	/**
@@ -45,7 +43,7 @@ class COverlayDialogElement extends CElement {
 	 * @return string
 	 */
 	public function getTitle() {
-		return $this->query('xpath:./div[@class="dashboard-widget-head"]/h4')->one()->getText();
+		return $this->query('xpath:./div[@class="overlay-dialogue-header"]/h4')->one()->getText();
 	}
 
 	/**
@@ -95,10 +93,24 @@ class COverlayDialogElement extends CElement {
 
 	/**
 	 * Close overlay dialog.
+	 *
+	 * @param boolean $cancel    true if cancel button, false if close (x) button
 	 */
-	public function close() {
-		$this->query('class:overlay-close-btn')->one()->click();
-		$this->ensureNotPresent();
+	public function close($cancel = false) {
+		$count = COverlayDialogElement::find()->all()->count();
+		if ($cancel) {
+			$this->getFooter()->query('button:Cancel')->one()->click();
+		}
+		else {
+			$this->query('class:btn-overlay-close')->one()->click();
+		}
+
+		if ($count === 1) {
+			self::ensureNotPresent();
+		}
+		else {
+			$this->waitUntilNotPresent();
+		}
 	}
 
 	/**
@@ -114,5 +126,14 @@ class COverlayDialogElement extends CElement {
 	 */
 	public function scrollToTop() {
 		CElementQuery::getDriver()->executeScript('arguments[0].scrollTo(0, 0)', [$this->getContent()]);
+	}
+
+	/**
+	 * Close all opened overlay dialogues
+	 *
+	 * @param boolean $cancel		true if cancel button, false if close (x) button
+	 */
+	public static function closeAll($cancel = false) {
+		COverlayDialogElement::find()->all()->reverse()->close($cancel);
 	}
 }

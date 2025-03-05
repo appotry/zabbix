@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -25,7 +20,7 @@
 
 $this->includeJsFile('administration.gui.edit.js.php');
 
-$widget = (new CWidget())
+$html_page = (new CHtmlPage())
 	->setTitle(_('GUI'))
 	->setTitleSubmenu(getAdministrationGeneralSubmenu())
 	->setDocUrl(CDocHelper::getUrl(CDocHelper::ADMINISTRATION_GUI_EDIT));
@@ -60,21 +55,21 @@ foreach (getLocales() as $localeid => $locale) {
 // Restoring original locale.
 setlocale(LC_MONETARY, zbx_locale_variants($data['default_lang']));
 
-$language_error = '';
+$language_error = null;
+
 if (!function_exists('bindtextdomain')) {
-	$language_error = 'Translations are unavailable because the PHP gettext module is missing.';
+	$language_error = makeErrorIcon('Translations are unavailable because the PHP gettext module is missing.');
+
 	$lang_select->setReadonly();
 }
 elseif (!$all_locales_available) {
-	$language_error = _('You are not able to choose some of the languages, because locales for them are not installed on the web server.');
+	$language_error = makeWarningIcon(
+		_('You are not able to choose some of the languages, because locales for them are not installed on the web server.')
+	);
 }
 
 $gui_tab = (new CFormList())
-	->addRow(new CLabel(_('Default language'), $lang_select->getFocusableElementId()),
-		($language_error !== '')
-			? [$lang_select, (makeErrorIcon($language_error))->addStyle('margin-left: 5px;')]
-			: $lang_select
-	)
+	->addRow(new CLabel(_('Default language'), $lang_select->getFocusableElementId()), [$lang_select, $language_error])
 	->addRow(new CLabel(_('Default time zone'), 'label-default-timezone'),
 		(new CSelect('default_timezone'))
 			->addOptions(CSelect::createOptionsFromArray($data['timezones']))
@@ -91,19 +86,19 @@ $gui_tab = (new CFormList())
 			->setId('default_theme')
 	)
 	->addRow((new CLabel(_('Limit for search and filter results'), 'search_limit'))->setAsteriskMark(),
-		(new CNumericBox('search_limit', $data['search_limit'], 6))
+		(new CNumericBox('search_limit', $data['search_limit'], 6, false, false, false))
 			->setAriaRequired()
 			->setWidth(ZBX_TEXTAREA_NUMERIC_STANDARD_WIDTH)
 	)
 	->addRow(
 		(new CLabel(_('Max number of columns and rows in overview tables'), 'max_overview_table_size'))
 			->setAsteriskMark(),
-		(new CNumericBox('max_overview_table_size', $data['max_overview_table_size'], 6))
+		(new CNumericBox('max_overview_table_size', $data['max_overview_table_size'], 6, false, false, false))
 			->setAriaRequired()
 			->setWidth(ZBX_TEXTAREA_NUMERIC_STANDARD_WIDTH)
 	)
 	->addRow((new CLabel(_('Max count of elements to show inside table cell'), 'max_in_table'))->setAsteriskMark(),
-		(new CNumericBox('max_in_table', $data['max_in_table'], 5))
+		(new CNumericBox('max_in_table', $data['max_in_table'], 5, false, false, false))
 			->setAriaRequired()
 			->setWidth(ZBX_TEXTAREA_NUMERIC_STANDARD_WIDTH)
 	)
@@ -124,19 +119,23 @@ $gui_tab = (new CFormList())
 	)
 	->addRow(
 		(new CLabel(_('Max history display period'), 'history_period'))->setAsteriskMark(),
-		(new CTextBox('history_period', $data['history_period'], false, DB::getFieldLength('config', 'history_period')))
+		(new CTextBox('history_period', $data['history_period'], false,
+			CSettingsSchema::getFieldLength('history_period')
+		))
 			->setWidth(ZBX_TEXTAREA_TINY_WIDTH)
 			->setAriaRequired()
 	)
 	->addRow(
 		(new CLabel(_('Time filter default period'), 'period_default'))->setAsteriskMark(),
-		(new CTextBox('period_default', $data['period_default'], false, DB::getFieldLength('config', 'period_default')))
+		(new CTextBox('period_default', $data['period_default'], false,
+			CSettingsSchema::getFieldLength('period_default')
+		))
 			->setWidth(ZBX_TEXTAREA_TINY_WIDTH)
 			->setAriaRequired()
 	)
 	->addRow(
 		(new CLabel(_('Max period for time selector'), 'max_period'))->setAsteriskMark(),
-		(new CTextBox('max_period', $data['max_period'], false, DB::getFieldLength('config', 'max_period')))
+		(new CTextBox('max_period', $data['max_period'], false, CSettingsSchema::getFieldLength('max_period')))
 			->setWidth(ZBX_TEXTAREA_TINY_WIDTH)
 			->setAriaRequired()
 	);
@@ -149,13 +148,15 @@ $gui_view = (new CTabView())
 	));
 
 $form = (new CForm())
-	->setAttribute('aria-labeledby', ZBX_STYLE_PAGE_TITLE)
+	->addItem((new CVar(CSRF_TOKEN_NAME, CCsrfTokenHelper::get('gui')))->removeId())
+	->setId('gui-form')
+	->setAttribute('aria-labelledby', CHtmlPage::PAGE_TITLE_ID)
 	->setAction((new CUrl('zabbix.php'))
 		->setArgument('action', 'gui.update')
 		->getUrl()
 	)
 	->addItem($gui_view);
 
-$widget
+$html_page
 	->addItem($form)
 	->show();

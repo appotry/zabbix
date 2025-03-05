@@ -1,22 +1,18 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
+
 
 require_once dirname(__FILE__).'/../include/CLegacyWebTest.php';
 
@@ -46,27 +42,28 @@ class testGeneric extends CLegacyWebTest {
 
 			// reports
 			['zabbix.php?action=report.status',					'System information'],
-			['report2.php',										'Availability report'],
-			['toptriggers.php',									'100 busiest triggers'],
-			['toptriggers.php?severities[0]=0&filter_set=Filter',	'100 busiest triggers'],
-			['toptriggers.php?severities[1]=1&filter_set=Filter',	'100 busiest triggers'],
-			['toptriggers.php?severities[2]=2&filter_set=Filter',	'100 busiest triggers'],
-			['toptriggers.php?severities[3]=3&filter_set=Filter',	'100 busiest triggers'],
-			['toptriggers.php?severities[4]=4&filter_set=Filter',	'100 busiest triggers'],
-			['toptriggers.php?severities[5]=5&filter_set=Filter',	'100 busiest triggers'],
+			['zabbix.php?action=availabilityreport.list',		'Availability report'],
+			['zabbix.php?action=toptriggers.list',				'Top 100 triggers'],
+			['zabbix.php?action=toptriggers.list&filter_severities[0]=0&filter_set=1',	'Top 100 triggers'],
+			['zabbix.php?action=toptriggers.list&filter_severities[1]=1&filter_set=1',	'Top 100 triggers'],
+			['zabbix.php?action=toptriggers.list&filter_severities[2]=2&filter_set=1',	'Top 100 triggers'],
+			['zabbix.php?action=toptriggers.list&filter_severities[3]=3&filter_set=1',	'Top 100 triggers'],
+			['zabbix.php?action=toptriggers.list&filter_severities[4]=4&filter_set=1',	'Top 100 triggers'],
+			['zabbix.php?action=toptriggers.list&filter_severities[5]=5&filter_set=1',	'Top 100 triggers'],
 
 			// configuration
-			['hostgroups.php',					'Configuration of host groups'],
-			['templates.php',					'Configuration of templates'],
+			['zabbix.php?action=hostgroup.list',		'Configuration of host groups'],
+			['zabbix.php?action=templategroup.list',	'Configuration of template groups'],
+			['zabbix.php?action=template.list',			'Configuration of templates'],
 			[self::HOST_LIST_PAGE,				'Configuration of hosts'],
-			['maintenance.php',				'Configuration of maintenance periods'],
+			['zabbix.php?action=maintenance.list',		'Configuration of maintenance periods'],
 			['httpconf.php',					'Configuration of web monitoring'],
 
-			['actionconf.php',					'Configuration of actions'],
-			['actionconf.php?eventsource=0',	'Configuration of actions'],
-			['actionconf.php?eventsource=1',	'Configuration of actions'],
-			['actionconf.php?eventsource=2',	'Configuration of actions'],
-			['actionconf.php?eventsource=3',	'Configuration of actions'],
+			['zabbix.php?action=action.list&eventsource=0',	'Configuration of actions'],
+			['zabbix.php?action=action.list&eventsource=1',	'Configuration of actions'],
+			['zabbix.php?action=action.list&eventsource=2',	'Configuration of actions'],
+			['zabbix.php?action=action.list&eventsource=3',	'Configuration of actions'],
+			['zabbix.php?action=action.list&eventsource=4',	'Configuration of actions'],
 
 			['sysmaps.php',							'Configuration of network maps'],
 			['zabbix.php?action=discovery.list',	'Configuration of discovery rules'],
@@ -89,7 +86,7 @@ class testGeneric extends CLegacyWebTest {
 			['zabbix.php?action=mediatype.list',					'Configuration of media types'],
 			['zabbix.php?action=script.list',						'Configuration of scripts'],
 			['zabbix.php?action=auditlog.list',					'Audit log'],
-			['auditacts.php',					'Action log'],
+			['zabbix.php?action=actionlog.list',					'Action log'],
 
 			['zabbix.php?action=queue.overview',			'Queue [refreshed every 30 sec.]'],
 			['zabbix.php?action=queue.overview.proxy',		'Queue [refreshed every 30 sec.]'],
@@ -103,7 +100,7 @@ class testGeneric extends CLegacyWebTest {
 
 			// Misc
 			['zabbix.php?action=search&search=server',		'Search'],
-			['zabbix.php?action=userprofile.edit',			'User profile']
+			['zabbix.php?action=userprofile.edit',			'Profile']
 		];
 	}
 

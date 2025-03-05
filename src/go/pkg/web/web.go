@@ -1,20 +1,15 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 package web
@@ -23,13 +18,17 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"time"
 
-	"zabbix.com/internal/agent"
-	"zabbix.com/pkg/version"
+	"golang.org/x/net/html/charset"
+	"golang.org/x/text/transform"
+	"golang.zabbix.com/agent2/internal/agent"
+	"golang.zabbix.com/agent2/pkg/version"
+	"golang.zabbix.com/sdk/log"
 )
 
 // Get makes a GET request to the provided web page url, using an http client, provides a response dump if dump
@@ -37,7 +36,7 @@ import (
 func Get(url string, timeout time.Duration, dump bool) (string, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return "", fmt.Errorf("Cannot create new request: %s", err)
+		return "", fmt.Errorf("Cannot create new request: %w", err)
 	}
 
 	req.Header = map[string][]string{
@@ -59,7 +58,7 @@ func Get(url string, timeout time.Duration, dump bool) (string, error) {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("Cannot get content of web page: %s", err)
+		return "", fmt.Errorf("Cannot get content of web page: %w", err)
 	}
 
 	defer resp.Body.Close()
@@ -68,12 +67,30 @@ func Get(url string, timeout time.Duration, dump bool) (string, error) {
 		return "", nil
 	}
 
-	b, err := httputil.DumpResponse(resp, true)
+	b, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("Cannot get content of web page: %s", err)
+		return "", fmt.Errorf("Cannot get content of web page: %w", err)
 	}
 
-	return string(bytes.TrimRight(b, "\r\n")), nil
+	e, name, _ := charset.DetermineEncoding(b, resp.Header.Get("content-type"))
+	if err != nil {
+		return "", nil
+	}
+
+	log.Debugf("determined encoding '%s'", name)
+
+	r := transform.NewReader(bytes.NewReader(b), e.NewDecoder())
+
+	b, err = io.ReadAll(r)
+	if err != nil {
+		return "", fmt.Errorf("Cannot decode content of web page: %w", err)
+	}
+	h, err := httputil.DumpResponse(resp, false)
+	if err != nil {
+		return "", fmt.Errorf("Cannot get header of web page: %w", err)
+	}
+
+	return string(h) + string(b), nil
 }
 
 func disableRedirect(req *http.Request, via []*http.Request) error {

@@ -1,49 +1,54 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
+use Zabbix\Core\{
+	CModule,
+	CWidget
+};
+
+/**
+ * Controller for strict validation of widget configuration form.
+ */
 class CControllerDashboardWidgetCheck extends CController {
 
-	private $context;
+	private ?CWidget $widget = null;
 
-	protected function init() {
+	protected function init(): void {
 		$this->setPostContentType(self::POST_CONTENT_TYPE_JSON);
+		$this->disableCsrfValidation();
 	}
 
-	protected function checkInput() {
+	protected function checkInput(): bool {
 		$fields = [
-			'templateid' =>	'db dashboard.templateid',
 			'type' =>		'required|string',
-			'name' =>		'required|string',
-			'fields' =>		'json'
+			'fields' =>		'array',
+			'templateid' =>	'db dashboard.templateid',
+			'name' =>		'required|string'
 		];
 
 		$ret = $this->validateInput($fields);
 
 		if ($ret) {
-			$this->context = $this->hasInput('templateid')
-				? CWidgetConfig::CONTEXT_TEMPLATE_DASHBOARD
-				: CWidgetConfig::CONTEXT_DASHBOARD;
+			$widget = APP::ModuleManager()->getModule($this->getInput('type'));
 
-			if (!CWidgetConfig::isWidgetTypeSupportedInContext($this->getInput('type'), $this->context)) {
-				error(_('Widget type is not supported in this context.'));
+			if ($widget !== null && $widget->getType() === CModule::TYPE_WIDGET) {
+				$this->widget = $widget;
+			}
+			else {
+				error(_('Inaccessible widget type.'));
 
 				$ret = false;
 			}
@@ -62,13 +67,13 @@ class CControllerDashboardWidgetCheck extends CController {
 		return $ret;
 	}
 
-	protected function checkPermissions() {
-		return ($this->getUserType() >= USER_TYPE_ZABBIX_USER);
+	protected function checkPermissions(): bool {
+		return $this->getUserType() >= USER_TYPE_ZABBIX_USER;
 	}
 
-	protected function doAction() {
-		$form = CWidgetConfig::getForm($this->getInput('type'), $this->getInput('fields', '{}'),
-			($this->context === CWidgetConfig::CONTEXT_TEMPLATE_DASHBOARD) ? $this->getInput('templateid') : null
+	protected function doAction(): void {
+		$form = $this->widget->getForm($this->getInput('fields', []),
+			$this->hasInput('templateid') ? $this->getInput('templateid') : null
 		);
 
 		$output = [];
@@ -79,6 +84,9 @@ class CControllerDashboardWidgetCheck extends CController {
 			}
 
 			$output['error']['messages'] = array_column(get_and_clear_messages(), 'message');
+		}
+		else {
+			$output['fields'] = $form->getFieldsValues();
 		}
 
 		$this->setResponse(new CControllerResponseData(['main_block' => json_encode($output)]));

@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 require_once dirname(__FILE__).'/../include/CIntegrationTest.php';
@@ -24,7 +19,8 @@ require_once dirname(__FILE__).'/../include/helpers/CDataHelper.php';
 /**
  * Test suite for data collection using both active and passive agents.
  *
- * @backup history
+ * @backup history, hosts, host_rtdata, proxy, proxy_rtdata, changelog, settings, config_autoreg_tls, expressions
+ * @backup globalmacro, hosts, interface, item_rtdata, items, proxy_history, regexps, ha_node
  */
 class testDataCollection extends CIntegrationTest {
 
@@ -37,11 +33,11 @@ class testDataCollection extends CIntegrationTest {
 	public function prepareData() {
 		// Create proxy "proxy".
 		CDataHelper::call('proxy.create', [
-			'host' => 'proxy',
-			'status' => HOST_STATUS_PROXY_ACTIVE
+			'name' => 'proxy',
+			'operating_mode' => PROXY_OPERATING_MODE_ACTIVE
 		]);
 
-		$proxyids = CDataHelper::getIds('host');
+		$proxyids = CDataHelper::getIds('name');
 
 		// Create host "agent", "custom_agent" and "proxy agent".
 		$interfaces = [
@@ -104,7 +100,8 @@ class testDataCollection extends CIntegrationTest {
 				'host' => 'proxy_agent',
 				'interfaces' => $interfaces,
 				'groups' => $groups,
-				'proxy_hostid' => $proxyids['proxy'],
+				'proxyid' => $proxyids['proxy'],
+				'monitored_by' => ZBX_MONITORED_BY_PROXY,
 				'status' => HOST_STATUS_NOT_MONITORED,
 				'items' => [
 					[
@@ -164,6 +161,9 @@ class testDataCollection extends CIntegrationTest {
 		);
 		self::waitForLogLineToBePresent(self::COMPONENT_SERVER, 'update interface set');
 		self::waitForLogLineToBePresent(self::COMPONENT_SERVER, 'commit;');
+
+		$this->reloadConfigurationCache();
+		sleep(5);
 
 		$data = $this->call('hostinterface.get', [
 			'output' => ['available'],
@@ -336,5 +336,180 @@ class testDataCollection extends CIntegrationTest {
 		foreach ($active_data['result'] as $item) {
 			$this->assertEquals('proxy_agent', $item['value']);
 		}
+	}
+
+	/**
+	 * Test incremental pre-processing manager cache refresh.
+	 *
+	 * @required-components server
+	 */
+	public function testDataCollection_preprocManagerCacheRefresh() {
+		$response = $this->call('host.create', [
+			[
+				'host' => 'trapper_host',
+				'interfaces' => [
+					'type' => 1,
+					'main' => 1,
+					'useip' => 1,
+					'ip' => '127.0.0.1',
+					'dns' => '',
+					'port' => $this->getConfigurationValue(self::COMPONENT_AGENT, 'ListenPort')
+				],
+				'groups' => [['groupid' => 4]],
+				'status' => HOST_STATUS_MONITORED
+			]
+		]);
+		$this->assertArrayHasKey('hostids', $response['result']);
+		$this->assertArrayHasKey(0, $response['result']['hostids']);
+		$hostid = $response['result']['hostids'][0];
+
+		$response = $this->call('item.create', [
+			'hostid' => $hostid,
+			'name' => 'trap',
+			'key_' => 'trap',
+			'type' => ITEM_TYPE_TRAPPER,
+			'value_type' => ITEM_VALUE_TYPE_UINT64,
+			'preprocessing' => [[
+				'params' => '100',
+				'type' => 1,
+				'error_handler' => 1,
+				'error_handler_params' => ''
+			]]
+		]);
+		$this->assertArrayHasKey('itemids', $response['result']);
+		$this->assertEquals(1, count($response['result']['itemids']));
+		$itemid = $response['result']['itemids'][0];
+
+		$this->reloadConfigurationCache(self::COMPONENT_SERVER);
+
+		$this->sendSenderValue('trapper_host', 'trap', 1, self::COMPONENT_SERVER);
+
+		$response = $this->callUntilDataIsPresent('history.get', [
+			'sortfield' => 'clock',
+			'sortorder' => 'DESC',
+			'limit' => 1,
+			'itemids' => [$itemid]
+		], 60, 1);
+		$this->assertArrayHasKey('result', $response);
+		$this->assertEquals(1, count($response['result']));
+		$this->assertArrayHasKey('value', $response['result'][0]);
+		$this->assertEquals(100, $response['result'][0]['value']);
+
+		$response = $this->call('item.update', [
+			'itemid' => $itemid,
+			'preprocessing' => [[
+				'params' => '200',
+				'type' => 1,
+				'error_handler' => 1,
+				'error_handler_params' => ''
+			]]
+		]);
+		$this->assertArrayHasKey('itemids', $response['result']);
+		$this->assertEquals(1, count($response['result']['itemids']));
+
+		$this->reloadConfigurationCache(self::COMPONENT_SERVER);
+		$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, "finished forced reloading of the configuration cache", true, 60, 1);
+
+		$this->sendSenderValue('trapper_host', 'trap', 2, self::COMPONENT_SERVER);
+
+		$response = $this->callUntilDataIsPresent('history.get', [
+			'sortfield' => 'clock',
+			'sortorder' => 'DESC',
+			'limit' => 1,
+			'itemids' => [$itemid]
+		], 60, 1);
+		$this->assertArrayHasKey('result', $response);
+		$this->assertEquals(1, count($response['result']));
+		$this->assertArrayHasKey('value', $response['result'][0]);
+		$this->assertEquals(400, $response['result'][0]['value']);
+	}
+
+	/**
+	 * Test not-supported check in preprocessing.
+	 *
+	 * @required-components server
+	 */
+	public function testDataCollection_preprocNotsupportedCheck() {
+		$response = $this->call('host.create', [
+			[
+				'host' => 'ssh_host',
+				'interfaces' => [
+					'type' => 1,
+					'main' => 1,
+					'useip' => 1,
+					'ip' => '127.0.0.1',
+					'dns' => '',
+					'port' => $this->getConfigurationValue(self::COMPONENT_AGENT, 'ListenPort')
+				],
+				'groups' => [['groupid' => 4]],
+				'status' => HOST_STATUS_MONITORED
+			]
+		]);
+		$this->assertArrayHasKey('hostids', $response['result']);
+		$this->assertArrayHasKey(0, $response['result']['hostids']);
+		$hostid = $response['result']['hostids'][0];
+
+		$this->reloadConfigurationCache(self::COMPONENT_SERVER);
+		$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, "finished forced reloading of the configuration cache", true, 60, 1);
+
+		$response = $this->call('host.get', [
+			'output' => ['host'],
+			'selectInterfaces' => ['interfaceid'],
+			'hostids' => $hostid
+		]);
+		$this->assertArrayHasKey(0, $response['result'][0]['interfaces']);
+		$interfaceid = $response['result'][0]['interfaces'][0]['interfaceid'];
+
+		$response = $this->call('item.create', [
+			'hostid' => $hostid,
+			'name' => 'ssh',
+			'key_' => 'ssh.run[]',
+			'type' => ITEM_TYPE_SSH,
+			'value_type' => ITEM_VALUE_TYPE_UINT64,
+			'delay' => '5s',
+			'interfaceid'  => $interfaceid,
+			'username' => 'test',
+			'params' => 'echo test',
+			'preprocessing' => [[
+				'params' => "0\na",
+				'type' => 26,
+				'error_handler' => 3,
+				'error_handler_params' => '111'
+			],[
+				'params' => "1\na",
+				'type' => 26,
+				'error_handler' => 3,
+				'error_handler_params' => '222'
+			],[
+				'params' => "0\nb",
+				'type' => 26,
+				'error_handler' => 2,
+				'error_handler_params' => '333'
+			],[
+				'params' => "-1",
+				'type' => 26,
+				'error_handler' => 2,
+				'error_handler_params' => '444'
+			]]
+		]);
+
+		$this->assertArrayHasKey('itemids', $response['result']);
+		$this->assertEquals(1, count($response['result']['itemids']));
+		$itemid = $response['result']['itemids'][0];
+
+		$this->reloadConfigurationCache(self::COMPONENT_SERVER);
+		$this->waitForLogLineToBePresent(self::COMPONENT_SERVER, "finished forced reloading of the configuration cache", true, 60, 1);
+
+		$response = $this->callUntilDataIsPresent('history.get', [
+			'sortfield' => 'clock',
+			'sortorder' => 'DESC',
+			'limit' => 1,
+			'itemids' => [$itemid]
+		], 60, 1);
+
+		$this->assertArrayHasKey('result', $response);
+		$this->assertEquals(1, count($response['result']));
+		$this->assertArrayHasKey('value', $response['result'][0]);
+		$this->assertEquals(444, $response['result'][0]['value']);
 	}
 }

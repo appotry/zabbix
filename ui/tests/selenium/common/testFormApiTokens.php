@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 require_once dirname(__FILE__).'/../../include/CWebTest.php';
@@ -66,7 +61,7 @@ class testFormApiTokens extends CWebTest {
 
 		// Check the presence of User field and that it is empty by default if it exists.
 		if ($source === 'administration') {
-			$this->assertEquals([], $form->getField('User')->getValue());
+			$this->assertEquals('', $form->getField('User')->getValue());
 		}
 		else {
 			$this->assertFalse($form->query('xpath://label[text()="User"]')->one(false)->isDisplayed());
@@ -78,7 +73,7 @@ class testFormApiTokens extends CWebTest {
 
 		$expires_at = $form->getField('Expires at')->query('id:expires_at')->one();
 		$this->assertEquals('',$field->getValue());
-		$this->assertEquals('19', $expires_at->getAttribute('maxlength'));
+		$this->assertEquals('255', $expires_at->getAttribute('maxlength'));
 		$this->assertEquals('YYYY-MM-DD hh:mm:ss', $expires_at->getAttribute('placeholder'));
 		$calendar = $form->query('id:expires_at_calendar')->one();
 		$this->assertTrue($calendar->isClickable());
@@ -138,9 +133,9 @@ class testFormApiTokens extends CWebTest {
 		$this->checkAuthToken($auth_token, null);
 
 		// Check the hintbox text in the Auth token field.
-		$auth_token->query('xpath:./a[@data-hintbox]')->one()->click();
+		$auth_token->query('xpath:./button[@data-hintbox]')->one()->click();
 		$this->assertEquals('Make sure to copy the auth token as you won\'t be able to view it after the page is closed.',
-				$this->query('xpath://div[@class="overlay-dialogue"]')->one()->waitUntilVisible()->getText()
+				$this->query('xpath://div[@class="overlay-dialogue wordbreak"]')->one()->waitUntilVisible()->getText()
 		);
 		$this->assertTrue($dialog->query('xpath:.//button[@title="Close"]')->one()->isClickable());
 		$dialog->close();
@@ -218,12 +213,9 @@ class testFormApiTokens extends CWebTest {
 
 				// Check warning in case if token is already expired.
 				if (CTestArrayHelper::get($data, 'already_expired')) {
-					$form->getField('Expires at:')->query('xpath:./a[@data-hintbox]')->one()->click();
-					$hintbox_text = $this->query('xpath://div[@class="overlay-dialogue"]')->one()->waitUntilVisible()->getText();
+					$form->getField('Expires at:')->query('xpath:./button[@data-hintbox]')->one()->click();
+					$hintbox_text = $this->query('xpath://div[@class="overlay-dialogue wordbreak"]')->one()->waitUntilVisible()->getText();
 					$this->assertEquals('The token has expired. Please update the expiry date to use the token.', $hintbox_text);
-
-					// In case if token is expired an empty space (separator) is added to the value in token generate form.
-					$generate_data['Expires at'] = $generate_data['Expires at'].' ';
 				}
 
 				foreach ($generate_data as $name => $value) {
@@ -346,7 +338,7 @@ class testFormApiTokens extends CWebTest {
 	 */
 	private function checkAuthToken($auth_token, $original_token) {
 		// Get token text.
-		$token_text = str_replace('  Copy to clipboard', '', $auth_token->getText());
+		$token_text = str_replace(' Copy to clipboard', '', $auth_token->query('tag:span')->one()->getText());
 		$this->assertEquals(64, strlen($token_text));
 
 		if ($original_token) {
@@ -354,7 +346,7 @@ class testFormApiTokens extends CWebTest {
 		}
 
 		// Check that token string will be copied to clipboard.
-		$clipboard_element = $auth_token->query('xpath:./a[text()="Copy to clipboard"]')->one();
+		$clipboard_element = $auth_token->query('button:Copy to clipboard')->one();
 		$this->assertEquals($token_text, $clipboard_element->getAttribute('data-auth_token'));
 	}
 }

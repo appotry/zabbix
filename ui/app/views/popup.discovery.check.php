@@ -1,36 +1,34 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
 /**
  * @var CView $this
+ * @var array $data
  */
 
-$discovery_ckeck_types = discovery_check_type2str();
-order_result($discovery_ckeck_types);
+$discovery_check_types = discovery_check_type2str();
+order_result($discovery_check_types);
 
 $form = (new CForm())
-	->cleanItems()
 	->setName('dcheck_form')
 	->addVar('action', 'popup.discovery.check')
 	->addVar('validate', 1);
+
+// Enable form submitting on Enter.
+$form->addItem((new CSubmitButton())->addClass(ZBX_STYLE_FORM_SUBMIT_HIDDEN));
 
 if (array_key_exists('dcheckid', $data['params']) && $data['params']['dcheckid']) {
 	$form->addVar('dcheckid', $data['params']['dcheckid']);
@@ -40,7 +38,7 @@ $select_type = (new CSelect('type'))
 	->setId('type-select')
 	->setValue($data['params']['type'])
 	->setFocusableElementId('type')
-	->addOptions(CSelect::createOptionsFromArray($discovery_ckeck_types));
+	->addOptions(CSelect::createOptionsFromArray($discovery_check_types));
 
 $select_snmpv3_securitylevel = (new CSelect('snmpv3_securitylevel'))
 	->setId('snmpv3-securitylevel')
@@ -121,12 +119,14 @@ $form_list = (new CFormList())
 			->setAttribute('maxlength', 64)
 			->disableAutocomplete(),
 		'row_dcheck_snmpv3_privpassphrase'
+	)
+	->addRow((new CLabel(_('Allow redirect'), 'allow_redirect')),
+		(new CCheckBox('allow_redirect'))->setChecked($data['params']['allow_redirect'] == 1),
+		'row_dcheck_allow_redirect'
 	);
 
-$form->addItem([
-	$form_list,
-	(new CInput('submit', 'submit'))->addStyle('display: none;')
-]);
+$form->addItem($form_list);
+
 
 $output = [
 	'header' => $data['title'],

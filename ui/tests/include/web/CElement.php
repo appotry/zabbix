@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 require_once 'vendor/autoload.php';
@@ -30,6 +25,7 @@ require_once dirname(__FILE__).'/CastableTrait.php';
 use Facebook\WebDriver\WebDriverExpectedCondition;
 use Facebook\WebDriver\Remote\RemoteWebElement;
 use Facebook\WebDriver\WebDriverKeys;
+use Facebook\WebDriver\Interactions\WebDriverActions;
 
 /**
  * Generic web page element.
@@ -330,7 +326,12 @@ class CElement extends CBaseElement implements IWaitable {
 	 * @return $this
 	 */
 	public function fill($text) {
-		return $this->overwrite($text);
+		if (is_string($text) && preg_match('/[\x{10000}-\x{10FFFF}]/u', $text) === 1) {
+			CElementQuery::getDriver()->executeScript('arguments[0].value = '.json_encode($text).';', [$this]);
+		}
+		else {
+			return $this->overwrite($text);
+		}
 	}
 
 	/**
@@ -488,19 +489,31 @@ class CElement extends CBaseElement implements IWaitable {
 	}
 
 	/**
+	 * @inheritdoc
+	 */
+	public function getClassesPresentCondition($classes) {
+		$target = $this;
+
+		return function () use ($target, $classes) {
+			return $target->hasClass($classes);
+		};
+	}
+
+	/**
 	 * Check if element is ready.
 	 *
 	 * @return boolean
 	 */
 	public function isReady() {
-		return $this->isClickable();
+		return call_user_func($this->getReadyCondition());
 	}
 
 	/**
 	* @inheritdoc
 	*/
 	public function isEnabled($enabled = true) {
-		$classes = explode(' ', parent::getAttribute('class'));
+		$attribute = parent::getAttribute('class');
+		$classes = ($attribute !== null) ? explode(' ', $attribute) : [];
 
 		$is_enabled = parent::isEnabled()
 				&& (parent::getAttribute('disabled') === null)
@@ -508,6 +521,17 @@ class CElement extends CBaseElement implements IWaitable {
 				&& (parent::getAttribute('readonly') === null);
 
 		return $is_enabled === $enabled;
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public function getEnabledCondition() {
+		$target = $this;
+
+		return function () use ($target) {
+			return $target->isEnabled();
+		};
 	}
 
 	/**
@@ -549,6 +573,18 @@ class CElement extends CBaseElement implements IWaitable {
 	}
 
 	/**
+	 * Double-click on element.
+	 *
+	 * @return $this
+	 */
+	public function doubleClick() {
+		$actions = new WebDriverActions(CElementQuery::getDriver());
+		$actions->doubleClick($this)->perform();
+
+		return $this;
+	}
+
+	/**
 	 * @inheritdoc
 	 */
 	public function getReadyCondition() {
@@ -558,25 +594,32 @@ class CElement extends CBaseElement implements IWaitable {
 	/**
 	 * Wait until element changes it's state from stalled to normal.
 	 *
+	 * @param integer $timeout    timeout in seconds
+	 *
 	 * @return $this
 	 * @throws Exception
 	 */
-	public function waitUntilReloaded() {
+	public function waitUntilReloaded($timeout = null) {
 		if ($this->by === null) {
 			throw new Exception('Cannot wait for element reload on element selected in multi-element query.');
 		}
 
 		$element = $this;
-		CElementQuery::wait()->until(function () use ($element) {
+		$wait = forward_static_call_array([CElementQuery::class, 'wait'], $timeout !== null ? [$timeout] : []);
+		$wait->until(function () use ($element) {
+			try {
 				if ($element->isStalled()) {
 					$element->reload();
 
 					return !$element->isStalled();
 				}
-
-				return null;
 			}
-		);
+			catch (Exception $e) {
+				// Code is not missing here.
+			}
+
+			return null;
+		}, 'Failed to wait until element reloaded.');
 
 		return $this;
 	}
@@ -584,10 +627,13 @@ class CElement extends CBaseElement implements IWaitable {
 	/**
 	 * Wait until element is selected.
 	 *
+	 * @param integer $timeout    timeout in seconds
+	 *
 	 * @return $this
 	 */
-	public function waitUntilSelected() {
-		CElementQuery::wait()->until(WebDriverExpectedCondition::elementToBeSelected($this));
+	public function waitUntilSelected($timeout = null) {
+		$wait = forward_static_call_array([CElementQuery::class, 'wait'], $timeout !== null ? [$timeout] : []);
+		$wait->until(WebDriverExpectedCondition::elementToBeSelected($this));
 
 		return $this;
 	}
@@ -716,7 +762,7 @@ class CElement extends CBaseElement implements IWaitable {
 				$expected = json_encode($expected);
 			}
 
-			throw new Exception('Element value '.$value.' doesn\'t match expected '.$expected.'.');
+			throw new Exception('Element value "'.$value.'" doesn\'t match expected "'.$expected.'".');
 		}
 
 		return ($expected == $value);
@@ -738,5 +784,42 @@ class CElement extends CBaseElement implements IWaitable {
 	 */
 	public function scrollToTop() {
 		CElementQuery::getDriver()->executeScript('arguments[0].scrollTo(0, 0)', [$this]);
+	}
+
+	/**
+	 * Scroll the element to the visible position.
+	 */
+	public function scrollIntoView() {
+		CElementQuery::getDriver()->executeScript('arguments[0].scrollIntoView({behavior:\'instant\',block:\'end\',inline:\'nearest\'});', [$this]);
+
+		return $this;
+	}
+
+	/**
+	 * Check presence of the class(es).
+	 *
+	 * @param string|array $class	class or classes to be present.
+	 *
+	 * @return boolean
+	 */
+	public function hasClass($class) {
+		$attribute = parent::getAttribute('class');
+		$classes = ($attribute !== null) ? explode(' ', $attribute) : [];
+
+		if (!is_array($class)) {
+			$class = [$class];
+		}
+
+		return (count(array_diff($class, $classes)) === 0);
+	}
+
+	/**
+	 * Hover mouse over the element
+	 */
+	public function hoverMouse() {
+		$mouse = CElementQuery::getDriver()->getMouse();
+		$mouse->mouseMove($this->getCoordinates());
+
+		return $this;
 	}
 }

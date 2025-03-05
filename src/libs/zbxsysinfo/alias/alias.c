@@ -1,27 +1,22 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-#include "sysinfo.h"
+#include "zbxsysinfo.h"
 #include "alias.h"
 
-#include "common.h"
-#include "log.h"
+#include "zbxstr.h"
+#include "zbxexpr.h"
 
 static ALIAS	*aliasList = NULL;
 
@@ -30,7 +25,7 @@ void	test_aliases(void)
 	ALIAS	*alias;
 
 	for (alias = aliasList; NULL != alias; alias = alias->next)
-		test_parameter(alias->name);
+		zbx_test_parameter(alias->name);
 }
 
 void	zbx_add_alias(const char *name, const char *value)
@@ -89,7 +84,7 @@ const char	*zbx_alias_get(const char *orig)
 	size_t				buffer_offset = 0;
 	const char			*p = orig;
 
-	if (SUCCEED != parse_key(&p) || '\0' != *p)
+	if (SUCCEED != zbx_parse_key(&p) || '\0' != *p)
 		return orig;
 
 	for (alias = aliasList; NULL != alias; alias = alias->next)

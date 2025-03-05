@@ -4,7 +4,7 @@ global $DB;
 
 $DB['TYPE']				= '{DBTYPE}';
 $DB['SERVER']			= '{DBHOST}';
-$DB['PORT']				= '0';
+$DB['PORT']				= '{DBPORT}';
 $DB['DATABASE']			= '{DBNAME}';
 $DB['USER']				= '{DBUSER}';
 $DB['PASSWORD']			= '{DBPASSWORD}';
@@ -90,7 +90,7 @@ if (!defined('PHPUNIT_BASEDIR')) {
 		}
 
 		return zbx_err_handler($errno, $errstr, $errfile, $errline);
-	}, E_ALL | E_STRICT);
+	}, PHP_VERSION_ID >= 80400 ? E_ALL : E_ALL | E_STRICT);
 
 	set_exception_handler(function ($exception) {
 		file_put_contents(PHPUNIT_ERROR_LOG, $exception."\n", FILE_APPEND);

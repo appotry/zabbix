@@ -1,27 +1,24 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
+
 
 require_once dirname(__FILE__) .'/../../include/CWebTest.php';
 require_once dirname(__FILE__).'/../../include/helpers/CDataHelper.php';
 require_once dirname(__FILE__).'/../behaviors/CMessageBehavior.php';
-require_once dirname(__FILE__).'/../traits/PreprocessingTrait.php';
+require_once dirname(__FILE__).'/../behaviors/CPreprocessingBehavior.php';
+use Facebook\WebDriver\Exception\ElementClickInterceptedException;
 
 /**
  * Test the mass update of items and item prototypes.
@@ -30,7 +27,17 @@ require_once dirname(__FILE__).'/../traits/PreprocessingTrait.php';
  */
 class testMassUpdateItems extends CWebTest{
 
-	use PreprocessingTrait;
+	/**
+	 * Attach PreprocessingBehavior and MessageBehavior to the test.
+	 *
+	 * @return array
+	 */
+	public function getBehaviors() {
+		return [
+			CMessageBehavior::class,
+			CPreprocessingBehavior::class
+		];
+	}
 
 	const HOSTID = 40001;	// Simple form test host.
 	const RULEID = 133800;	// testFormDiscoveryRule1 on Simple form test host.
@@ -49,25 +56,16 @@ class testMassUpdateItems extends CWebTest{
 		'Interval' => [
 			'name' => 'delay',
 			'class' => 'CElement',
-			'selector' => 'xpath:./input[@name][not(@type) or @type="text" or @type="password"][not(@style) or '.
-					'not(contains(@style,"display: none"))]|./textarea[@name]'
+			'selector' => 'xpath:./input[@name][not(@type) or @type="text" or @type="password"][not(@class) or '.
+					'not(contains(@class, "display-none"))]|./textarea[@name]'
 		],
 		'Period' => [
 			'name' => 'period',
 			'class' => 'CElement',
-			'selector' => 'xpath:./input[@name][not(@type) or @type="text" or @type="password"][not(@style) or '.
-					'not(contains(@style,"display: none"))]|./textarea[@name]'
+			'selector' => 'xpath:./input[@name][not(@type) or @type="text" or @type="password"][not(@class) or '.
+					'not(contains(@class, "display-none"))]|./textarea[@name]'
 		]
 	];
-
-	/**
-	 * Attach MessageBehavior to the test.
-	 *
-	 * @return array
-	 */
-	public function getBehaviors() {
-		return ['class' => CMessageBehavior::class];
-	}
 
 	/**
 	 * Add interface to host.
@@ -85,6 +83,7 @@ class testMassUpdateItems extends CWebTest{
 				'details' => [
 					'version' => 3,
 					'bulk' => 1,
+					'max_repetitions' => 10,
 					'securityname' => 'zabbix',
 					'securitylevel' => 0,
 					'authprotocol' => 0,
@@ -100,7 +99,8 @@ class testMassUpdateItems extends CWebTest{
 	 */
 	public function getCommonChangeData() {
 		return [
-				[
+			// #0.
+			[
 				[
 					'expected' => TEST_BAD,
 					'names' => [
@@ -110,9 +110,10 @@ class testMassUpdateItems extends CWebTest{
 					'change' => [
 						'Type' => ['id' => 'type', 'value' => 'SNMP agent']
 					],
-					'details' => 'Item uses incorrect interface type.'
+					'details' => 'Invalid parameter "/1/snmp_oid": cannot be empty.'
 				]
 			],
+			// #1.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -123,9 +124,10 @@ class testMassUpdateItems extends CWebTest{
 					'change' => [
 						'Type' => ['id' => 'type', 'value' => 'TELNET agent']
 					],
-					'details' => 'No interface found.'
+					'details' => 'Invalid parameter "/2/username": cannot be empty.'
 				]
 			],
+			// #2.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -137,9 +139,10 @@ class testMassUpdateItems extends CWebTest{
 						'Type' => ['id' => 'type', 'value' => 'TELNET agent'],
 						'Host interface' => ['id' => 'interface-select', 'value' => '127.0.5.1:10051']
 					],
-					'details' => 'No authentication user name specified.'
+					'details' => 'Invalid parameter "/1/username": cannot be empty.'
 				]
 			],
+			// #3.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -152,9 +155,10 @@ class testMassUpdateItems extends CWebTest{
 						'Authentication method' => ['id' => 'authtype', 'value' => 'Password'],
 						'User name' => ['id' => 'username', 'value' => '']
 					],
-					'details' => 'No authentication user name specified.'
+					'details' => 'Invalid parameter "/1/username": cannot be empty.'
 				]
 			],
+			// #4.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -169,9 +173,10 @@ class testMassUpdateItems extends CWebTest{
 						'Public key file' => ['id' => 'publickey', 'value' => '/path/file1'],
 						'Private key file' => ['id' => 'privatekey', 'value' => '/path/file2']
 					],
-					'details' => 'No authentication user name specified.'
+					'details' => 'Invalid parameter "/1/username": cannot be empty.'
 				]
 			],
+			// #5.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -186,9 +191,10 @@ class testMassUpdateItems extends CWebTest{
 						'Public key file' => ['id' => 'publickey', 'value' => ''],
 						'Private key file' => ['id' => 'privatekey', 'value' => '/path/file2']
 					],
-					'details' => 'No public key file specified.'
+					'details' => 'Invalid parameter "/1/publickey": cannot be empty.'
 				]
 			],
+			// #6.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -203,9 +209,10 @@ class testMassUpdateItems extends CWebTest{
 						'Public key file' => ['id' => 'publickey', 'value' => '/path/file1'],
 						'Private key file' => ['id' => 'privatekey', 'value' => '']
 					],
-					'details' => 'No private key file specified.'
+					'details' => 'Invalid parameter "/1/privatekey": cannot be empty.'
 				]
 			],
+			// #7.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -216,14 +223,15 @@ class testMassUpdateItems extends CWebTest{
 					'change' => [
 						'Type' => ['id' => 'type', 'value' => 'Zabbix agent'],
 						'Host interface' => ['id' => 'interface-select', 'value' => '127.0.5.1:10051'],
-						'History storage period' => [
-							'radio' => ['id' => 'history_mode', 'value' => 'Storage period'],
+						'History' => [
+							'radio' => ['id' => 'history_mode', 'value' => 'Store up to'],
 							'input' => ['id' => 'history', 'value' => '3599']
 						]
 					],
-					'details' => 'Incorrect value for field "history": value must be one of 0, 3600-788400000.'
+					'details' => 'Invalid parameter "/1/history": value must be one of 0, 3600-788400000.'
 				]
 			],
+			// #8.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -234,14 +242,15 @@ class testMassUpdateItems extends CWebTest{
 					'change' => [
 						'Type' => ['id' => 'type', 'value' => 'Zabbix agent'],
 						'Host interface' => ['id' => 'interface-select', 'value' => '127.0.5.1:10051'],
-						'History storage period' => [
-							'radio' => ['id' => 'history_mode', 'value' => 'Storage period'],
+						'History' => [
+							'radio' => ['id' => 'history_mode', 'value' => 'Store up to'],
 							'input' => ['id' => 'history', 'value' => '1']
 						]
 					],
-					'details' => 'Incorrect value for field "history": value must be one of 0, 3600-788400000.'
+					'details' => 'Invalid parameter "/1/history": value must be one of 0, 3600-788400000.'
 				]
 			],
+			// #9.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -252,14 +261,15 @@ class testMassUpdateItems extends CWebTest{
 					'change' => [
 						'Type' => ['id' => 'type', 'value' => 'Zabbix agent'],
 						'Host interface' => ['id' => 'interface-select', 'value' => '127.0.5.1:10051'],
-						'History storage period' => [
-							'radio' => ['id' => 'history_mode', 'value' => 'Storage period'],
+						'History' => [
+							'radio' => ['id' => 'history_mode', 'value' => 'Store up to'],
 							'input' => ['id' => 'history', 'value' => '']
 						]
 					],
-					'details' => 'Incorrect value for field "history": a time unit is expected.'
+					'details' => 'Invalid parameter "/1/history": cannot be empty.'
 				]
 			],
+			// #10.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -270,14 +280,15 @@ class testMassUpdateItems extends CWebTest{
 					'change' => [
 						'Type' => ['id' => 'type', 'value' => 'Zabbix agent'],
 						'Host interface' => ['id' => 'interface-select', 'value' => '127.0.5.1:10051'],
-						'History storage period' => [
-							'radio' => ['id' => 'history_mode', 'value' => 'Storage period'],
+						'History' => [
+							'radio' => ['id' => 'history_mode', 'value' => 'Store up to'],
 							'input' => ['id' => 'history', 'value' => '25y']
 						]
 					],
-					'details' => 'Incorrect value for field "history": a time unit is expected.'
+					'details' => 'Invalid parameter "/1/history": a time unit is expected.'
 				]
 			],
+			// #11.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -288,14 +299,15 @@ class testMassUpdateItems extends CWebTest{
 					'change' => [
 						'Type' => ['id' => 'type', 'value' => 'Zabbix agent'],
 						'Host interface' => ['id' => 'interface-select', 'value' => '127.0.5.1:10051'],
-						'Trend storage period' => [
-							'radio' => ['id' => 'trends_mode', 'value' => 'Storage period'],
+						'Trends' => [
+							'radio' => ['id' => 'trends_mode', 'value' => 'Store up to'],
 							'input' => ['id' => 'trends', 'value' => '']
 						]
 					],
-					'details' => 'Incorrect value for field "trends": a time unit is expected.'
+					'details' => 'Invalid parameter "/1/trends": cannot be empty.'
 				]
 			],
+			// #12.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -306,14 +318,15 @@ class testMassUpdateItems extends CWebTest{
 					'change' => [
 						'Type' => ['id' => 'type', 'value' => 'Zabbix agent'],
 						'Host interface' => ['id' => 'interface-select', 'value' => '127.0.5.1:10051'],
-						'Trend storage period' => [
-							'radio' => ['id' => 'trends_mode', 'value' => 'Storage period'],
+						'Trends' => [
+							'radio' => ['id' => 'trends_mode', 'value' => 'Store up to'],
 							'input' => ['id' => 'trends', 'value' => '86399']
 						]
 					],
-					'details' => 'Incorrect value for field "trends": value must be one of 0, 86400-788400000.'
+					'details' => 'Invalid parameter "/1/trends": value must be one of 0, 86400-788400000.'
 				]
 			],
+			// #13.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -324,14 +337,15 @@ class testMassUpdateItems extends CWebTest{
 					'change' => [
 						'Type' => ['id' => 'type', 'value' => 'Zabbix agent'],
 						'Host interface' => ['id' => 'interface-select', 'value' => '127.0.5.1:10051'],
-						'Trend storage period' => [
-							'radio' => ['id' => 'trends_mode', 'value' => 'Storage period'],
+						'Trends' => [
+							'radio' => ['id' => 'trends_mode', 'value' => 'Store up to'],
 							'input' => ['id' => 'trends', 'value' => '1']
 						]
 					],
-					'details' => 'Incorrect value for field "trends": value must be one of 0, 86400-788400000.'
+					'details' => 'Invalid parameter "/1/trends": value must be one of 0, 86400-788400000.'
 				]
 			],
+			// #14.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -342,14 +356,15 @@ class testMassUpdateItems extends CWebTest{
 					'change' => [
 						'Type' => ['id' => 'type', 'value' => 'Zabbix agent'],
 						'Host interface' => ['id' => 'interface-select', 'value' => '127.0.5.1:10051'],
-						'Trend storage period' => [
-							'radio' => ['id' => 'trends_mode', 'value' => 'Storage period'],
+						'Trends' => [
+							'radio' => ['id' => 'trends_mode', 'value' => 'Store up to'],
 							'input' => ['id' => 'trends', 'value' => '25y']
 						]
 					],
-					'details' => 'Incorrect value for field "trends": a time unit is expected.'
+					'details' => 'Invalid parameter "/1/trends": a time unit is expected.'
 				]
 			],
+			// #15.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -361,9 +376,10 @@ class testMassUpdateItems extends CWebTest{
 						'Type' => ['id' => 'type', 'value' => 'Zabbix trapper'],
 						'Allowed hosts' => ['id' => 'trapper_hosts', 'value' => 'Zabbix server']
 					],
-					'details' => 'Incorrect value for field "trapper_hosts": invalid address range "Zabbix server".'
+					'details' => 'Invalid parameter "/1/trapper_hosts": incorrect address starting from "server".'
 				]
 			],
+			// #16.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -375,9 +391,10 @@ class testMassUpdateItems extends CWebTest{
 						'Type' => ['id' => 'type', 'value' => 'Zabbix agent'],
 						'Update interval' => ['Delay' => '']
 					],
-					'details' => 'Incorrect value for field "delay": invalid delay.'
+					'details' => 'Invalid parameter "/1/delay": cannot be empty.'
 				]
 			],
+			// #17.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -389,10 +406,10 @@ class testMassUpdateItems extends CWebTest{
 						'Type' => ['id' => 'type', 'value' => 'Zabbix agent'],
 						'Update interval' => ['Delay' => '0']
 					],
-					'details' => 'Item will not be refreshed. Specified update interval requires having at least '.
-							'one either flexible or scheduling interval.'
+					'details' => 'Invalid parameter "/1/delay": cannot be equal to zero without custom intervals.'
 				]
 			],
+			// #18.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -404,10 +421,10 @@ class testMassUpdateItems extends CWebTest{
 						'Type' => ['id' => 'type', 'value' => 'Zabbix agent'],
 						'Update interval' => ['Delay' => '86401']
 					],
-					'details' => 'Item will not be refreshed. Update interval should be between 1s and 1d. '.
-							'Also Scheduled/Flexible intervals can be used.'
+					'details' => 'Invalid parameter "/1/delay": value must be one of 0-86400.'
 				]
 			],
+			// #19.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -431,6 +448,7 @@ class testMassUpdateItems extends CWebTest{
 					'details' => 'Invalid interval "".'
 				]
 			],
+			// #20.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -454,6 +472,7 @@ class testMassUpdateItems extends CWebTest{
 					'details' => 'Invalid interval "".'
 				]
 			],
+			// #21.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -476,6 +495,7 @@ class testMassUpdateItems extends CWebTest{
 					'details' => 'Invalid interval "test".'
 				]
 			],
+			// #22.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -496,9 +516,10 @@ class testMassUpdateItems extends CWebTest{
 							]
 						]
 					],
-					'details' => 'Invalid parameter "headers": nonempty key and value pair expected.'
+					'details' => 'Invalid parameter "/1/headers/1/name": cannot be empty.'
 				]
 			],
+			// #23.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -510,35 +531,13 @@ class testMassUpdateItems extends CWebTest{
 						'Type' => ['id' => 'type', 'value' => 'HTTP agent'],
 						'Host interface' => ['id' => 'interface-select', 'value' => '127.0.5.1:10051'],
 						'URL' => ['id' => 'url', 'value' => 'https//:zabbix.com'],
-						'Headers' => [
-							[
-								'action' => USER_ACTION_UPDATE,
-								'index' => 0,
-								'name' => 'header name 1',
-								'value' => ''
-							]
-						]
-					],
-					'details' => 'Invalid parameter "headers": nonempty key and value pair expected.'
-				]
-			],
-			[
-				[
-					'expected' => TEST_BAD,
-					'names' => [
-						'1_Item',
-						'2_Item'
-					],
-					'change' => [
-						'Type' => ['id' => 'type', 'value' => 'HTTP agent'],
-						'Host interface' => ['id' => 'interface-select', 'value' => '127.0.5.1:10051'],
-						'URL' => ['id' => 'url', 'value' => 'https//:zabbix.com'],
-						'Request body type' => ['id' => 'post_type', 'value' => 'JSON data'],
+						'Request body type' => ['id' => 'post_type_container', 'value' => 'JSON data'],
 						'Request body' => ['id' => 'posts', 'value' => '"request": "active checks", "host": "host"']
 					],
-					'details' => 'Invalid parameter "posts": JSON is expected.'
+					'details' => 'Invalid parameter "/1/posts": JSON is expected.'
 				]
 			],
+			// #24.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -550,12 +549,13 @@ class testMassUpdateItems extends CWebTest{
 						'Type' => ['id' => 'type', 'value' => 'HTTP agent'],
 						'Host interface' => ['id' => 'interface-select', 'value' => '127.0.5.1:10051'],
 						'URL' => ['id' => 'url', 'value' => 'https//:zabbix.com'],
-						'Request body type' => ['id' => 'post_type', 'value' => 'XML data'],
+						'Request body type' => ['id' => 'post_type_container', 'value' => 'XML data'],
 						'Request body' => ['id' => 'posts', 'value' => 'xml version="1.0" encoding="UTF-8"?<zabbix_export></zabbix_export>']
 					],
-					'details' => 'Invalid parameter "posts": (4) Start tag expected, \'<\' not found [Line: 1 | Column: 1].'
+					'details' => 'Invalid parameter "/1/posts": (4) Start tag expected, \'<\' not found [Line: 1 | Column: 1].'
 				]
 			],
+			// #25.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -567,12 +567,13 @@ class testMassUpdateItems extends CWebTest{
 						'Type' => ['id' => 'type', 'value' => 'HTTP agent'],
 						'Host interface' => ['id' => 'interface-select', 'value' => '127.0.5.1:10051'],
 						'URL' => ['id' => 'url', 'value' => 'https//:zabbix.com'],
-						'Request body type' => ['id' => 'post_type', 'value' => 'XML data'],
+						'Request body type' => ['id' => 'post_type_container', 'value' => 'XML data'],
 						'Request body' => ['id' => 'posts', 'value' => '']
 					],
-					'details' => 'Invalid parameter "posts": XML is expected.'
+					'details' => 'Invalid parameter "/1/posts": cannot be empty.'
 				]
 			],
+			// #26.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -585,9 +586,10 @@ class testMassUpdateItems extends CWebTest{
 						'Host interface' => ['id' => 'interface-select', 'value' => '127.0.5.1:10051'],
 						'URL' => ['id' => 'url', 'value' => '']
 					],
-					'details' => 'Invalid parameter "/url": cannot be empty.'
+					'details' => 'Invalid parameter "/1/url": cannot be empty.'
 				]
 			],
+			// #27.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -600,9 +602,10 @@ class testMassUpdateItems extends CWebTest{
 						'Host interface' => ['id' => 'interface-select', 'value' => '127.0.5.4:10054'],
 						'JMX endpoint' => ['id' => 'jmx_endpoint', 'value' => '']
 					],
-					'details' => 'Incorrect value for field "jmx_endpoint": cannot be empty.'
+					'details' => 'Invalid parameter "/1/jmx_endpoint": cannot be empty.'
 				]
 			],
+			// #28.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -620,9 +623,10 @@ class testMassUpdateItems extends CWebTest{
 						'User name' => ['id' => 'username', 'value' => 'new_test_name'],
 						'Password' => ['id' => 'password', 'value' => '']
 					],
-					'details' => 'Incorrect value for field "username": both username and password should be either present or empty.'
+					'details' => 'Invalid parameter "/1": both username and password should be either present or empty.'
 				]
 			],
+			// #29.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -640,9 +644,10 @@ class testMassUpdateItems extends CWebTest{
 						'User name' => ['id' => 'username', 'value' => ''],
 						'Password' => ['id' => 'password', 'value' => 'new_test_password']
 					],
-					'details' => 'Incorrect value for field "username": both username and password should be either present or empty.'
+					'details' => 'Invalid parameter "/1": both username and password should be either present or empty.'
 				]
 			],
+			// #30.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -654,23 +659,11 @@ class testMassUpdateItems extends CWebTest{
 						'Type' => ['id' => 'type', 'value' => 'SNMP agent'],
 						'Host interface' => ['id' => 'interface-select', 'value' => '127.0.5.5:10055']
 					],
-					'details' => 'No SNMP OID specified.',
+					'details' => 'Invalid parameter "/1/snmp_oid": cannot be empty.',
 					'interface_text_part' => 'SNMPv3, Context name: zabbix'
 				]
 			],
-			[
-				[
-					'expected' => TEST_BAD,
-					'names' => [
-						'1_Item',
-						'2_Item'
-					],
-					'change' => [
-						'Type' => ['id' => 'type', 'value' => 'Dependent item']
-					],
-					'details' => 'Incorrect value for field "master_itemid": cannot be empty.'
-				]
-			],
+			// #31.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -681,9 +674,10 @@ class testMassUpdateItems extends CWebTest{
 					'change' => [
 						'Timeout' => ['id' => 'timeout', 'value' => '0']
 					],
-					'details' => 'Invalid parameter "/1/timeout": value must be one of 1-60.'
+					'details' => 'Invalid parameter "/1/timeout": value must be one of 1-600.'
 				]
 			],
+			// #32.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -692,11 +686,12 @@ class testMassUpdateItems extends CWebTest{
 						'18_Script'
 					],
 					'change' => [
-						'Timeout' => ['id' => 'timeout', 'value' => '61']
+						'Timeout' => ['id' => 'timeout', 'value' => '601']
 					],
-					'details' => 'Invalid parameter "/1/timeout": value must be one of 1-60.'
+					'details' => 'Invalid parameter "/1/timeout": value must be one of 1-600.'
 				]
 			],
+			// #33.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -707,9 +702,11 @@ class testMassUpdateItems extends CWebTest{
 					'change' => [
 						'Timeout' => ['id' => 'timeout', 'value' => '']
 					],
-					'details' => 'Invalid parameter "/1/timeout": cannot be empty.'
+					// TODO: change details error message after ZBX-23467 fix (if necessary).
+					'details' => 'Incorrect value for field "timeout": cannot be empty.'
 				]
 			],
+			// #34.
 			[
 				[
 					'names' => [
@@ -721,6 +718,7 @@ class testMassUpdateItems extends CWebTest{
 					]
 				]
 			],
+			// #35.
 			[
 				[
 					'names' => [
@@ -747,18 +745,19 @@ class testMassUpdateItems extends CWebTest{
 								]
 							]
 						],
-						'History storage period' => [
-							'radio' => ['id' => 'history_mode', 'value' => 'Storage period'],
+						'History' => [
+							'radio' => ['id' => 'history_mode', 'value' => 'Store up to'],
 							'input' => ['id' => 'history', 'value' => '400d']
 						],
-						'Trend storage period' => [
-							'radio' => ['id' => 'trends_mode', 'value' => 'Do not keep trends']
+						'Trends' => [
+							'radio' => ['id' => 'trends_mode', 'value' => 'Do not store']
 						],
 						'Value mapping' => ['id' => 'valuemapid', 'value' => 'Reference valuemap'],
 						'Description' => ['id' => 'description', 'value' => 'New mass updated description']
 					]
 				]
 			],
+			// #36.
 			[
 				[
 					'names' => [
@@ -768,17 +767,18 @@ class testMassUpdateItems extends CWebTest{
 					'change' => [
 						'Type' => ['id' => 'type', 'value' => 'Zabbix agent'],
 						'Host interface' => ['id' => 'interface-select', 'value' => '127.0.5.1:10051'],
-						'History storage period' => [
-							'radio' => ['id' => 'history_mode', 'value' => 'Storage period'],
+						'History' => [
+							'radio' => ['id' => 'history_mode', 'value' => 'Store up to'],
 							'input' => ['id' => 'history', 'value' => '0']
 						],
-						'Trend storage period' => [
-							'radio' => ['id' => 'trends_mode', 'value' => 'Storage period'],
+						'Trends' => [
+							'radio' => ['id' => 'trends_mode', 'value' => 'Store up to'],
 							'input' => ['id' => 'trends', 'value' => '0']
 						]
 					]
 				]
 			],
+			// #37.
 			[
 				[
 					'names' => [
@@ -788,17 +788,18 @@ class testMassUpdateItems extends CWebTest{
 					'change' => [
 						'Type' => ['id' => 'type', 'value' => 'Zabbix agent'],
 						'Host interface' => ['id' => 'interface-select', 'value' => '127.0.5.1:10051'],
-						'History storage period' => [
-							'radio' => ['id' => 'history_mode', 'value' => 'Storage period'],
+						'History' => [
+							'radio' => ['id' => 'history_mode', 'value' => 'Store up to'],
 							'input' => ['id' => 'history', 'value' => '3600']
 						],
-						'Trend storage period' => [
-							'radio' => ['id' => 'trends_mode', 'value' => 'Storage period'],
+						'Trends' => [
+							'radio' => ['id' => 'trends_mode', 'value' => 'Store up to'],
 							'input' => ['id' => 'trends', 'value' => '86400']
 						]
 					]
 				]
 			],
+			// #38.
 			[
 				[
 					'names' => [
@@ -808,17 +809,18 @@ class testMassUpdateItems extends CWebTest{
 					'change' => [
 						'Type' => ['id' => 'type', 'value' => 'Zabbix agent'],
 						'Host interface' => ['id' => 'interface-select', 'value' => '127.0.5.1:10051'],
-						'History storage period' => [
-							'radio' => ['id' => 'history_mode', 'value' => 'Storage period'],
+						'History' => [
+							'radio' => ['id' => 'history_mode', 'value' => 'Store up to'],
 							'input' => ['id' => 'history', 'value' => '9125d']
 						],
-						'Trend storage period' => [
-							'radio' => ['id' => 'trends_mode', 'value' => 'Storage period'],
+						'Trends' => [
+							'radio' => ['id' => 'trends_mode', 'value' => 'Store up to'],
 							'input' => ['id' => 'trends', 'value' => '9125d']
 						]
 					]
 				]
 			],
+			// #39.
 			[
 				[
 					'names' => [
@@ -828,17 +830,18 @@ class testMassUpdateItems extends CWebTest{
 					'change' => [
 						'Type' => ['id' => 'type', 'value' => 'Zabbix agent'],
 						'Host interface' => ['id' => 'interface-select', 'value' => '127.0.5.1:10051'],
-						'History storage period' => [
-							'radio' => ['id' => 'history_mode', 'value' => 'Storage period'],
+						'History' => [
+							'radio' => ['id' => 'history_mode', 'value' => 'Store up to'],
 							'input' => ['id' => 'history', 'value' => '219000h']
 						],
-						'Trend storage period' => [
-							'radio' => ['id' => 'trends_mode', 'value' => 'Storage period'],
+						'Trends' => [
+							'radio' => ['id' => 'trends_mode', 'value' => 'Store up to'],
 							'input' => ['id' => 'trends', 'value' => '219000h']
 						]
 					]
 				]
 			],
+			// #40.
 			[
 				[
 					'names' => [
@@ -848,17 +851,18 @@ class testMassUpdateItems extends CWebTest{
 					'change' => [
 						'Type' => ['id' => 'type', 'value' => 'Zabbix agent'],
 						'Host interface' => ['id' => 'interface-select', 'value' => '127.0.5.1:10051'],
-						'History storage period' => [
-							'radio' => ['id' => 'history_mode', 'value' => 'Storage period'],
+						'History' => [
+							'radio' => ['id' => 'history_mode', 'value' => 'Store up to'],
 							'input' => ['id' => 'history', 'value' => '13140000m']
 						],
-						'Trend storage period' => [
-							'radio' => ['id' => 'trends_mode', 'value' => 'Storage period'],
+						'Trends' => [
+							'radio' => ['id' => 'trends_mode', 'value' => 'Store up to'],
 							'input' => ['id' => 'trends', 'value' => '13140000m']
 						]
 					]
 				]
 			],
+			// #41.
 			[
 				[
 					'names' => [
@@ -877,6 +881,7 @@ class testMassUpdateItems extends CWebTest{
 
 				]
 			],
+			// #42.
 			[
 				[
 					'names' => [
@@ -905,6 +910,7 @@ class testMassUpdateItems extends CWebTest{
 					]
 				]
 			],
+			// #43.
 			[
 				[
 					'names' => [
@@ -918,6 +924,7 @@ class testMassUpdateItems extends CWebTest{
 					]
 				]
 			],
+			// #44.
 			[
 				[
 					'names' => [
@@ -930,6 +937,7 @@ class testMassUpdateItems extends CWebTest{
 					]
 				]
 			],
+			// #45.
 			[
 				[
 					'names' => [
@@ -945,6 +953,7 @@ class testMassUpdateItems extends CWebTest{
 					]
 				]
 			],
+			// #46.
 			[
 				[
 					'names' => [
@@ -958,6 +967,7 @@ class testMassUpdateItems extends CWebTest{
 					]
 				]
 			],
+			// #47.
 			[
 				[
 					'names' => [
@@ -968,7 +978,7 @@ class testMassUpdateItems extends CWebTest{
 						'Type' => ['id' => 'type', 'value' => 'HTTP agent'],
 						'Host interface' => ['id' => 'interface-select', 'value' => '127.0.5.1:10051'],
 						'URL' => ['id' => 'url', 'value' => 'https//:zabbix.com'],
-						'Request body type' => ['id' => 'post_type', 'value' => 'JSON data'],
+						'Request body type' => ['id' => 'post_type_container', 'value' => 'JSON data'],
 						'Request body' => ['id' => 'posts', 'value' => '{"request": "active checks", "host": "host"}'],
 						'Headers' => [
 							[
@@ -987,8 +997,10 @@ class testMassUpdateItems extends CWebTest{
 						'Update interval' => ['Delay' => '86400'],
 						'Enable trapping' => ['id' => 'allow_traps', 'value' => 'Yes']
 					]
-				]
+				],
+				'screenshot' => true
 			],
+			// #48.
 			[
 				[
 					'names' => [
@@ -1005,6 +1017,7 @@ class testMassUpdateItems extends CWebTest{
 					]
 				]
 			],
+			// #49.
 			[
 				[
 					'names' => [
@@ -1017,6 +1030,7 @@ class testMassUpdateItems extends CWebTest{
 					]
 				]
 			],
+			// #50.
 			[
 				[
 					'names' => [
@@ -1031,6 +1045,7 @@ class testMassUpdateItems extends CWebTest{
 					]
 				]
 			],
+			// #51.
 			[
 				[
 					'names' => [
@@ -1041,17 +1056,18 @@ class testMassUpdateItems extends CWebTest{
 						'Type' => ['id' => 'type', 'value' => 'SNMP trap'],
 						'Type of information' => ['id' => 'value_type', 'value' => 'Numeric (float)'],
 						'Host interface' => ['id' => 'interface-select', 'value' => '127.0.5.5:10055'],
-						'History storage period' => [
-							'radio' => ['id' => 'history_mode', 'value' => 'Do not keep history']
+						'History' => [
+							'radio' => ['id' => 'history_mode', 'value' => 'Do not store']
 						],
-						'Trend storage period' => [
-							'radio' => ['id' => 'trends_mode', 'value' => 'Storage period'],
+						'Trends' => [
+							'radio' => ['id' => 'trends_mode', 'value' => 'Store up to'],
 							'input' => ['id' => 'trends', 'value' => '99d']
 						]
 					],
 					'interface_text_part' => 'SNMPv3, Context name: zabbix'
 				]
 			],
+			// #52.
 			[
 				[
 					'names' => [
@@ -1066,6 +1082,7 @@ class testMassUpdateItems extends CWebTest{
 					'interface_text_part' => 'SNMPv3, Context name: zabbix'
 				]
 			],
+			// #53.
 			[
 				[
 					'names' => [
@@ -1081,6 +1098,7 @@ class testMassUpdateItems extends CWebTest{
 					]
 				]
 			],
+			// #54.
 			[
 				[
 					'names' => [
@@ -1095,6 +1113,7 @@ class testMassUpdateItems extends CWebTest{
 					]
 				]
 			],
+			// #55.
 			[
 				[
 					'names' => [
@@ -1117,7 +1136,7 @@ class testMassUpdateItems extends CWebTest{
 							]
 						],
 						'14_DB_Monitor' => [
-									[
+							[
 								'type' => 'Custom multiplier',
 								'parameter_1' => '2'
 							]
@@ -1125,31 +1144,33 @@ class testMassUpdateItems extends CWebTest{
 					]
 				]
 			],
-			[
-				[
-					'names' => [
-						'1_Item',
-						'2_Item'
-					],
-					'change' => [
-						'Type' => ['id' => 'type', 'value' => 'TELNET agent'],
-						'User name' => ['id' => 'username', 'value' => 'telnet_name'],
-						'Password' => ['id' => 'password', 'value' => 'telnet_password']
-					]
-				]
-			],
-			[
-				[
-					'names' => [
-						'1_Item',
-						'2_Item'
-					],
-					'change' => [
-						'Type' => ['id' => 'type', 'value' => 'Calculated'],
-						'Type of information' => ['id' => 'value_type', 'value' => 'Numeric (float)']
-					]
-				]
-			],
+			// TODO: uncomment or delete after discussion
+//			[
+//				[
+//					'names' => [
+//						'1_Item',
+//						'2_Item'
+//					],
+//					'change' => [
+//						'Type' => ['id' => 'type', 'value' => 'TELNET agent'],
+//						'User name' => ['id' => 'username', 'value' => 'telnet_name'],
+//						'Password' => ['id' => 'password', 'value' => 'telnet_password']
+//					]
+//				]
+//			],
+//			[
+//				[
+//					'names' => [
+//						'1_Item',
+//						'2_Item'
+//					],
+//					'change' => [
+//						'Type' => ['id' => 'type', 'value' => 'Calculated'],
+//						'Type of information' => ['id' => 'value_type', 'value' => 'Numeric (float)']
+//					]
+//				]
+//			],
+			// #56.
 			[
 				[
 					'names' => [
@@ -1158,7 +1179,7 @@ class testMassUpdateItems extends CWebTest{
 					],
 					'change' => [
 						'Type' => ['id' => 'type', 'value' => 'Dependent item'],
-						'Master item' => ['id' => 'master_item', 'value' => '7_IPMI']
+						'Master item' => ['id' => 'master-item-field', 'value' => '7_IPMI']
 					],
 					'expected_tags' => [
 						'15_Calculated' => [
@@ -1242,30 +1263,38 @@ class testMassUpdateItems extends CWebTest{
 					break;
 
 				case 'Update interval':
-					$container_table = $form->query('id:update_interval')->asTable()->one();
-					$container_table->getRow(0)->getColumn(1)->query('id:delay')->one()->fill($value['Delay']);
+					$update_interval_field = $form->getField('Update interval');
+					$update_interval_field->query('id:delay')->waitUntilVisible()->one()->fill($value['Delay']);
 
 					if (array_key_exists('Custom intervals', $value)) {
-						$container_table->getRow(1)->getColumn(1)->query('id:custom_intervals')->asMultifieldTable(
-								['mapping' => self::INTERVAL_MAPPING])->one()->fill($value['Custom intervals']);
+						$update_interval_field->query('id:custom_intervals')
+								->asMultifieldTable(['mapping' => self::INTERVAL_MAPPING])->one()
+								->fill($value['Custom intervals']);
 					}
 					break;
 
-				case 'History storage period':
-				case 'Trend storage period':
+				case 'History':
+				case 'Trends':
 					$form->query('id', $value['radio']['id'])->one()->asSegmentedRadio()->fill($value['radio']['value']);
 
 					if (array_key_exists('input', $value)) {
 						$form->query('id', $value['input']['id'])->one()->fill($value['input']['value']);
 					}
 
-					if ($value['radio']['value'] === 'Do not keep history') {
+					if ($value['radio']['value'] === 'Do not store' && $value['radio']['id'] === 'history_mode') {
 						$this->assertFalse($form->query('id:history')->one()->isVisible());
 					}
 					break;
 
 				case 'Headers':
 					$form->query('xpath:.//div[@id="headers_pairs"]/table')->asMultifieldTable()->one()->fill($value);
+
+					// Take a screenshot to test draggable object position of headers in mass update.
+					if (array_key_exists('screenshot', $data)) {
+						$this->page->removeFocus();
+						$this->assertScreenshot($form->query('id:headers_pairs')->waitUntilPresent()->one(), 'Item mass update headers'.$prototypes);
+					}
+
 					break;
 
 				case 'Master item':
@@ -1291,9 +1320,20 @@ class testMassUpdateItems extends CWebTest{
 		$this->page->waitUntilReady();
 
 		if (CTestArrayHelper::get($data, 'expected', TEST_GOOD) === TEST_BAD) {
-			$this->assertMessage(TEST_BAD, ($prototypes ? 'Cannot update item prototypes' : 'Cannot update items'),
+			/**
+			 * TODO: after ZBX-23467 remove if/else and leave only
+			 * $this->assertMessage(TEST_BAD, ($prototypes ? 'Cannot update item prototypes' : 'Cannot update items'),
+			 *      $data['details']);
+			 */
+			if ($field === 'Timeout') {
+				$this->assertMessage(TEST_BAD, null, $data['details']);
+			}
+			else {
+				$this->assertMessage(TEST_BAD, ($prototypes ? 'Cannot update item prototypes' : 'Cannot update items'),
 					$data['details']
-			);
+				);
+			}
+
 			$this->assertEquals($old_hash, CDBHelper::getHash('SELECT * FROM items ORDER BY itemid'));
 		}
 		else {
@@ -1301,9 +1341,12 @@ class testMassUpdateItems extends CWebTest{
 
 			// Check changed fields in saved item form.
 			foreach ($data['names'] as $name) {
-				$table = $this->query('xpath://form[@name="items"]/table[@class="list-table"]')->asTable()->one();
+				$table = $this->query('xpath://form[@name='.
+						CXPathHelper::escapeQuotes($prototypes ? 'itemprototype' : 'item_list').
+						']/table')->asTable()->one();
 				$table->query('link', $name)->one()->waitUntilClickable()->click();
-				$form = $this->query('name:itemForm')->waitUntilPresent()->asForm()->one();
+				$overlay = COverlayDialogElement::find()->one()->waitUntilReady();
+				$form = $overlay->asForm();
 
 				foreach ($data['change'] as $field => $value) {
 					switch ($field) {
@@ -1324,14 +1367,14 @@ class testMassUpdateItems extends CWebTest{
 						case 'User name':
 						case 'Password':
 						case 'Log time format':
-						case 'Timeout':
+						case 'id:timeout':
 							$this->assertEquals($value['value'], $form->getField($field)->getValue());
 							break;
 
-						case 'History storage period':
-						case 'Trend storage period':
+						case 'History':
+						case 'Trends':
 							if (CTestArrayHelper::get($value, 'input.value', 'null') === '0') {
-								$this->assertEquals('Do not keep '.$value['input']['id'],
+								$this->assertEquals('Do not store',
 										$form->query('id',$value['radio']['id'])->one()->asSegmentedRadio()->getValue()
 								);
 							}
@@ -1340,7 +1383,7 @@ class testMassUpdateItems extends CWebTest{
 										$form->query('id', $value['radio']['id'])->one()->asSegmentedRadio()->getValue()
 								);
 
-								if ($value['radio']['value'] === 'Do not keep history') {
+								if ($value['radio']['value'] === 'Do not store' && $value['radio']['id'] === 'history_mode') {
 									$this->assertFalse($form->query('id:history')->one()->isVisible());
 								}
 
@@ -1369,8 +1412,8 @@ class testMassUpdateItems extends CWebTest{
 									unset($interval['action'], $interval['index']);
 								}
 								unset($interval);
-								$this->assertEquals($value['Custom intervals'], $form->query('id:delayFlexTable')
-											->asMultifieldTable(['mapping' => self::INTERVAL_MAPPING])->one()->getValue()
+								$this->assertEquals($value['Custom intervals'], $form->getField('Custom intervals')
+										->asMultifieldTable(['mapping' => self::INTERVAL_MAPPING])->getValue()
 								);
 							}
 							break;
@@ -1382,23 +1425,17 @@ class testMassUpdateItems extends CWebTest{
 							}
 							unset($header);
 
-							$this->assertEquals($value, $form->query('xpath:.//div[@id="headers_pairs"]/table')
-										->asMultifieldTable()->one()->getValue()
+							$this->assertEquals($value, $form->query('xpath:.//div[@id="js-item-headers-field"]//table')
+									->asMultifieldTable()->one()->getValue()
 							);
 							break;
 
 						case 'Master item':
-							if ($prototypes) {
-								$this->assertEquals(self::HOST_NAME.': '.$value['value'],
-										$form->query('xpath://input[@id="master_itemname"]')->one()->getValue()
-								);
-							}
-							else {
-								$this->assertEquals([self::HOST_NAME.': '.$value['value']],
-										$form->query('xpath://*[@id="master_itemid"]/..')->asMultiselect()->one()->getValue()
-								);
-							}
+							$this->assertEquals([self::HOST_NAME.': '.$value['value']],
+									$form->query('xpath://*[@id="master_itemid"]/..')->asMultiselect()->one()->getValue()
+							);
 							break;
+
 						case 'Value mapping':
 							$this->assertEquals([$value['value']],
 									$form->query('xpath://*[@id="'.$value['id'].'"]/..')->asMultiselect()->one()->getValue()
@@ -1416,10 +1453,10 @@ class testMassUpdateItems extends CWebTest{
 				// Check that tags are not changed after other fields are mass updated.
 				if (CTestArrayHelper::get($data, 'expected_tags')) {
 					$form->selectTab('Tags');
-					$this->query('id:tags-table')->asMultifieldTable()->one()->checkValue($data['expected_tags'][$name]);
+					$this->query('class:tags-table')->asMultifieldTable()->one()->checkValue($data['expected_tags'][$name]);
 				}
 
-				$form->query('button:Cancel')->one()->waitUntilClickable()->click();
+				$overlay->getFooter()->query('button:Cancel')->one()->waitUntilClickable()->click();
 				$this->page->waitUntilReady();
 			}
 		}
@@ -1499,6 +1536,7 @@ class testMassUpdateItems extends CWebTest{
 
 	public function getCommonPreprocessingChangeData() {
 		return [
+			// #0.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -1509,9 +1547,10 @@ class testMassUpdateItems extends CWebTest{
 					'Preprocessing steps' => [
 						['type' => 'Custom multiplier', 'parameter_1' => 'abc']
 					],
-					'details' => 'Incorrect value for field "params": a numeric value is expected.'
+					'details' => 'Invalid parameter "/1/preprocessing/1/params/1": a floating point value is expected.'
 				]
 			],
+			// #1.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -1523,9 +1562,11 @@ class testMassUpdateItems extends CWebTest{
 						['type' => 'Simple change'],
 						['type' => 'Simple change']
 					],
-					'details' => 'Only one change step is allowed.'
+					'details' => 'Invalid parameter "/1/preprocessing/2": only one object can exist within the '.
+							'combinations of (type)=((9, 10)).'
 				]
 			],
+			// #2.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -1536,9 +1577,11 @@ class testMassUpdateItems extends CWebTest{
 					'Preprocessing steps' => [
 						['type' => 'In range', 'parameter_1' => '8', 'parameter_2' => '-8']
 					],
-					'details' => 'Incorrect value for field "params": "min" value must be less than or equal to "max" value.'
+					'details' => 'Invalid parameter "/1/preprocessing/1/params/2": cannot be less than or equal to '.
+							'the value of parameter "/1/preprocessing/1/params/1".'
 				]
 			],
+			// #3.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -1549,9 +1592,10 @@ class testMassUpdateItems extends CWebTest{
 					'Preprocessing steps' => [
 						['type' => 'Check for error using regular expression', 'parameter_1' => 'test']
 					],
-					'details' => 'Incorrect value for field "params": second parameter is expected.'
+					'details' => 'Invalid parameter "/1/preprocessing/1/params/2": cannot be empty.'
 				]
 			],
+			// #4.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -1563,9 +1607,11 @@ class testMassUpdateItems extends CWebTest{
 						['type' => 'Discard unchanged'],
 						['type' => 'Discard unchanged with heartbeat', 'parameter_1' => '1']
 					],
-					'details' => 'Only one throttling step is allowed.'
+					'details' => 'Invalid parameter "/1/preprocessing/2": only one object can exist within the '.
+							'combinations of (type)=((19, 20)).'
 				]
 			],
+			// #5.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -1576,9 +1622,10 @@ class testMassUpdateItems extends CWebTest{
 					'Preprocessing steps' => [
 						['type' => 'Regular expression']
 					],
-					'details' => 'Incorrect value for field "params": first parameter is expected.'
+					'details' => 'Invalid parameter "/1/preprocessing/1/params/1": cannot be empty.'
 				]
 			],
+			// #6.
 			[
 				[
 					'expected' => TEST_BAD,
@@ -1594,9 +1641,25 @@ class testMassUpdateItems extends CWebTest{
 							'error_handler' => 'Set error to'
 						]
 					],
-					'details' => 'Incorrect value for field "error_handler_params": cannot be empty.'
+					'details' => 'Invalid parameter "/1/preprocessing/1/error_handler_params": cannot be empty.'
 				]
 			],
+			// #7.
+			[
+				[
+					'expected' => TEST_BAD,
+					'names' => [
+						'2_Item_Tags_Preprocessing',
+						'2_Item_No_Tags_Preprocessing'
+					],
+					'Preprocessing steps' => [
+						['type' => 'Check for not supported value', 'parameter_1' => 'any error'],
+						['type' => 'Check for not supported value', 'parameter_1' => 'any error']
+					],
+					'details' => 'Invalid parameter "/1/preprocessing/2": value (type, params)=(26, -1) already exists.'
+				]
+			],
+			// #8.
 			[
 				[
 					'names' => [
@@ -1606,6 +1669,7 @@ class testMassUpdateItems extends CWebTest{
 					'Preprocessing steps' => []
 				]
 			],
+			// #9.
 			[
 				[
 					'names' => [
@@ -1640,6 +1704,7 @@ class testMassUpdateItems extends CWebTest{
 					]
 				]
 			],
+			// #10.
 			[
 				[
 					'names' => [
@@ -1647,11 +1712,15 @@ class testMassUpdateItems extends CWebTest{
 						'2_Item_Tags_Preprocessing'
 					],
 					'Preprocessing steps' => [
+						['type' => 'Check for not supported value', 'parameter_1' => 'error matches','parameter_2' => '^test.*$',
+								'on_fail' => true, 'error_handler' => 'Set value to', 'error_handler_params' => 'custom value'
+						],
 						['type' => 'Replace', 'parameter_1' => 'text', 'parameter_2' => 'REPLACEMENT'],
 						['type' => 'Right trim', 'parameter_1' => 'abc'],
 						['type' => 'Left trim', 'parameter_1' => 'def'],
 						['type' => 'Trim', 'parameter_1' => '1a2b3c'],
 						['type' => 'CSV to JSON','parameter_1' => ' ', 'parameter_2' => '\\', 'parameter_3' => true],
+						['type' => 'SNMP walk value', 'parameter_1' => 'oid'],
 						['type' => 'Custom multiplier', 'parameter_1' => '123'],
 						['type' => 'Regular expression', 'parameter_1' => 'expression', 'parameter_2' => 'test output'],
 						['type' => 'Boolean to decimal'],
@@ -1662,8 +1731,10 @@ class testMassUpdateItems extends CWebTest{
 						['type' => 'In range', 'parameter_1' => '-5', 'parameter_2' => '9.5'],
 						['type' => 'Discard unchanged with heartbeat', 'parameter_1' => '5'],
 						['type' => 'Prometheus pattern', 'parameter_1' => 'cpu_usage_system', 'parameter_2' => 'label',
-								'parameter_3' => 'label_name']
-					]
+								'parameter_3' => 'label_name'
+						]
+					],
+					'Screenshot' => true
 				]
 			]
 		];
@@ -1686,7 +1757,21 @@ class testMassUpdateItems extends CWebTest{
 		$form->getLabel('Preprocessing steps')->click();
 
 		if ($data['Preprocessing steps'] !== []) {
-			$this->addPreprocessingSteps($data['Preprocessing steps']);
+			$this->addPreprocessingSteps($data['Preprocessing steps'], true);
+
+			// Take a screenshot to test draggable object position of preprocessing steps in mass update.
+			if (array_key_exists('Screenshot', $data)) {
+				$this->page->removeFocus();
+
+				// It is necessary because of unexpected viewport shift.
+				$this->page->updateViewport();
+				$this->assertScreenshot($form->query('id:preprocessing')->waitUntilPresent()->one(),
+						'Item mass update preprocessing'.$prototypes
+				);
+			}
+		}
+		else {
+			$form->fill(['id:preprocessing_action' => 'Remove all']);
 		}
 
 		$dialog->query('button:Update')->one()->waitUntilClickable()->click();
@@ -1702,12 +1787,21 @@ class testMassUpdateItems extends CWebTest{
 
 			// Check changed fields in saved item form.
 			foreach ($data['names'] as $name) {
-				$table = $this->query('xpath://form[@name="items"]/table[@class="list-table"]')->asTable()->one();
-				$table->query('link', $name)->one()->waitUntilClickable()->click();
-				$form = $this->query('name:itemForm')->waitUntilPresent()->asForm()->one();
+				$table = $this->query('xpath://form[@name='.
+						CXPathHelper::escapeQuotes($prototypes ? 'itemprototype' : 'item_list').
+						']/table')->asTable()->one();
+				// TODO: not stable test testPageMassUpdateItems_ChangePreprocessing#8 on Jenkins, failed to properly waitUntilReady for page
+				try {
+					$table->query('link', $name)->one()->waitUntilClickable()->click();
+				}
+				catch (ElementClickInterceptedException $e) {
+					$table->query('link', $name)->one()->waitUntilClickable()->click();
+				}
+				$overlay = COverlayDialogElement::find()->one()->waitUntilReady();
+				$form = $overlay->asForm();
 				$form->selectTab('Preprocessing');
 				$this->assertPreprocessingSteps($data['Preprocessing steps']);
-				$form->query('button:Cancel')->one()->waitUntilClickable()->click();
+				$overlay->getFooter()->query('button:Cancel')->one()->click();
 				$this->page->waitUntilReady();
 			}
 		}
@@ -2123,7 +2217,7 @@ class testMassUpdateItems extends CWebTest{
 		$form->query('id:mass_update_tags')->asSegmentedRadio()->one()->fill($data['Tags']['action']);
 
 		if ($data['Tags']['tags'] !== []) {
-			$this->query('id:tags-table')->asMultifieldTable()->one()->fill($data['Tags']['tags']);
+			$this->query('class:tags-table')->asMultifieldTable()->one()->fill($data['Tags']['tags']);
 		}
 
 		$dialog->query('button:Update')->one()->waitUntilClickable()->click();
@@ -2139,9 +2233,12 @@ class testMassUpdateItems extends CWebTest{
 
 			// Check changed fields in saved item form.
 			foreach ($data['names'] as $name) {
-				$table = $this->query('xpath://form[@name="items"]/table[@class="list-table"]')->asTable()->one();
+				$table = $this->query('xpath://form[@name='.
+						CXPathHelper::escapeQuotes($prototypes ? 'itemprototype' : 'item_list').
+						']/table')->asTable()->one();
 				$table->query('link', $name)->one()->waitUntilClickable()->click();
-				$form = $this->query('name:itemForm')->waitUntilPresent()->asForm()->one();
+				$overlay = COverlayDialogElement::find()->one()->waitUntilReady();
+				$form = $overlay->asForm();
 				$form->selectTab('Tags');
 
 				$expected = $data['Tags']['tags'];
@@ -2168,9 +2265,9 @@ class testMassUpdateItems extends CWebTest{
 				}
 
 				$expected_tags = array_key_exists('expected_tags', $data) ? $data['expected_tags'][$name] : $expected;
-				$this->query('id:tags-table')->asMultifieldTable()->one()->checkValue($expected_tags);
+				$this->query('class:tags-table')->asMultifieldTable()->one()->checkValue($expected_tags);
 
-				$form->query('button:Cancel')->one()->waitUntilClickable()->click();
+				$overlay->getFooter()->query('button:Cancel')->one()->click();
 				$this->page->waitUntilReady();
 			}
 		}
@@ -2209,12 +2306,14 @@ class testMassUpdateItems extends CWebTest{
 	 */
 	private function openMassUpdateForm($prototypes, $data) {
 		$link = ($prototypes)
-			? 'disc_prototypes.php?parent_discoveryid='.self::RULEID.'&context=host'
-			: 'items.php?filter_set=1&filter_hostids%5B0%5D='.self::HOSTID.'&context=host';
+			? 'zabbix.php?action=item.prototype.list&parent_discoveryid='.self::RULEID.'&context=host'
+			: 'zabbix.php?action=item.list&filter_set=1&filter_hostids%5B0%5D='.self::HOSTID.'&context=host';
 		$this->page->login()->open($link);
 
 		// Get item table.
-		$table = $this->query('xpath://form[@name="items"]/table[@class="list-table"]')->asTable()->one();
+		$table = $this->query('xpath://form[@name='.
+				CXPathHelper::escapeQuotes($prototypes ? 'itemprototype' : 'item_list').
+				']/table')->asTable()->one();
 		$table->findRows('Name', $data)->select();
 
 		// Open mass update form.

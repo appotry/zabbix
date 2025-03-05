@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 require_once dirname(__FILE__).'/../common/testFormTags.php';
@@ -64,27 +59,27 @@ class testFormTagsHostPrototype extends testFormTags {
 	public function testFormTagsHostPrototype_Clone() {
 		$discoveryruleid = CDataHelper::get('EntitiesTags.discoveryruleids.Host with tags for cloning:trap_discovery');
 		$this->link = 'host_prototypes.php?parent_discoveryid='.$discoveryruleid.'&context=host';
-		$this->executeCloning('host prototype', 'Clone');
+		$this->executeCloning('host prototype');
 	}
 
 	/**
-	 * Test host full cloning with Host prototype.
+	 * Test host cloning with Host prototype.
 	 */
-	public function testFormTagsHostPrototype_HostFullClone() {
+	public function testFormTagsHostPrototype_HostClone() {
 		$this->host = 'Host with tags for cloning';
 		$discoveryruleid = CDataHelper::get('EntitiesTags.discoveryruleids.'.$this->host.':trap_discovery');
 		$this->link = 'host_prototypes.php?parent_discoveryid='.$discoveryruleid.'&context=host';
-		$this->executeFullCloning('host prototype', 'Host');
+		$this->executeCloningByParent('host prototype', 'Host');
 	}
 
 	/**
-	 * Test template full cloning with Host prototype.
+	 * Test template cloning with Host prototype.
 	 */
-	public function testFormTagsHostPrototype_TemplateFullClone() {
+	public function testFormTagsHostPrototype_TemplateClone() {
 		$discoveryruleid = CDataHelper::get('EntitiesTags.discoveryruleids.'.$this->template.':template_trap_discovery');
 		$this->link = 'host_prototypes.php?parent_discoveryid='.$discoveryruleid.'&context=template';
-		$this->clone_name = '{#TEMPLATE} prototype with tags for full cloning';
-		$this->executeFullCloning('host prototype', 'Template');
+		$this->clone_name = '{#TEMPLATE} prototype with tags for cloning';
+		$this->executeCloningByParent('host prototype', 'Template');
 	}
 
 	/**
@@ -109,12 +104,12 @@ class testFormTagsHostPrototype extends testFormTags {
 		$table->findRow('Name', $this->template, true)->getColumn('Hosts')->children()->one()->click();
 		$this->query('link', $data['name'].' {#KEY}')->waitUntilPresent()->one()->click();
 		$form->selectTab('Tags');
-		$tags_table = $this->query('id:tags-table')->asMultifieldTable()->waitUntilVisible()->one();
+		$tags_table = $this->query('class:tags-table')->asMultifieldTable()->waitUntilVisible()->one();
 		$tags_table->checkValue($data['tags']);
 
 		// Check disabled fields.
 		foreach ($tags_table->getRows() as $row) {
-			foreach (['Name', 'Value', 'Action'] as $field) {
+			foreach (['Name', 'Value', ''] as $field) {
 				$this->assertFalse($row->getColumn($field)->children()->one()->detect()->isEnabled());
 			}
 		}

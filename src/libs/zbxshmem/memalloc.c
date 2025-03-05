@@ -1,26 +1,21 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 #include "zbxshmem.h"
 
-#include "common.h"
-#include "log.h"
+#include "zbxstr.h"
+#include "zbxnix.h"
 
 /******************************************************************************
  *                                                                            *
@@ -136,6 +131,8 @@ static void	*ALIGNPTR(void *ptr)
 		return ALIGN4(ptr);
 	if (8 == ZBX_PTR_SIZE)
 		return ALIGN8(ptr);
+
+	zbx_this_should_never_happen_backtrace();
 	assert(0);
 }
 
@@ -548,8 +545,8 @@ int	zbx_shmem_create(zbx_shmem_info_t **info, zbx_uint64_t size, const char *des
 
 	if (!(SHMEM_MIN_SIZE <= size && size <= SHMEM_MAX_SIZE))
 	{
-		*error = zbx_dsprintf(*error, "requested size " ZBX_FS_SIZE_T " not within bounds [" ZBX_FS_UI64
-				" <= size <= " ZBX_FS_UI64 "]", (zbx_fs_size_t)size, SHMEM_MIN_SIZE, SHMEM_MAX_SIZE);
+		*error = zbx_dsprintf(*error, "requested size " ZBX_FS_UI64 " not within bounds [" ZBX_FS_UI64
+				" <= size <= " ZBX_FS_UI64 "]", size, SHMEM_MIN_SIZE, SHMEM_MAX_SIZE);
 		goto out;
 	}
 
@@ -624,6 +621,43 @@ out:
 	return ret;
 }
 
+/******************************************************************************
+ *                                                                            *
+ * Purpose: allocate the required shared memory size                          *
+ *                                                                            *
+ * Return value: SUCCEED - the memory was allocated successfully              *
+ *               FAIL - otherwise                                             *
+ *                                                                            *
+ * Comments: When allocating shared memory with default zbx_shmem_create()    *
+ *           function the available memory will reduced by the allocator      *
+ *           overhead. This function estimates the overhead and requests      *
+ *           enough memory so the available memory is greater or equal to the *
+ *           requested size.                                                  *
+ *                                                                            *
+ ******************************************************************************/
+int	zbx_shmem_create_min(zbx_shmem_info_t **info, zbx_uint64_t size, const char *descr, const char *param,
+		int allow_oom, char **error)
+{
+	void	*base = NULL;
+
+	descr = ZBX_NULL2STR(descr);
+	param = ZBX_NULL2STR(param);
+
+	base = (void *)((zbx_shmem_info_t *)(base) + 1);
+	base = ALIGNPTR(base);
+	base = (void *)((void **)base + ZBX_SHMEM_BUCKET_COUNT);
+	base = (void *)((char *)base + strlen(descr) + 1);
+	base = (void *)((char *)base + strlen(param) + 1);
+	base = ALIGN8(base);
+
+	size += (size_t )base;
+
+	size += 8;
+	size += 2 * SHMEM_SIZE_FIELD;
+
+	return zbx_shmem_create(info, size, descr, param, allow_oom, error);
+}
+
 void	zbx_shmem_destroy(zbx_shmem_info_t *info)
 {
 	(void)shmdt(info->base);
@@ -654,12 +688,13 @@ void	*__zbx_shmem_malloc(const char *file, int line, zbx_shmem_info_t *info, con
 		if (1 == info->allow_oom)
 			return NULL;
 
+		zbx_shmem_dump_stats(LOG_LEVEL_CRIT, info);
+		zbx_backtrace();
+
 		zabbix_log(LOG_LEVEL_CRIT, "[file:%s,line:%d] %s(): out of memory (requested " ZBX_FS_SIZE_T " bytes)",
 				file, line, __func__, (zbx_fs_size_t)size);
 		zabbix_log(LOG_LEVEL_CRIT, "[file:%s,line:%d] %s(): please increase %s configuration parameter",
 				file, line, __func__, info->mem_param);
-		zbx_shmem_dump_stats(LOG_LEVEL_CRIT, info);
-		zbx_backtrace();
 		exit(EXIT_FAILURE);
 	}
 
@@ -687,12 +722,13 @@ void	*__zbx_shmem_realloc(const char *file, int line, zbx_shmem_info_t *info, vo
 		if (1 == info->allow_oom)
 			return NULL;
 
+		zbx_shmem_dump_stats(LOG_LEVEL_CRIT, info);
+		zbx_backtrace();
+
 		zabbix_log(LOG_LEVEL_CRIT, "[file:%s,line:%d] %s(): out of memory (requested " ZBX_FS_SIZE_T " bytes)",
 				file, line, __func__, (zbx_fs_size_t)size);
 		zabbix_log(LOG_LEVEL_CRIT, "[file:%s,line:%d] %s(): please increase %s configuration parameter",
 				file, line, __func__, info->mem_param);
-		zbx_shmem_dump_stats(LOG_LEVEL_CRIT, info);
-		zbx_backtrace();
 		exit(EXIT_FAILURE);
 	}
 
@@ -754,6 +790,9 @@ void	zbx_shmem_get_stats(const zbx_shmem_info_t *info, zbx_shmem_stats_t *stats)
 		stats->free_chunks += counter;
 		stats->chunks_num[i] = counter;
 	}
+
+	if (__UINT64_C(0xffffffffffffffff) == stats->min_chunk_size)
+		stats->min_chunk_size = 0;
 
 	stats->overhead = info->total_size - info->used_size - info->free_size;
 	stats->used_chunks = stats->overhead / (2 * SHMEM_SIZE_FIELD) + 1 - stats->free_chunks;

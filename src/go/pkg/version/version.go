@@ -1,20 +1,15 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 // Package version provides zabbix release version
@@ -22,19 +17,20 @@ package version
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 )
 
 const (
-	ZABBIX_REVDATE          = "10 May 2022"
-	ZABBIX_VERSION_MAJOR    = 6
-	ZABBIX_VERSION_MINOR    = 2
+	ZABBIX_REVDATE          = "18 February 2025"
+	ZABBIX_VERSION_MAJOR    = 7
+	ZABBIX_VERSION_MINOR    = 4
 	ZABBIX_VERSION_PATCH    = 0
-	ZABBIX_VERSION_RC       = "rc1"
+	ZABBIX_VERSION_RC       = "beta1"
 	ZABBIX_VERSION_RC_NUM   = "{ZABBIX_RC_NUM}"
 	ZABBIX_VERSION_REVISION = "{ZABBIX_REVISION}"
-	copyrightMessage        = "Copyright (C) 2022 Zabbix SIA\n" +
-		"License GPLv2+: GNU GPL version 2 or later <http://gnu.org/licenses/gpl.html>.\n" +
+	copyrightMessage        = "Copyright (C) 2025 Zabbix SIA\n" +
+		"License AGPLv3: GNU Affero General Public License version 3 <https://www.gnu.org/licenses/>.\n" +
 		"This is free software: you are free to change and redistribute it according to\n" +
 		"the license. There is NO WARRANTY, to the extent permitted by law."
 )
@@ -82,6 +78,10 @@ func Long() string {
 	if len(RC()) != 0 {
 		ver += RC()
 	}
+	return ver
+}
+func LongNoRC() string {
+	var ver string = fmt.Sprintf("%d.%d.%d", Major(), Minor(), Patch())
 	return ver
 }
 
@@ -140,9 +140,21 @@ func TitleMessage() string {
 	return title
 }
 
-func Display() {
+// Display shows program version.
+// Program version includes Zabbix revision and it's time and date, compilation time and date, Go compiler tree's
+// version string, copyright message, and additionalMessages provided by the caller function.
+func Display(additionalMessages []string) {
 	fmt.Printf("%s (Zabbix) %s\n", TitleMessage(), Long())
-	fmt.Printf("Revision %s %s, compilation time: %s %s\n\n", Revision(), RevDate(), CompileDate(), CompileTime())
+	fmt.Printf(
+		"Revision %s %s, compilation time: %s %s, built with: %s\n",
+		Revision(), RevDate(), CompileDate(), CompileTime(), runtime.Version(),
+	)
+
+	for _, msg := range additionalMessages {
+		fmt.Println(msg)
+	}
+
+	fmt.Println()
 	fmt.Println(CopyrightMessage())
 }
 

@@ -1,26 +1,22 @@
-<?php
+<?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
-use Core\CModule,
-	CController as CAction;
+use Zabbix\Core\CModule;
+
+use CController as CAction;
 
 require_once dirname(__FILE__).'/CAutoloader.php';
 
@@ -42,7 +38,7 @@ class ZBase {
 	 *
 	 * @var string
 	 */
-	protected $rootDir;
+	protected $root_dir;
 
 	/**
 	 * @var array of config data from zabbix config file
@@ -71,19 +67,16 @@ class ZBase {
 	 */
 	private $mode;
 
-	/**
-	 * @var CModuleManager
-	 */
-	private $module_manager;
+	private CModuleManager $module_manager;
+
+	private ?CView $view = null;
 
 	/**
 	 * Returns the current instance of APP.
 	 *
-	 * @static
-	 *
 	 * @return APP
 	 */
-	public static function getInstance() {
+	public static function getInstance(): APP {
 		if (self::$instance === null) {
 			self::$instance = new static;
 		}
@@ -96,7 +89,7 @@ class ZBase {
 	 *
 	 * @return CComponentRegistry
 	 */
-	public static function Component() {
+	public static function Component(): CComponentRegistry {
 		return self::getInstance()->component_registry;
 	}
 
@@ -105,15 +98,22 @@ class ZBase {
 	 *
 	 * @return CModuleManager
 	 */
-	public static function ModuleManager() {
+	public static function ModuleManager(): CModuleManager {
 		return self::getInstance()->module_manager;
+	}
+
+	/**
+	 * @return CView|null
+	 */
+	public static function View(): ?CView {
+		return self::getInstance()->view;
 	}
 
 	/**
 	 * Init modules required to run frontend.
 	 */
 	protected function init() {
-		$this->rootDir = $this->findRootDir();
+		$this->root_dir = $this->findRootDir();
 		$this->initAutoloader();
 		$this->component_registry = new CComponentRegistry;
 
@@ -134,7 +134,6 @@ class ZBase {
 		require_once 'include/func.inc.php';
 		require_once 'include/html.inc.php';
 		require_once 'include/perm.inc.php';
-		require_once 'include/audit.inc.php';
 		require_once 'include/js.inc.php';
 		require_once 'include/users.inc.php';
 		require_once 'include/validate.inc.php';
@@ -153,9 +152,7 @@ class ZBase {
 		require_once 'include/httptest.inc.php';
 		require_once 'include/images.inc.php';
 		require_once 'include/items.inc.php';
-		require_once 'include/maintenances.inc.php';
 		require_once 'include/maps.inc.php';
-		require_once 'include/media.inc.php';
 		require_once 'include/sounds.inc.php';
 		require_once 'include/triggers.inc.php';
 	}
@@ -197,19 +194,34 @@ class ZBase {
 				$this->initComponents();
 				$this->initModuleManager();
 
+				/** @var CRouter $router */
 				$router = $this->component_registry->get('router');
 				$router->addActions($this->module_manager->getActions());
+
+				$validator = new CNewValidator(['action' => $action_name], ['action' => 'fatal|required|string']);
+				$errors = $validator->getAllErrors();
+
+				if ($errors) {
+					CCookieHelper::set('system-message-details', base64_encode(json_encode(
+						['type' => 'error', 'messages' => $errors]
+					)));
+
+					redirect('zabbix.php?action=system.warning');
+				}
+
 				$router->setAction($action_name);
 
-				$this->component_registry->get('menu.main')
-					->setSelectedByAction($action_name, $_REQUEST,
-						CViewHelper::loadSidebarMode() != ZBX_SIDEBAR_VIEW_MODE_COMPACT
-					);
+				if (CWebUser::isLoggedIn()) {
+					$this->component_registry->get('menu.main')
+						->setSelectedByAction($action_name, $_REQUEST,
+							CViewHelper::loadSidebarMode() != ZBX_SIDEBAR_VIEW_MODE_COMPACT
+						);
 
-				$this->component_registry->get('menu.user')
-					->setSelectedByAction($action_name, $_REQUEST,
-						CViewHelper::loadSidebarMode() != ZBX_SIDEBAR_VIEW_MODE_COMPACT
-					);
+					$this->component_registry->get('menu.user')
+						->setSelectedByAction($action_name, $_REQUEST,
+							CViewHelper::loadSidebarMode() != ZBX_SIDEBAR_VIEW_MODE_COMPACT
+						);
+				}
 
 				CProfiler::getInstance()->start();
 
@@ -270,11 +282,9 @@ class ZBase {
 
 	/**
 	 * Returns the absolute path to the root dir.
-	 *
-	 * @return string
 	 */
-	public static function getRootDir() {
-		return self::getInstance()->rootDir;
+	public static function getRootDir(): string {
+		return self::getInstance()->root_dir;
 	}
 
 	/**
@@ -293,67 +303,65 @@ class ZBase {
 	 */
 	private function getIncludePaths() {
 		return [
-			$this->rootDir.'/include/classes/api',
-			$this->rootDir.'/include/classes/api/services',
-			$this->rootDir.'/include/classes/api/helpers',
-			$this->rootDir.'/include/classes/api/managers',
-			$this->rootDir.'/include/classes/api/clients',
-			$this->rootDir.'/include/classes/api/wrappers',
-			$this->rootDir.'/include/classes/core',
-			$this->rootDir.'/include/classes/data',
-			$this->rootDir.'/include/classes/mvc',
-			$this->rootDir.'/include/classes/db',
-			$this->rootDir.'/include/classes/debug',
-			$this->rootDir.'/include/classes/validators',
-			$this->rootDir.'/include/classes/validators/schema',
-			$this->rootDir.'/include/classes/validators/string',
-			$this->rootDir.'/include/classes/validators/object',
-			$this->rootDir.'/include/classes/validators/hostgroup',
-			$this->rootDir.'/include/classes/validators/host',
-			$this->rootDir.'/include/classes/validators/hostprototype',
-			$this->rootDir.'/include/classes/validators/event',
-			$this->rootDir.'/include/classes/export',
-			$this->rootDir.'/include/classes/export/writers',
-			$this->rootDir.'/include/classes/export/elements',
-			$this->rootDir.'/include/classes/graph',
-			$this->rootDir.'/include/classes/graphdraw',
-			$this->rootDir.'/include/classes/import',
-			$this->rootDir.'/include/classes/import/converters',
-			$this->rootDir.'/include/classes/import/importers',
-			$this->rootDir.'/include/classes/import/preprocessors',
-			$this->rootDir.'/include/classes/import/readers',
-			$this->rootDir.'/include/classes/import/validators',
-			$this->rootDir.'/include/classes/items',
-			$this->rootDir.'/include/classes/triggers',
-			$this->rootDir.'/include/classes/server',
-			$this->rootDir.'/include/classes/screens',
-			$this->rootDir.'/include/classes/services',
-			$this->rootDir.'/include/classes/sysmaps',
-			$this->rootDir.'/include/classes/helpers',
-			$this->rootDir.'/include/classes/helpers/trigger',
-			$this->rootDir.'/include/classes/macros',
-			$this->rootDir.'/include/classes/html',
-			$this->rootDir.'/include/classes/html/pageheader',
-			$this->rootDir.'/include/classes/html/svg',
-			$this->rootDir.'/include/classes/html/widget',
-			$this->rootDir.'/include/classes/html/interfaces',
-			$this->rootDir.'/include/classes/parsers',
-			$this->rootDir.'/include/classes/parsers/results',
-			$this->rootDir.'/include/classes/controllers',
-			$this->rootDir.'/include/classes/routing',
-			$this->rootDir.'/include/classes/json',
-			$this->rootDir.'/include/classes/user',
-			$this->rootDir.'/include/classes/setup',
-			$this->rootDir.'/include/classes/regexp',
-			$this->rootDir.'/include/classes/ldap',
-			$this->rootDir.'/include/classes/pagefilter',
-			$this->rootDir.'/include/classes/widgets/fields',
-			$this->rootDir.'/include/classes/widgets/forms',
-			$this->rootDir.'/include/classes/widgets',
-			$this->rootDir.'/include/classes/xml',
-			$this->rootDir.'/include/classes/vaults',
-			$this->rootDir.'/local/app/controllers',
-			$this->rootDir.'/app/controllers'
+			$this->root_dir.'/include/classes/api',
+			$this->root_dir.'/include/classes/api/services',
+			$this->root_dir.'/include/classes/api/helpers',
+			$this->root_dir.'/include/classes/api/item_types',
+			$this->root_dir.'/include/classes/api/managers',
+			$this->root_dir.'/include/classes/api/clients',
+			$this->root_dir.'/include/classes/api/wrappers',
+			$this->root_dir.'/include/classes/core',
+			$this->root_dir.'/include/classes/data',
+			$this->root_dir.'/include/classes/mvc',
+			$this->root_dir.'/include/classes/db',
+			$this->root_dir.'/include/classes/debug',
+			$this->root_dir.'/include/classes/validators',
+			$this->root_dir.'/include/classes/validators/schema',
+			$this->root_dir.'/include/classes/validators/string',
+			$this->root_dir.'/include/classes/validators/object',
+			$this->root_dir.'/include/classes/validators/hostgroup',
+			$this->root_dir.'/include/classes/validators/host',
+			$this->root_dir.'/include/classes/validators/hostprototype',
+			$this->root_dir.'/include/classes/validators/event',
+			$this->root_dir.'/include/classes/export',
+			$this->root_dir.'/include/classes/export/writers',
+			$this->root_dir.'/include/classes/export/elements',
+			$this->root_dir.'/include/classes/graph',
+			$this->root_dir.'/include/classes/graphdraw',
+			$this->root_dir.'/include/classes/import',
+			$this->root_dir.'/include/classes/import/converters',
+			$this->root_dir.'/include/classes/import/importers',
+			$this->root_dir.'/include/classes/import/preprocessors',
+			$this->root_dir.'/include/classes/import/readers',
+			$this->root_dir.'/include/classes/import/validators',
+			$this->root_dir.'/include/classes/items',
+			$this->root_dir.'/include/classes/triggers',
+			$this->root_dir.'/include/classes/server',
+			$this->root_dir.'/include/classes/screens',
+			$this->root_dir.'/include/classes/services',
+			$this->root_dir.'/include/classes/sysmaps',
+			$this->root_dir.'/include/classes/helpers',
+			$this->root_dir.'/include/classes/helpers/trigger',
+			$this->root_dir.'/include/classes/macros',
+			$this->root_dir.'/include/classes/html',
+			$this->root_dir.'/include/classes/html/svg',
+			$this->root_dir.'/include/classes/html/widgets',
+			$this->root_dir.'/include/classes/html/widgets/fields',
+			$this->root_dir.'/include/classes/html/interfaces',
+			$this->root_dir.'/include/classes/parsers',
+			$this->root_dir.'/include/classes/parsers/results',
+			$this->root_dir.'/include/classes/controllers',
+			$this->root_dir.'/include/classes/routing',
+			$this->root_dir.'/include/classes/json',
+			$this->root_dir.'/include/classes/user',
+			$this->root_dir.'/include/classes/setup',
+			$this->root_dir.'/include/classes/regexp',
+			$this->root_dir.'/include/classes/ldap',
+			$this->root_dir.'/include/classes/pagefilter',
+			$this->root_dir.'/include/classes/xml',
+			$this->root_dir.'/include/classes/vaults',
+			$this->root_dir.'/local/app/controllers',
+			$this->root_dir.'/app/controllers'
 		];
 	}
 
@@ -371,6 +379,13 @@ class ZBase {
 		];
 	}
 
+	public static function getColorScheme(string $theme): string {
+		return match ($theme) {
+			'dark-theme', 'hc-dark' => ZBX_COLOR_SCHEME_DARK,
+			default => ZBX_COLOR_SCHEME_LIGHT
+		};
+	}
+
 	/**
 	 * Check if maintenance mode is enabled.
 	 *
@@ -381,7 +396,7 @@ class ZBase {
 
 		if (defined('ZBX_DENY_GUI_ACCESS')) {
 			if (!isset($ZBX_GUI_ACCESS_IP_RANGE) || !in_array(CWebUser::getIp(), $ZBX_GUI_ACCESS_IP_RANGE)) {
-				throw new Exception($_REQUEST['warning_msg']);
+				throw new Exception($ZBX_GUI_ACCESS_MESSAGE ?? 'Zabbix is under maintenance.');
 			}
 		}
 	}
@@ -390,7 +405,7 @@ class ZBase {
 	 * Load zabbix config file.
 	 */
 	protected function loadConfigFile(): void {
-		$configFile = $this->getRootDir().CConfigFile::CONFIG_FILE_PATH;
+		$configFile = $this->root_dir.CConfigFile::CONFIG_FILE_PATH;
 
 		$config = new CConfigFile($configFile);
 
@@ -402,10 +417,11 @@ class ZBase {
 	 */
 	protected function initAutoloader() {
 		// Register base directory path for 'include' and 'require' functions.
-		set_include_path(get_include_path().PATH_SEPARATOR.$this->rootDir);
+		set_include_path(get_include_path().PATH_SEPARATOR.$this->root_dir);
 		$autoloader = new CAutoloader;
 		$autoloader->addNamespace('', $this->getIncludePaths());
-		$autoloader->addNamespace('Core', [$this->rootDir.'/include/classes/core']);
+		$autoloader->addNamespace('Zabbix\\Core', [$this->root_dir.'/include/classes/core']);
+		$autoloader->addNamespace('Zabbix\\Widgets', [$this->root_dir.'/include/classes/widgets']);
 		$autoloader->register();
 		$this->autoloader = $autoloader;
 	}
@@ -414,13 +430,9 @@ class ZBase {
 	 * Vault provider initialisation if it exists in configuration file.
 	 */
 	protected function initVault(): void {
-		if (!array_key_exists('VAULT', $this->config['DB'])) {
-			return;
-		}
-
 		switch ($this->config['DB']['VAULT']) {
 			case CVaultCyberArk::NAME:
-				$this->vault = new CVaultCyberArk($this->config['DB']['VAULT_URL'],
+				$this->vault = new CVaultCyberArk($this->config['DB']['VAULT_URL'], $this->config['DB']['VAULT_PREFIX'],
 					$this->config['DB']['VAULT_DB_PATH'], $this->config['DB']['VAULT_CERT_FILE'],
 					$this->config['DB']['VAULT_KEY_FILE']
 				);
@@ -428,7 +440,8 @@ class ZBase {
 
 			case CVaultHashiCorp::NAME:
 				$this->vault = new CVaultHashiCorp($this->config['DB']['VAULT_URL'],
-					$this->config['DB']['VAULT_DB_PATH'], $this->config['DB']['VAULT_TOKEN']
+					$this->config['DB']['VAULT_PREFIX'], $this->config['DB']['VAULT_DB_PATH'],
+					$this->config['DB']['VAULT_TOKEN']
 				);
 				break;
 		}
@@ -452,7 +465,7 @@ class ZBase {
 				$db_credentials = $this->vault->getCredentials();
 
 				if ($db_credentials === null) {
-					throw new DBException(_('Unable to load database credentials from Vault.'));
+					throw new DBException(_('Unable to load database credentials from Vault.'), DB::INIT_ERROR);
 				}
 
 				['user' => $db_user, 'password' => $db_password] = $db_credentials;
@@ -477,7 +490,7 @@ class ZBase {
 		if (!DBconnect($error)) {
 			CDataCacheHelper::clearValues(['db_user', 'db_password']);
 
-			throw new DBException($error);
+			throw new DBException($error, DB::INIT_ERROR);
 		}
 	}
 
@@ -487,11 +500,11 @@ class ZBase {
 	 * @param string|null $language  Locale variant prefix like en_US, ru_RU etc.
 	 */
 	public function initLocales(?string $language): void {
-		if (!setupLocale($language, $error) && $error !== '') {
+		if (!setupLocale($language, $error)) {
 			error($error);
 		}
 
-		require_once $this->getRootDir().'/include/translateDefines.inc.php';
+		require_once $this->root_dir.'/include/translateDefines.inc.php';
 	}
 
 	/**
@@ -529,9 +542,20 @@ class ZBase {
 	 */
 	protected function authenticateUser(): void {
 		$session = new CEncryptedCookieSession();
+		$sessionid = $session->extractSessionId() ?: '';
 
-		if (!CWebUser::checkAuthentication($session->extractSessionId() ?: '')) {
+		API::getWrapper()->auth = [
+			'type' => CJsonRpc::AUTH_TYPE_COOKIE,
+			'auth' => $sessionid
+		];
+
+		if (!CWebUser::checkAuthentication($sessionid)) {
 			CWebUser::setDefault();
+
+			API::getWrapper()->auth = [
+				'type' => CJsonRpc::AUTH_TYPE_COOKIE,
+				'auth' => CWebUser::$data['sessionid']
+			];
 		}
 
 		$this->initLocales(CWebUser::$data['lang']);
@@ -542,8 +566,9 @@ class ZBase {
 
 		CSessionHelper::set('sessionid', CWebUser::$data['sessionid']);
 
-		// Set the authentication token for the API.
-		API::getWrapper()->auth = CWebUser::$data['sessionid'];
+		if (CWebUser::isAutologinEnabled()) {
+			$session->lifetime = time() + SEC_PER_MONTH;
+		}
 
 		// Enable debug mode in the API.
 		API::getWrapper()->debug = CWebUser::getDebugMode();
@@ -559,8 +584,25 @@ class ZBase {
 		$action_class = $router->getController();
 
 		try {
+			if ($action_class === null) {
+				throw new Exception(_('Page not found'));
+			}
+
 			if (!class_exists($action_class)) {
-				throw new Exception(_s('Class %1$s not found for action %2$s.', $action_class, $action_name));
+				$namespace_parts = explode('\\', $action_class);
+
+				if (count($namespace_parts) > 1) {
+					$action_class_fallback = end($namespace_parts);
+
+					if (!class_exists($action_class_fallback)) {
+						throw new Exception(_s('Class %1$s not found for action %2$s.', $action_class, $action_name));
+					}
+
+					$action_class = $action_class_fallback;
+				}
+				else {
+					throw new Exception(_s('Class %1$s not found for action %2$s.', $action_class, $action_name));
+				}
 			}
 
 			$action = new $action_class();
@@ -570,19 +612,25 @@ class ZBase {
 			}
 
 			$action->setAction($action_name);
+			$this->module_manager->setActionName($action_name);
 
 			$modules = $this->module_manager->getModules();
 
-			$action_module = $this->module_manager->getModuleByActionName($action_name);
+			$action_module = $this->module_manager->getActionModule();
 
-			if ($action_module) {
+			if ($action_module !== null) {
 				$modules = array_replace([$action_module->getId() => $action_module], $modules);
+
+				if ($action_module->getType() === CModule::TYPE_WIDGET) {
+					CView::registerDirectory($this->root_dir.'/'.$action_module->getRelativePath().'/views');
+					CPartial::registerDirectory($this->root_dir.'/'.$action_module->getRelativePath().'/partials');
+				}
 			}
 
 			foreach (array_reverse($modules) as $module) {
-				if (is_subclass_of($module, CModule::class)) {
-					CView::registerDirectory($module->getDir().'/views');
-					CPartial::registerDirectory($module->getDir().'/partials');
+				if ($module->getType() === CModule::TYPE_MODULE) {
+					CView::registerDirectory($this->root_dir.'/'.$module->getRelativePath().'/views');
+					CPartial::registerDirectory($this->root_dir.'/'.$module->getRelativePath().'/partials');
 				}
 			}
 
@@ -602,29 +650,7 @@ class ZBase {
 			$this->denyPageAccess($router);
 		}
 		catch (Exception $e) {
-			switch ($router->getLayout()) {
-				case 'layout.json':
-				case 'layout.widget':
-					echo (new CView('layout.json', [
-						'main_block' => json_encode([
-							'error' => [
-								'title' => $e->getMessage()
-							]
-						])
-					]))->getOutput();
-
-					break;
-
-				default:
-					echo (new CView('general.warning', [
-						'header' => $e->getMessage(),
-						'messages' => [],
-						'theme' => getUserTheme(CWebUser::$data)
-					]))->getOutput();
-			}
-
-			session_write_close();
-			exit();
+			self::terminateWithError($router, $e->getMessage());
 		}
 	}
 
@@ -648,7 +674,7 @@ class ZBase {
 			CMessageHelper::addError('Controller: '.$router->getAction());
 			ksort($_REQUEST);
 			foreach ($_REQUEST as $key => $value) {
-				if ($key !== 'sid') {
+				if ($key !== CSRF_TOKEN_NAME) {
 					CMessageHelper::addError(is_scalar($value) ? $key.': '.$value : $key.': '.gettype($value));
 				}
 			}
@@ -684,17 +710,23 @@ class ZBase {
 			];
 
 			if ($router->getView() !== null && $response->isViewEnabled()) {
-				$view = new CView($router->getView(), $response->getData());
+				$this->view = new CView($router->getView(), $response->getData());
+
+				$module = $this->module_manager->getActionModule();
+
+				if ($module !== null) {
+					$this->view->setAssetsPath($module->getRelativePath().'/assets');
+				}
 
 				$layout_data = array_replace($layout_data_defaults, [
-					'main_block' => $view->getOutput(),
+					'main_block' => $this->view->getOutput(),
 					'javascript' => [
-						'files' => $view->getJsFiles()
+						'files' => $this->view->getJsFiles()
 					],
 					'stylesheet' => [
-						'files' => $view->getCssFiles()
+						'files' => $this->view->getCssFiles()
 					],
-					'web_layout_mode' => $view->getLayoutMode()
+					'web_layout_mode' => $this->view->getLayoutMode()
 				]);
 			}
 			else {
@@ -710,11 +742,11 @@ class ZBase {
 
 	private static function denyPageAccess(CRouter $router): void {
 		$request_url = (new CUrl(array_key_exists('request', $_REQUEST) ? $_REQUEST['request'] : ''))
-			->removeArgument('sid')
+			->removeArgument(CSRF_TOKEN_NAME)
 			->toString();
 
-		if (CAuthenticationHelper::get(CAuthenticationHelper::HTTP_LOGIN_FORM) == ZBX_AUTH_FORM_HTTP
-				&& CAuthenticationHelper::get(CAuthenticationHelper::HTTP_AUTH_ENABLED) == ZBX_AUTH_HTTP_ENABLED
+		if (CAuthenticationHelper::getPublic(CAuthenticationHelper::HTTP_LOGIN_FORM) == ZBX_AUTH_FORM_HTTP
+				&& CAuthenticationHelper::getPublic(CAuthenticationHelper::HTTP_AUTH_ENABLED) == ZBX_AUTH_HTTP_ENABLED
 				&& (!CWebUser::isLoggedIn() || CWebUser::isGuest())) {
 			redirect(
 				(new CUrl('index_http.php'))
@@ -737,6 +769,7 @@ class ZBase {
 		else {
 			$view['header'] = _('You are not logged in');
 			$view['messages'][] = _('You must login to view this page.');
+			$view['messages'][] = _('Possibly the session has expired or the password was changed.');
 		}
 
 		$view['messages'][] = _('If you think this message is wrong, please consult your administrators about getting the necessary permissions.');
@@ -779,6 +812,52 @@ class ZBase {
 		exit();
 	}
 
+	private static function terminateWithError(CRouter $router, string $error): void {
+		switch ($router->getLayout()) {
+			case 'layout.json':
+			case 'layout.widget':
+				$layout = 'layout.json';
+				break;
+
+			case null:
+				if ((array_key_exists('CONTENT_TYPE', $_SERVER) && $_SERVER['CONTENT_TYPE'] === 'application/json')
+						|| (array_key_exists('HTTP_X_REQUESTED_WITH', $_SERVER)
+							&& strcasecmp($_SERVER['HTTP_X_REQUESTED_WITH'], 'XMLHttpRequest') == 0)) {
+					$layout = 'layout.json';
+				}
+				else {
+					$layout = 'general.warning';
+				}
+				break;
+
+			default:
+				$layout = 'general.warning';
+		}
+
+		switch ($layout) {
+			case 'layout.json':
+				echo (new CView('layout.json', [
+					'main_block' => json_encode([
+						'error' => [
+							'title' => $error
+						]
+					])
+				]))->getOutput();
+
+				break;
+
+			default:
+				echo (new CView('general.warning', [
+					'header' => $error,
+					'messages' => [],
+					'theme' => getUserTheme(CWebUser::$data)
+				]))->getOutput();
+		}
+
+		session_write_close();
+		exit();
+	}
+
 	/**
 	 * Set layout mode using URL parameters.
 	 */
@@ -794,17 +873,20 @@ class ZBase {
 	/**
 	 * Initialize menu for main navigation. Register instance as component with 'menu.main' key.
 	 */
-	private function initComponents() {
+	private function initComponents(): void {
 		$this->component_registry->register('router', new CRouter());
-		$this->component_registry->register('menu.main', CMenuHelper::getMainMenu());
-		$this->component_registry->register('menu.user', CMenuHelper::getUserMenu());
+
+		if (CWebUser::isLoggedIn()) {
+			$this->component_registry->register('menu.main', CMenuHelper::getMainMenu());
+			$this->component_registry->register('menu.user', CMenuHelper::getUserMenu());
+		}
 	}
 
 	/**
 	 * Initialize module manager and load all enabled and allowed modules according to user role settings.
 	 */
-	private function initModuleManager() {
-		$this->module_manager = new CModuleManager($this->rootDir.'/modules');
+	private function initModuleManager(): void {
+		$this->module_manager = new CModuleManager($this->root_dir);
 
 		$db_modules = API::getApiService('module')->get([
 			'output' => ['moduleid', 'id', 'relative_path', 'config'],
@@ -819,8 +901,8 @@ class ZBase {
 				continue;
 			}
 
-			$manifest = $this->module_manager->addModule($db_module['relative_path'], $db_module['id'],
-				$db_module['config']
+			$manifest = $this->module_manager->addModule($db_module['relative_path'], $db_module['moduleid'],
+				$db_module['id'], $db_module['config']
 			);
 
 			if (!$manifest) {
@@ -845,13 +927,13 @@ class ZBase {
 
 	/**
 	 * Check for High availability override to standalone mode, set server to use for system information checks.
-	 *
-	 * @return void
 	 */
 	private function setServerAddress(): void {
 		global $ZBX_SERVER, $ZBX_SERVER_PORT;
 
-		if ($ZBX_SERVER !== null && $ZBX_SERVER_PORT !== null) {
+		if ($ZBX_SERVER !== null) {
+			$ZBX_SERVER_PORT = $ZBX_SERVER_PORT !== null ? (int) $ZBX_SERVER_PORT : ZBX_SERVER_PORT_DEFAULT;
+
 			return;
 		}
 
@@ -878,6 +960,10 @@ class ZBase {
 		if ($active_node !== null) {
 			$ZBX_SERVER = $active_node['address'];
 			$ZBX_SERVER_PORT = $active_node['port'];
+		}
+
+		if ($ZBX_SERVER_PORT !== null) {
+			$ZBX_SERVER_PORT = (int) $ZBX_SERVER_PORT;
 		}
 	}
 }

@@ -1,20 +1,15 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 #include "zbxmocktest.h"
@@ -23,7 +18,7 @@
 #include "zbxmockutil.h"
 #include "zbxmockdb.h"
 
-#include "common.h"
+#include "zbxnum.h"
 #include "zbxalgo.h"
 #include "zbxhistory.h"
 #include "zbxdb.h"
@@ -31,7 +26,7 @@
 #include "zbxavailability.h"
 
 void	__wrap_zbx_sleep_loop(int sleeptime);
-zbx_uint64_t	__wrap_DCget_nextid(const char *table_name, int num);
+zbx_uint64_t	__wrap_zbx_dc_get_nextid(const char *table_name, int num);
 int	__wrap_zbx_interface_availability_is_set(const zbx_interface_availability_t *ha);
 int	__wrap_zbx_add_event(unsigned char source, unsigned char object, zbx_uint64_t objectid,
 		const zbx_timespec_t *timespec, int value, const char *trigger_description,
@@ -44,13 +39,14 @@ void	__wrap_zbx_clean_events(void);
 void	zbx_vcmock_read_values(zbx_mock_handle_t hdata, unsigned char value_type, zbx_vector_history_record_t *values);
 void	zbx_vcmock_check_records(const char *prefix, unsigned char value_type,
 		const zbx_vector_history_record_t *expected_values, const zbx_vector_history_record_t *returned_values);
+void	__wrap_zbx_recalc_time_period(time_t *ts_from, int table_group);
 
 void	__wrap_zbx_sleep_loop(int sleeptime)
 {
 	ZBX_UNUSED(sleeptime);
 }
 
-zbx_uint64_t	__wrap_DCget_nextid(const char *table_name, int num)
+zbx_uint64_t	__wrap_zbx_dc_get_nextid(const char *table_name, int num)
 {
 	ZBX_UNUSED(table_name);
 	ZBX_UNUSED(num);
@@ -101,6 +97,12 @@ void	__wrap_zbx_clean_events(void)
 {
 }
 
+void	__wrap_zbx_recalc_time_period(time_t *ts_from, int table_group)
+{
+	ZBX_UNUSED(ts_from);
+	ZBX_UNUSED(table_group);
+}
+
 /******************************************************************************
  *                                                                            *
  * Purpose: dumps history record vector contents to standard output           *
@@ -133,7 +135,7 @@ static void	zbx_vcmock_history_dump(unsigned char value_type, const zbx_vector_h
  *                                                                            *
  ******************************************************************************/
 static void	zbx_vcmock_read_history_value(zbx_mock_handle_t hvalue, unsigned char value_type,
-		history_value_t *value, zbx_timespec_t *ts)
+		zbx_history_value_t *value, zbx_timespec_t *ts)
 {
 	const char		*data;
 	zbx_mock_error_t	err;
@@ -146,14 +148,19 @@ static void	zbx_vcmock_read_history_value(zbx_mock_handle_t hvalue, unsigned cha
 		{
 			case ITEM_VALUE_TYPE_STR:
 			case ITEM_VALUE_TYPE_TEXT:
+			case ITEM_VALUE_TYPE_BIN:
 				value->str = zbx_strdup(NULL, data);
 				break;
 			case ITEM_VALUE_TYPE_UINT64:
-				if (FAIL == is_uint64(data, &value->ui64))
+				if (FAIL == zbx_is_uint64(data, &value->ui64))
 					fail_msg("Invalid uint64 value \"%s\"", data);
 				break;
 			case ITEM_VALUE_TYPE_FLOAT:
 				value->dbl = atof(data);
+				break;
+			case ITEM_VALUE_TYPE_NONE:
+			default:
+				fail_msg("Unexpected value type: %c", value_type);
 		}
 	}
 	else
@@ -166,15 +173,15 @@ static void	zbx_vcmock_read_history_value(zbx_mock_handle_t hvalue, unsigned cha
 		log->source = zbx_strdup(NULL, zbx_mock_get_object_member_string(hvalue, "source"));
 
 		data = zbx_mock_get_object_member_string(hvalue, "logeventid");
-		if (FAIL == is_uint32(data, &log->logeventid))
+		if (FAIL == zbx_is_uint32(data, &log->logeventid))
 			fail_msg("Invalid log logeventid value \"%s\"", data);
 
 		data = zbx_mock_get_object_member_string(hvalue, "severity");
-		if (FAIL == is_uint32(data, &log->severity))
+		if (FAIL == zbx_is_uint32(data, &log->severity))
 			fail_msg("Invalid log severity value \"%s\"", data);
 
 		data = zbx_mock_get_object_member_string(hvalue, "timestamp");
-		if (FAIL == is_uint32(data, &log->timestamp))
+		if (FAIL == zbx_is_uint32(data, &log->timestamp))
 			fail_msg("Invalid log timestamp value \"%s\"", data);
 
 		value->log = log;
@@ -244,6 +251,7 @@ void	zbx_vcmock_check_records(const char *prefix, unsigned char value_type,
 		{
 			case ITEM_VALUE_TYPE_STR:
 			case ITEM_VALUE_TYPE_TEXT:
+			case ITEM_VALUE_TYPE_BIN:
 				zbx_mock_assert_str_eq(prefix, expected->value.str, returned->value.str);
 				break;
 			case ITEM_VALUE_TYPE_UINT64:
@@ -259,6 +267,9 @@ void	zbx_vcmock_check_records(const char *prefix, unsigned char value_type,
 			case ITEM_VALUE_TYPE_FLOAT:
 				zbx_mock_assert_double_eq(prefix, expected->value.dbl, returned->value.dbl);
 				break;
+			case ITEM_VALUE_TYPE_NONE:
+			default:
+				fail_msg("Unexpected value type: %c", value_type);
 		}
 	}
 }
@@ -298,10 +309,10 @@ void	zbx_mock_test_entry(void **state)
 
 	zbx_mockdb_init();
 
-	err = zbx_history_init(&error);
+	err = zbx_history_init(NULL, NULL, 0, &error);
 	zbx_mock_assert_result_eq("zbx_history_init()", SUCCEED, err);
 
-	if (FAIL == is_uint64(zbx_mock_get_parameter_string("in.itemid"), &itemid))
+	if (FAIL == zbx_is_uint64(zbx_mock_get_parameter_string("in.itemid"), &itemid))
 		fail_msg("Invalid itemid value");
 
 	zbx_strtime_to_timespec(zbx_mock_get_parameter_string("in.end"), &ts);

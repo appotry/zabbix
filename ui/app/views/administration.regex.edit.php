@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -25,7 +20,7 @@
 
 $this->includeJsFile('administration.regex.edit.js.php');
 
-$widget = (new CWidget())
+$html_page = (new CHtmlPage())
 	->setTitle(_('Regular expressions'))
 	->setTitleSubmenu(getAdministrationGeneralSubmenu())
 	->setDocUrl(CDocHelper::getUrl(CDocHelper::ADMINISTRATION_REGEX_EDIT));
@@ -36,10 +31,14 @@ if ($data['regexid'] != 0) {
 	$action->setArgument('regexid', $data['regexid']);
 }
 
+$csrf_token = CCsrfTokenHelper::get('regex');
+
 $form = (new CForm())
+	->addItem((new CVar('form_refresh', $data['form_refresh'] + 1))->removeId())
+	->addItem((new CVar(CSRF_TOKEN_NAME, $csrf_token))->removeId())
 	->setId('regex')
 	->setAction($action->getUrl())
-	->setAttribute('aria-labeledby', ZBX_STYLE_PAGE_TITLE);
+	->setAttribute('aria-labelledby', CHtmlPage::PAGE_TITLE_ID);
 
 $table = (new CTable())
 	->setId('tbl_expr')
@@ -49,7 +48,7 @@ $table = (new CTable())
 		_('Expression'),
 		_('Delimiter'),
 		_('Case sensitive'),
-		_('Action')
+		''
 	]);
 
 foreach ($data['expressions'] as $i => $expression) {
@@ -118,7 +117,9 @@ $expr_tab = (new CFormList('exprTab'))
 
 $test_tab = (new CFormList())
 	->addRow(_('Test string'),
-		(new CTextArea('test_string', $data['test_string']))->setWidth(ZBX_TEXTAREA_STANDARD_WIDTH)
+		(new CTextArea('test_string', $data['test_string']))
+			->setWidth(ZBX_TEXTAREA_STANDARD_WIDTH)
+			->disableSpellcheck()
 	)
 	->addRow('', (new CButton('testExpression', _('Test expressions')))->addClass(ZBX_STYLE_BTN_ALT))
 	->addRow(_('Result'),
@@ -133,7 +134,7 @@ $test_tab = (new CFormList())
 	);
 
 $reg_exp_view = new CTabView();
-if (!$data['form_refresh']) {
+if ($data['form_refresh'] == 0) {
 	$reg_exp_view->setSelected(0);
 }
 
@@ -150,7 +151,7 @@ if ($data['regexid'] != 0) {
 					(new CUrl('zabbix.php'))
 						->setArgument('action', 'regex.delete')
 						->setArgument('regexids', (array) $data['regexid'])
-						->setArgumentSID(),
+						->setArgument(CSRF_TOKEN_NAME, $csrf_token),
 				_('Delete regular expression?')
 			))->setId('delete'),
 			(new CRedirectButton(_('Cancel'), (new CUrl('zabbix.php'))
@@ -172,6 +173,6 @@ else {
 
 $form->addItem($reg_exp_view);
 
-$widget
+$html_page
 	->addItem($form)
 	->show();

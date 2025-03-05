@@ -1,20 +1,15 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 package agent
@@ -25,23 +20,39 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"git.zabbix.com/ap/plugin-support/log"
-	"git.zabbix.com/ap/plugin-support/plugin"
-	"zabbix.com/pkg/version"
+	"golang.zabbix.com/agent2/pkg/version"
+	"golang.zabbix.com/sdk/errs"
+	"golang.zabbix.com/sdk/log"
+	"golang.zabbix.com/sdk/plugin"
 )
+
+var (
+	impl          Plugin
+	hostnames     = map[uint64]string{}
+	FirstHostname string
+	performTask   PerformTask
+)
+
+type PerformTask func(key string, timeout time.Duration, clientID uint64) (result *string, err error)
 
 // Plugin -
 type Plugin struct {
 	plugin.Base
 }
 
-var impl Plugin
-var hostnames = map[uint64]string{}
-var FirstHostname string
-
-type PerformTask func(key string, timeout time.Duration, clientID uint64) (result string, err error)
-
-var performTask PerformTask
+func init() {
+	err := plugin.RegisterMetrics(
+		&impl, "Agent",
+		"agent.hostname", "Returns Hostname from agent configuration.",
+		"agent.hostmetadata", "Returns string with agent host metadata.",
+		"agent.ping", "Returns agent availability check result.",
+		"agent.variant", "Returns agent variant.",
+		"agent.version", "Version of Zabbix agent.",
+	)
+	if err != nil {
+		panic(errs.Wrap(err, "failed to register metrics"))
+	}
+}
 
 func SetHostname(clientID uint64, hostname string) {
 	hostnames[clientID] = hostname
@@ -67,16 +78,21 @@ func processConfigItem(timeout time.Duration, name, value, item string, length i
 	}
 
 	var err error
-	value, err = performTask(item, timeout, clientID)
+	var taskResult *string
+	taskResult, err = performTask(item, timeout, clientID)
 	if err != nil {
 		return "", err
+	} else if taskResult == nil {
+		return "", fmt.Errorf("no value was received")
 	}
+
+	value = *taskResult
 
 	if !utf8.ValidString(value) {
 		return "", fmt.Errorf("value is not a UTF-8 string.")
 	}
 
-	if len(value) > length {
+	if utf8.RuneCountInString(value) > length {
 		log.Warningf("the returned value of \"%s\" item specified by \"%sItem\" configuration parameter"+
 			" is too long, using first %d characters.", item, name, length)
 
@@ -104,8 +120,8 @@ func (p *Plugin) Export(key string, params []string, ctx plugin.ContextProvider)
 			return nil, errors.New("Invalid recursive HostMetadataItem value.")
 		}
 
-		return processConfigItem(time.Duration(Options.Timeout)*time.Second, "HostMetadata",
-			Options.HostMetadata, Options.HostMetadataItem, 255, LocalChecksClientID)
+		return processConfigItem(time.Duration(ctx.Timeout())*time.Second, "HostMetadata",
+			Options.HostMetadata, Options.HostMetadataItem, HostMetadataLen, LocalChecksClientID)
 	case "agent.ping":
 		return 1, nil
 	case "agent.variant":
@@ -115,13 +131,4 @@ func (p *Plugin) Export(key string, params []string, ctx plugin.ContextProvider)
 	}
 
 	return nil, fmt.Errorf("Not implemented: %s", key)
-}
-
-func init() {
-	plugin.RegisterMetrics(&impl, "Agent",
-		"agent.hostname", "Returns Hostname from agent configuration.",
-		"agent.hostmetadata", "Returns string with agent host metadata.",
-		"agent.ping", "Returns agent availability check result.",
-		"agent.variant", "Returns agent variant.",
-		"agent.version", "Version of Zabbix agent.")
 }

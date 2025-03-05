@@ -1,26 +1,38 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 #ifndef ZABBIX_JSONPATH_H
 #define ZABBIX_JSONPATH_H
 
+#include "zbxjson.h"
+#include "jsonobj.h"
+
 #include "zbxalgo.h"
+
+typedef struct
+{
+	const zbx_jsonobj_t		*root;		/* the root object */
+	zbx_jsonpath_t			*path;
+	unsigned char			found;		/* set to 1 when one object was matched and */
+							/* no more matches are required             */
+	zbx_vector_jsonobj_ref_t	objects;	/* the matched objects */
+
+	zbx_jsonpath_index_t		*index;
+}
+zbx_jsonpath_context_t;
+
+typedef struct zbx_jsonpath_token zbx_jsonpath_token_t;
 
 typedef enum
 {
@@ -78,10 +90,19 @@ typedef struct
 }
 zbx_jsonpath_range_t;
 
+typedef enum
+{
+	ZBX_JSONPATH_EXPRESSION_INDEX_TRUE,
+	ZBX_JSONPATH_EXPRESSION_INDEX_FALSE,
+}
+zbx_json_path_expression_index_t;
+
 /* expression tokens in postfix notation */
 typedef struct
 {
 	zbx_vector_ptr_t	tokens;
+	zbx_jsonpath_token_t	*index_token;	/* relative path token that is used to index parent object */
+	zbx_jsonpath_token_t	*value_token;	/* the index value token */
 }
 zbx_jsonpath_expression_t;
 
@@ -150,11 +171,18 @@ typedef enum
 }
 zbx_jsonpath_token_type_t;
 
-typedef struct
+struct zbx_jsonpath_token
 {
 	unsigned char	type;
-	char		*data;
+	char		*text;
+	zbx_jsonpath_t	*path;
+};
+
+typedef struct
+{
+	char				*value;		/* the value found at indexed path */
+	zbx_vector_jsonobj_ref_t	objects;	/* the objects matching value at indexed path */
 }
-zbx_jsonpath_token_t;
+zbx_jsonobj_index_el_t;
 
 #endif

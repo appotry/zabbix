@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -43,7 +38,8 @@ class CMenuPopupHelper {
 				'has_related_reports' => $has_related_reports,
 				'can_edit_dashboards' => $can_edit_dashboards,
 				'can_view_reports' => $can_view_reports,
-				'can_create_reports' => $can_create_reports
+				'can_create_reports' => $can_create_reports,
+				'csrf_token' => CCsrfTokenHelper::get('dashboard')
 			]
 		];
 	}
@@ -90,13 +86,12 @@ class CMenuPopupHelper {
 	/**
 	 * Prepare data for Ajax map element menu popup.
 	 *
-	 * @param string $sysmapid                   Map ID.
-	 * @param array  $selement                   Map element data (ID, type, URLs, etc...).
-	 * @param string $selement[selementid_orig]  Map element ID.
-	 * @param string $selement[elementtype]      Map element type (host, map, trigger, host group, image).
-	 * @param string $selement[urls]             Map element URLs.
-	 * @param int    $severity_min               Minimum severity.
-	 * @param string $hostid                     Host ID.
+	 * @param string $sysmapid                     Map ID.
+	 * @param array  $selement                     Map element data (ID, type, URLs, etc...).
+	 * @param string $selement['selementid_orig']  Map element ID.
+	 * @param string $selement['unique_id']        Map element unique ID.
+	 * @param int    $severity_min                 Minimum severity.
+	 * @param string $hostid                       Host ID.
 	 *
 	 * @return array
 	 */
@@ -105,9 +100,7 @@ class CMenuPopupHelper {
 			'type' => 'map_element',
 			'data' => [
 				'sysmapid' => $sysmapid,
-				'selementid' => $selement['selementid_orig'],
-				'elementtype' => $selement['elementtype'],
-				'urls' => $selement['urls']
+				'selementid' => $selement['selementid_orig']
 			]
 		];
 
@@ -128,26 +121,37 @@ class CMenuPopupHelper {
 	/**
 	 * Prepare data for Ajax trigger menu popup.
 	 *
-	 * @param string $triggerid
-	 * @param string $eventid      (optional) Mandatory for Acknowledge menu.
-	 * @param bool   $acknowledge  (optional) Whether to show Acknowledge menu.
+	 * @param array  $data
+	 *        string $data['triggerid']                 Trigger ID.
+	 *        string $data['backurl']                   URL from where the menu popup was called.
+	 *        string $data['eventid']                   (optional) Mandatory for "Update problem", "Mark as cause"
+	 *                                                  and "Mark selected as symptoms" context menus.
+	 *        bool   $data['show_update_problem']       (optional) Whether to show "Update problem".
+	 *        bool   $data['show_rank_change_cause']    (optional) Whether to show "Mark as cause".
+	 *        bool   $data['show_rank_change_symptom']  (optional) Whether to show "Mark selected as symptoms".
 	 *
 	 * @return array
 	 */
-	public static function getTrigger($triggerid, $eventid = 0, $acknowledge = false) {
-		$data = [
+	public static function getTrigger(array $data): array {
+		$menu = [
 			'type' => 'trigger',
 			'data' => [
-				'triggerid' => $triggerid
+				'triggerid' => $data['triggerid'],
+				'backurl' => $data['backurl']
 			]
 		];
 
-		if ($eventid != 0) {
-			$data['data']['eventid'] = $eventid;
-			$data['data']['acknowledge'] = $acknowledge ? '1' : '0';
+		if (array_key_exists('eventid', $data) && $data['eventid'] != 0) {
+			$menu['data']['eventid'] = $data['eventid'];
+
+			foreach (['show_update_problem', 'show_rank_change_cause', 'show_rank_change_symptom'] as $option) {
+				if (array_key_exists($option, $data)) {
+					$menu['data'][$option] = (int) $data[$option];
+				}
+			}
 		}
 
-		return $data;
+		return $menu;
 	}
 
 	/**
@@ -165,32 +169,15 @@ class CMenuPopupHelper {
 	 * Prepare data for item latest data popup menu.
 	 *
 	 * @param array  $data
-	 * @param string $data['itemid']   Item ID.
+	 * @param string $data['itemid']
+	 * @param string $data['backurl']
+	 * @param string $data['context']
 	 *
 	 * @return array
 	 */
 	public static function getItem(array $data): array {
 		return [
 			'type' => 'item',
-			'data' => [
-				'itemid' => $data['itemid']
-			]
-		];
-	}
-
-	/**
-	 * Prepare data for item configuration popup menu.
-	 *
-	 * @param array  $data
-	 * @param string $data['itemid']   Item ID.
-	 * @param string $data['context']  Additional parameter in URL to identify main section.
-	 * @param string $data['backurl']  Url from where the function was called.
-	 *
-	 * @return array
-	 */
-	public static function getItemConfiguration(array $data): array {
-		return [
-			'type' => 'item_configuration',
 			'data' => [
 				'itemid' => $data['itemid'],
 				'backurl' => $data['backurl']
@@ -203,20 +190,36 @@ class CMenuPopupHelper {
 	 * Prepare data for item prototype configuration popup menu.
 	 *
 	 * @param array  $data
-	 * @param string $data['itemid']   Item ID.
-	 * @param string $data['context']  Additional parameter in URL to identify main section.
-	 * @param string $data['backurl']  Url from where the function was called.
+	 * @param string $data['itemid']
+	 * @param string $data['backurl']
+	 * @param string $data['context']
 	 *
 	 * @return array
 	 */
-	public static function getItemPrototypeConfiguration(array $data): array {
+	public static function getItemPrototype(array $data): array {
 		return [
-			'type' => 'item_prototype_configuration',
+			'type' => 'item_prototype',
 			'data' => [
 				'itemid' => $data['itemid'],
 				'backurl' => $data['backurl']
 			],
 			'context' => $data['context']
+		];
+	}
+
+	/**
+	 * Prepare data for discovery rule configuration popup menu.
+	 *
+	 * @param string $druleid
+	 *
+	 * @return array
+	 */
+	public static function getDRule(string $druleid): array {
+		return [
+			'type' => 'drule',
+			'data' => [
+				'druleid' => $druleid
+			]
 		];
 	}
 }

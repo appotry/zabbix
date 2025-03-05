@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -296,6 +291,50 @@ class testMap extends CAPITest {
 					]
 				],
 				'expected_error' => 'No permissions to referred object or it does not exist!'
+			],
+			// Fail. Map element label is too long.
+			[
+				'request_data' => [
+					[
+						'name' => 'Map with invalid element label',
+						'width' => '800',
+						'height' => '600',
+						'selements' => [
+							[
+								'elementtype' => '1',
+								'iconid_off' => '151',
+								'label' => self::generateRandomString(2049),
+								'x' => '0',
+								'y' => '0',
+								'elements' => [
+									['sysmapid' => '1']
+								]
+							]
+						]
+					]
+				],
+				'expected_error' => 'Incorrect value for field "label": value is too long.'
+			],
+			// Fail. Map shape text is too long.
+			[
+				'request_data' => [
+					[
+						'name' => 'Map with invalid shape text',
+						'width' => '400',
+						'height' => '400',
+						'shapes' => [
+							[
+								'type' => 0,
+								'x' => 0,
+								'y' => 0,
+								'width' => 100,
+								'height' => 100,
+								'text' => self::generateRandomString(65536)
+							]
+						]
+					]
+				],
+				'expected_error' => 'Invalid parameter "/1/shape/1/text": value is too long.'
 			]
 		];
 	}
@@ -490,6 +529,46 @@ class testMap extends CAPITest {
 				],
 				'expected_error' => 'Cannot add map element of the map "C" due to circular reference.',
 				'user' => ['user' => 'zabbix-user', 'password' => 'zabbix']
+			],
+			// Success. Map element label is of valid length.
+			[
+				'request_data' => [
+					[
+						'sysmapid' => '10001',
+						'selements' => [
+							[
+								'elementtype' => '1',
+								'iconid_off' => '151',
+								'label' => self::generateRandomString(2048),
+								'x' => '0',
+								'y' => '0',
+								'elements' => [
+									['sysmapid' => '1']
+								]
+							]
+						]
+					]
+				],
+				'expected_error' => null
+			],
+			// Success. Map shape text is of valid length.
+			[
+				'request_data' => [
+					[
+						'sysmapid' => '10001',
+						'shapes' => [
+							[
+								'type' => 0,
+								'x' => 0,
+								'y' => 0,
+								'width' => 100,
+								'height' => 100,
+								'text' => self::generateRandomString(65535)
+							]
+						]
+					]
+				],
+				'expected_error' => null
 			]
 		];
 	}
@@ -503,5 +582,17 @@ class testMap extends CAPITest {
 		}
 
 		$this->call('map.update', $request_data, $expected_error);
+	}
+
+	private static function generateRandomString(int $length): string {
+		$chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+		$char_length = strlen($chars);
+		$string = '';
+
+		for ($i = 0; $i < $length; $i++) {
+			$string .= $chars[rand(0, $char_length - 1)];
+		}
+
+		return $string;
 	}
 }

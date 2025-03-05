@@ -1,21 +1,16 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -24,17 +19,23 @@ class CMenuHelper {
 	/**
 	 * Get main menu element.
 	 *
+	 * @throws Exception
 	 * @return CMenu
 	 */
 	public static function getMainMenu(): CMenu {
 		$menu = new CMenu();
 
-		$submenu_monitoring = [
-			CWebUser::checkAccess(CRoleHelper::UI_MONITORING_DASHBOARD)
-				? (new CMenuItem(_('Dashboard')))
+		if (CWebUser::checkAccess(CRoleHelper::UI_MONITORING_DASHBOARD)) {
+			$menu->add(
+				(new CMenuItem(_('Dashboards')))
+					->setId('dashboard')
+					->setIcon(ZBX_ICON_DASHBOARDS)
 					->setAction('dashboard.view')
 					->setAliases(['dashboard.list'])
-				: null,
+			);
+		}
+
+		$submenu_monitoring = [
 			CWebUser::checkAccess(CRoleHelper::UI_MONITORING_PROBLEMS)
 				? (new CMenuItem(_('Problems')))
 					->setAction('problem.view')
@@ -68,7 +69,7 @@ class CMenuHelper {
 			$menu->add(
 				(new CMenuItem(_('Monitoring')))
 					->setId('view')
-					->setIcon('icon-monitoring')
+					->setIcon(ZBX_ICON_MONITORING)
 					->setSubMenu(new CMenu($submenu_monitoring))
 			);
 		}
@@ -78,13 +79,6 @@ class CMenuHelper {
 				? (new CMenuItem(_('Services')))
 					->setAction('service.list')
 					->setAliases(['service.list.edit'])
-				: null,
-			CWebUser::checkAccess(CRoleHelper::UI_SERVICES_ACTIONS)
-				? (new CMenuItem(_('Service actions')))
-					->setUrl(
-						(new CUrl('actionconf.php'))->setArgument('eventsource', EVENT_SOURCE_SERVICE),
-						'actionconf.php?eventsource='.EVENT_SOURCE_SERVICE
-					)
 				: null,
 			CWebUser::checkAccess(CRoleHelper::UI_SERVICES_SLA)
 				? (new CMenuItem(_('SLA')))
@@ -102,7 +96,7 @@ class CMenuHelper {
 			$menu->add(
 				(new CMenuItem(_('Services')))
 					->setId('services')
-					->setIcon('icon-services')
+					->setIcon(ZBX_ICON_SERVICES)
 					->setSubMenu(new CMenu($submenu_services))
 			);
 		}
@@ -122,7 +116,7 @@ class CMenuHelper {
 			$menu->add(
 				(new CMenuItem(_('Inventory')))
 					->setId('cm')
-					->setIcon('icon-inventory')
+					->setIcon(ZBX_ICON_INVENTORY)
 					->setSubMenu(new CMenu($submenu_inventory))
 			);
 		}
@@ -138,17 +132,17 @@ class CMenuHelper {
 				: null,
 			CWebUser::checkAccess(CRoleHelper::UI_REPORTS_AVAILABILITY_REPORT)
 				? (new CMenuItem(_('Availability report')))
-					->setUrl(new CUrl('report2.php'), 'report2.php')
-					->setAliases(['chart4.php'])
+					->setAction('availabilityreport.list')
+					->setAliases(['availabilityreport.trigger'])
 				: null,
 			CWebUser::checkAccess(CRoleHelper::UI_REPORTS_TOP_TRIGGERS)
-				? (new CMenuItem(_('Triggers top 100')))->setUrl(new CUrl('toptriggers.php'), 'toptriggers.php')
+				? (new CMenuItem(_('Top 100 triggers')))->setAction('toptriggers.list')
 				: null,
 			CWebUser::checkAccess(CRoleHelper::UI_REPORTS_AUDIT)
-				? (new CMenuItem(_('Audit')))->setAction('auditlog.list')
+				? (new CMenuItem(_('Audit log')))->setAction('auditlog.list')
 				: null,
 			CWebUser::checkAccess(CRoleHelper::UI_REPORTS_ACTION_LOG)
-				? (new CMenuItem(_('Action log')))->setUrl(new CUrl('auditacts.php'), 'auditacts.php')
+				? (new CMenuItem(_('Action log')))->setAction('actionlog.list')
 				: null,
 			CWebUser::checkAccess(CRoleHelper::UI_REPORTS_NOTIFICATIONS)
 				? (new CMenuItem(_('Notifications')))->setUrl(new CUrl('report4.php'), 'report4.php')
@@ -160,23 +154,26 @@ class CMenuHelper {
 			$menu->add(
 				(new CMenuItem(_('Reports')))
 					->setId('reports')
-					->setIcon('icon-reports')
+					->setIcon(ZBX_ICON_REPORTS)
 					->setSubMenu(new CMenu($submenu_reports))
 			);
 		}
 
-		$submenu_configuration = [
+		$submenu_data_collection = [
+			CWebUser::checkAccess(CRoleHelper::UI_CONFIGURATION_TEMPLATE_GROUPS)
+				? (new CMenuItem(_('Template groups')))->setAction('templategroup.list')
+				: null,
 			CWebUser::checkAccess(CRoleHelper::UI_CONFIGURATION_HOST_GROUPS)
-				? (new CMenuItem(_('Host groups')))->setUrl(new CUrl('hostgroups.php'), 'hostgroups.php')
+				? (new CMenuItem(_('Host groups')))->setAction('hostgroup.list')
 				: null,
 			CWebUser::checkAccess(CRoleHelper::UI_CONFIGURATION_TEMPLATES)
 				? (new CMenuItem(_('Templates')))
-					->setUrl(new CUrl('templates.php'), 'templates.php')
+					->setAction('template.list')
 					->setAliases([
-						'template.dashboard.list', 'template.dashboard.edit', 'items.php?context=template',
-						'triggers.php?context=template', 'graphs.php?context=template',
-						'host_discovery.php?context=template', 'disc_prototypes.php?context=template',
-						'trigger_prototypes.php?context=template', 'host_prototypes.php?context=template',
+						'template.dashboard.list', 'template.dashboard.edit', 'item.list?context=template',
+						'trigger.list?context=template', 'graphs.php?context=template',
+						'host_discovery.php?context=template', 'item.prototype.list?context=template',
+						'trigger.prototype.list?context=template', 'host_prototypes.php?context=template',
 						'httpconf.php?context=template'
 					])
 				: null,
@@ -184,39 +181,14 @@ class CMenuHelper {
 				? (new CMenuItem(_('Hosts')))
 					->setAction('host.list')
 					->setAliases([
-						'items.php?context=host', 'triggers.php?context=host', 'graphs.php?context=host',
-						'host_discovery.php?context=host', 'disc_prototypes.php?context=host',
-						'trigger_prototypes.php?context=host', 'host_prototypes.php?context=host',
-						'httpconf.php?context=host', 'host.edit'
+						'item.list?context=host', 'trigger.list?context=host', 'graphs.php?context=host',
+						'host_discovery.php?context=host', 'item.prototype.list?context=host',
+						'trigger.prototype.list?context=host', 'host_prototypes.php?context=host',
+						'httpconf.php?context=host'
 					])
 				: null,
 			CWebUser::checkAccess(CRoleHelper::UI_CONFIGURATION_MAINTENANCE)
-				? (new CMenuItem(_('Maintenance')))->setUrl(new CUrl('maintenance.php'), 'maintenance.php')
-				: null,
-			CWebUser::checkAccess(CRoleHelper::UI_CONFIGURATION_ACTIONS)
-				? (new CMenuItem(_('Actions')))
-					->setSubMenu(new CMenu([
-						(new CMenuItem(_('Trigger actions')))
-							->setUrl(
-								(new CUrl('actionconf.php'))->setArgument('eventsource', EVENT_SOURCE_TRIGGERS),
-								'actionconf.php?eventsource='.EVENT_SOURCE_TRIGGERS
-							),
-						(new CMenuItem(_('Discovery actions')))
-							->setUrl(
-								(new CUrl('actionconf.php'))->setArgument('eventsource', EVENT_SOURCE_DISCOVERY),
-								'actionconf.php?eventsource='.EVENT_SOURCE_DISCOVERY
-							),
-						(new CMenuItem(_('Autoregistration actions')))
-							->setUrl(
-								(new CUrl('actionconf.php'))->setArgument('eventsource', EVENT_SOURCE_AUTOREGISTRATION),
-								'actionconf.php?eventsource='.EVENT_SOURCE_AUTOREGISTRATION
-							),
-						(new CMenuItem(_('Internal actions')))
-							->setUrl(
-								(new CUrl('actionconf.php'))->setArgument('eventsource', EVENT_SOURCE_INTERNAL),
-								'actionconf.php?eventsource='.EVENT_SOURCE_INTERNAL
-							)
-					]))
+				? (new CMenuItem(_('Maintenance')))->setAction('maintenance.list')
 				: null,
 			CWebUser::checkAccess(CRoleHelper::UI_CONFIGURATION_EVENT_CORRELATION)
 				? (new CMenuItem(_('Event correlation')))
@@ -229,64 +201,95 @@ class CMenuHelper {
 					->setAliases(['discovery.edit'])
 				: null
 		];
-		$submenu_configuration = array_filter($submenu_configuration);
+		$submenu_data_collection = array_filter($submenu_data_collection);
 
-		if ($submenu_configuration) {
+		if ($submenu_data_collection) {
 			$menu->add(
-				(new CMenuItem(_('Configuration')))
+				(new CMenuItem(_('Data collection')))
 					->setId('config')
-					->setIcon('icon-configuration')
-					->setSubMenu(new CMenu($submenu_configuration))
+					->setIcon(ZBX_ICON_DATA_COLLECTION)
+					->setSubMenu(new CMenu($submenu_data_collection))
 			);
 		}
 
-		$submenu_administration = [
-			CWebUser::checkAccess(CRoleHelper::UI_ADMINISTRATION_GENERAL)
-				? (new CMenuItem(_('General')))
+		$submenu_alerts = [
+			(CWebUser::checkAccess(CRoleHelper::UI_CONFIGURATION_TRIGGER_ACTIONS) ||
+			CWebUser::checkAccess(CRoleHelper::UI_CONFIGURATION_SERVICE_ACTIONS) ||
+			CWebUser::checkAccess(CRoleHelper::UI_CONFIGURATION_DISCOVERY_ACTIONS) ||
+			CWebUser::checkAccess(CRoleHelper::UI_CONFIGURATION_AUTOREGISTRATION_ACTIONS) ||
+			CWebUser::checkAccess(CRoleHelper::UI_CONFIGURATION_INTERNAL_ACTIONS))
+				? (new CMenuItem(_('Actions')))
 					->setSubMenu(new CMenu(array_filter([
-						(new CMenuItem(_('GUI')))
-							->setAction('gui.edit'),
-						(new CMenuItem(_('Autoregistration')))
-							->setAction('autoreg.edit'),
-						(new CMenuItem(_('Housekeeping')))
-							->setAction('housekeeping.edit'),
-						(new CMenuItem(_('Audit log')))
-							->setAction('audit.settings.edit'),
-						(new CMenuItem(_('Images')))
-							->setAction('image.list')
-							->setAliases(['image.edit']),
-						(new CMenuItem(_('Icon mapping')))
-							->setAction('iconmap.list')
-							->setAliases(['iconmap.edit']),
-						(new CMenuItem(_('Regular expressions')))
-							->setAction('regex.list')
-							->setAliases(['regex.edit']),
-						(new CMenuItem(_('Macros')))
-							->setAction('macros.edit'),
-						(new CMenuItem(_('Trigger displaying options')))
-							->setAction('trigdisplay.edit'),
-						(new CMenuItem(_('Geographical maps')))
-							->setAction('geomaps.edit'),
-						(new CMenuItem(_('Modules')))
-							->setAction('module.list')
-							->setAliases(['module.edit', 'module.scan']),
-						(!CWebUser::isGuest() && CWebUser::checkAccess(CRoleHelper::ACTIONS_MANAGE_API_TOKENS))
-							? (new CMenuItem(_('API tokens')))
-								->setAction('token.list')
+						CWebUser::checkAccess(CRoleHelper::UI_CONFIGURATION_TRIGGER_ACTIONS)
+							? (new CMenuItem(_('Trigger actions')))
+								->setUrl(
+									(new CUrl('zabbix.php'))
+										->setArgument('action', 'action.list')
+										->setArgument('eventsource', EVENT_SOURCE_TRIGGERS),
+									'action.list?eventsource='.EVENT_SOURCE_TRIGGERS
+								)
 							: null,
-						(new CMenuItem(_('Other')))
-							->setAction('miscconfig.edit')
+						CWebUser::checkAccess(CRoleHelper::UI_CONFIGURATION_SERVICE_ACTIONS)
+							? (new CMenuItem(_('Service actions')))
+								->setUrl(
+									(new CUrl('zabbix.php'))
+										->setArgument('action', 'action.list')
+										->setArgument('eventsource', EVENT_SOURCE_SERVICE),
+									'action.list?eventsource='.EVENT_SOURCE_SERVICE
+								)
+							: null,
+						CWebUser::checkAccess(CRoleHelper::UI_CONFIGURATION_DISCOVERY_ACTIONS)
+							? (new CMenuItem(_('Discovery actions')))
+								->setUrl(
+									(new CUrl('zabbix.php'))
+										->setArgument('action', 'action.list')
+										->setArgument('eventsource', EVENT_SOURCE_DISCOVERY),
+									'action.list?eventsource='.EVENT_SOURCE_DISCOVERY
+								)
+							: null,
+						CWebUser::checkAccess(CRoleHelper::UI_CONFIGURATION_AUTOREGISTRATION_ACTIONS)
+							? (new CMenuItem(_('Autoregistration actions')))
+								->setUrl(
+									(new CUrl('zabbix.php'))
+										->setArgument('action', 'action.list')
+										->setArgument('eventsource', EVENT_SOURCE_AUTOREGISTRATION),
+									'action.list?eventsource='.EVENT_SOURCE_AUTOREGISTRATION
+								)
+							: null,
+						CWebUser::checkAccess(CRoleHelper::UI_CONFIGURATION_INTERNAL_ACTIONS)
+							? (new CMenuItem(_('Internal actions')))
+								->setUrl(
+									(new CUrl('zabbix.php'))
+										->setArgument('action', 'action.list')
+										->setArgument('eventsource', EVENT_SOURCE_INTERNAL),
+									'action.list?eventsource='.EVENT_SOURCE_INTERNAL
+								)
+							: null
 					])))
 				: null,
-			CWebUser::checkAccess(CRoleHelper::UI_ADMINISTRATION_PROXIES)
-				? (new CMenuItem(_('Proxies')))
-					->setAction('proxy.list')
-					->setAliases(['proxy.edit'])
+			CWebUser::checkAccess(CRoleHelper::UI_ADMINISTRATION_MEDIA_TYPES)
+				? (new CMenuItem(_('Media types')))
+					->setAction('mediatype.list')
+					->setAliases(['mediatype.edit'])
 				: null,
-			CWebUser::checkAccess(CRoleHelper::UI_ADMINISTRATION_AUTHENTICATION)
-				? (new CMenuItem(_('Authentication')))
-					->setAction('authentication.edit')
-				: null,
+			CWebUser::checkAccess(CRoleHelper::UI_ADMINISTRATION_SCRIPTS)
+				? (new CMenuItem(_('Scripts')))
+					->setAction('script.list')
+					->setAliases(['script.edit'])
+				: null
+		];
+		$submenu_alerts = array_filter($submenu_alerts);
+
+		if ($submenu_alerts) {
+			$menu->add(
+				(new CMenuItem(_('Alerts')))
+					->setId('alerts')
+					->setIcon(ZBX_ICON_ALERTS)
+					->setSubMenu(new CMenu($submenu_alerts))
+			);
+		}
+
+		$submenu_users = [
 			CWebUser::checkAccess(CRoleHelper::UI_ADMINISTRATION_USER_GROUPS)
 				? (new CMenuItem(_('User groups')))
 					->setAction('usergroup.list')
@@ -302,15 +305,81 @@ class CMenuHelper {
 					->setAction('user.list')
 					->setAliases(['user.edit'])
 				: null,
-			CWebUser::checkAccess(CRoleHelper::UI_ADMINISTRATION_MEDIA_TYPES)
-				? (new CMenuItem(_('Media types')))
-					->setAction('mediatype.list')
-					->setAliases(['mediatype.edit'])
+			(!CWebUser::isGuest() && CWebUser::checkAccess(CRoleHelper::UI_ADMINISTRATION_API_TOKENS) &&
+				CWebUser::checkAccess(CRoleHelper::ACTIONS_MANAGE_API_TOKENS))
+				? (new CMenuItem(_('API tokens')))
+					->setAction('token.list')
 				: null,
-			CWebUser::checkAccess(CRoleHelper::UI_ADMINISTRATION_SCRIPTS)
-				? (new CMenuItem(_('Scripts')))
-					->setAction('script.list')
-					->setAliases(['script.edit'])
+			CWebUser::checkAccess(CRoleHelper::UI_ADMINISTRATION_AUTHENTICATION)
+				? (new CMenuItem(_('Authentication')))
+					->setAction('authentication.edit')
+				: null
+		];
+		$submenu_users = array_filter($submenu_users);
+
+		if ($submenu_users) {
+			$menu->add(
+				(new CMenuItem(_('Users')))
+					->setId('users-menu')
+					->setIcon(ZBX_ICON_USERS)
+					->setSubMenu(new CMenu($submenu_users))
+			);
+		}
+
+		$submenu_administration = [
+			CWebUser::checkAccess(CRoleHelper::UI_ADMINISTRATION_GENERAL)
+				? (new CMenuItem(_('General')))
+					->setSubMenu(new CMenu(array_filter([
+						(new CMenuItem(_('GUI')))
+							->setAction('gui.edit'),
+						(new CMenuItem(_('Autoregistration')))
+							->setAction('autoreg.edit'),
+						(new CMenuItem(_('Timeouts')))
+							->setAction('timeouts.edit'),
+						(new CMenuItem(_('Images')))
+							->setAction('image.list')
+							->setAliases(['image.edit']),
+						(new CMenuItem(_('Icon mapping')))
+							->setAction('iconmap.list')
+							->setAliases(['iconmap.edit']),
+						(new CMenuItem(_('Regular expressions')))
+							->setAction('regex.list')
+							->setAliases(['regex.edit']),
+						(new CMenuItem(_('Trigger displaying options')))
+							->setAction('trigdisplay.edit'),
+						(new CMenuItem(_('Geographical maps')))
+							->setAction('geomaps.edit'),
+						(new CMenuItem(_('Modules')))
+							->setAction('module.list')
+							->setAliases(['module.edit', 'module.scan']),
+						(new CMenuItem(_('Connectors')))
+							->setAction('connector.list')
+							->setAliases(['connector.edit']),
+						(new CMenuItem(_('Other')))
+							->setAction('miscconfig.edit')
+					])))
+				: null,
+			CWebUser::checkAccess(CRoleHelper::UI_ADMINISTRATION_AUDIT_LOG)
+				? (new CMenuItem(_('Audit log')))
+					->setAction('audit.settings.edit')
+				: null,
+			CWebUser::checkAccess(CRoleHelper::UI_ADMINISTRATION_HOUSEKEEPING)
+				? (new CMenuItem(_('Housekeeping')))
+					->setAction('housekeeping.edit')
+				: null,
+			CWebUser::checkAccess(CRoleHelper::UI_ADMINISTRATION_PROXY_GROUPS)
+				? (new CMenuItem(_('Proxy groups')))
+					->setAction('proxygroup.list')
+					->setAliases(['proxygroup.edit'])
+				: null,
+			CWebUser::checkAccess(CRoleHelper::UI_ADMINISTRATION_PROXIES)
+				? (new CMenuItem(_('Proxies')))
+					->setAction('proxy.list')
+					->setAliases(['proxy.edit'])
+				: null,
+			CWebUser::checkAccess(CRoleHelper::UI_ADMINISTRATION_MACROS)
+				? (new CMenuItem(_('Macros')))
+					->setAction('macros.edit')
 				: null,
 			CWebUser::checkAccess(CRoleHelper::UI_ADMINISTRATION_QUEUE)
 				? (new CMenuItem(_('Queue')))
@@ -330,7 +399,7 @@ class CMenuHelper {
 			$menu->add(
 				(new CMenuItem(_('Administration')))
 					->setId('admin')
-					->setIcon('icon-administration')
+					->setIcon(ZBX_ICON_ADMINISTRATION)
 					->setSubMenu(new CMenu($submenu_administration))
 			);
 		}
@@ -351,14 +420,14 @@ class CMenuHelper {
 			$menu
 				->add(
 					(new CMenuItem(_('Support')))
-						->setIcon('icon-support')
+						->setIcon(ZBX_ICON_SUPPORT)
 						->setUrl(new CUrl(getSupportUrl($lang)))
 						->setTitle(_('Zabbix Technical Support'))
 						->setTarget('_blank')
 				)
 				->add(
 					(new CMenuItem(_('Integrations')))
-						->setIcon('icon-integrations')
+						->setIcon(ZBX_ICON_INTEGRATIONS)
 						->setUrl(new CUrl(getIntegrationsUrl($lang)))
 						->setTitle(_('Zabbix Integrations'))
 						->setTarget('_blank')
@@ -367,7 +436,7 @@ class CMenuHelper {
 
 		$menu->add(
 			(new CMenuItem(_('Help')))
-				->setIcon('icon-help')
+				->setIcon(ZBX_ICON_HELP_CIRCLED)
 				->setUrl(new CUrl(CBrandHelper::getHelpUrl()))
 				->setTitle(_('Help'))
 				->setTarget('_blank')
@@ -381,18 +450,20 @@ class CMenuHelper {
 		if (CWebUser::isGuest()) {
 			$menu->add(
 				(new CMenuItem(_('Guest user')))
-					->setIcon('icon-guest')
+					->setIcon(ZBX_ICON_USER)
 					->setTitle(getUserFullname($user))
 			);
 		}
 		elseif (CWebUser::checkAccess(CRoleHelper::ACTIONS_MANAGE_API_TOKENS)) {
 			$menu->add(
 				(new CMenuItem(_('User settings')))
-					->setIcon('icon-profile')
+					->setIcon(ZBX_ICON_USER_SETTINGS)
 					->setTitle(getUserFullname($user))
 					->setSubMenu(new CMenu([
 						(new CMenuItem(_('Profile')))
 							->setAction('userprofile.edit'),
+						(new CMenuItem(_('Notifications')))
+							->setAction('userprofile.notification.edit'),
 						(new CMenuItem(_('API tokens')))
 							->setAction('user.token.list')
 					]))
@@ -401,18 +472,24 @@ class CMenuHelper {
 		else {
 			$menu->add(
 				(new CMenuItem(_('User settings')))
-					->setIcon('icon-profile')
-					->setAction('userprofile.edit')
+					->setIcon(ZBX_ICON_USER_SETTINGS)
 					->setTitle(getUserFullname($user))
+					->setSubMenu(new CMenu([
+						(new CMenuItem(_('Profile')))
+							->setAction('userprofile.edit'),
+						(new CMenuItem(_('Notifications')))
+							->setAction('userprofile.notification.edit')
+					]))
 			);
 		}
 
 		$menu->add(
 			(new CMenuItem(_('Sign out')))
-				->setIcon('icon-signout')
+				->setIcon(ZBX_ICON_SIGN_OUT)
 				->setUrl(new CUrl('#signout'))
 				->setTitle(_('Sign out'))
-				->onClick('ZABBIX.logout()')
+				->onClick('event.preventDefault(); ZABBIX.logout(this.dataset.csrf_token)')
+				->setAttribute('data-csrf_token', CCsrfTokenHelper::get('index.php'))
 		);
 
 		return $menu;
@@ -428,10 +505,21 @@ class CMenuHelper {
 
 		foreach (CRoleHelper::getUiSectionsLabels(CWebUser::$data['type']) as $section_label) {
 			$section_submenu = $menu->find($section_label);
-			if ($section_submenu instanceof CMenuItem) {
+
+			if ($section_submenu instanceof CMenuItem && !$section_submenu->hasSubMenu()) {
+				return $menu->getMenuItems()[0];
+			}
+			elseif ($section_submenu instanceof CMenuItem) {
 				$menu = $section_submenu
 					->getSubMenu()
 					->getMenuItems();
+
+				if ($menu[0]->hasSubMenu()) {
+					$menu = $menu[0]
+						->getSubMenu()
+						->getMenuItems();
+				}
+
 				return $menu[0];
 			}
 		}

@@ -1,21 +1,16 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -23,8 +18,6 @@
  * @var CView $this
  * @var array $data
  */
-
-$this->addJsFile('class.calendar.js');
 
 $this->includeJsFile('slareport.list.js.php');
 
@@ -37,7 +30,7 @@ $filter = (new CFilter())
 		(new CFormGrid())
 			->addClass(CFormGrid::ZBX_STYLE_FORM_GRID_LABEL_WIDTH_TRUE)
 			->addItem([
-				new CLabel(_('SLA'), 'filter_slaid'),
+				new CLabel(_('SLA'), 'filter_slaid_ms'),
 				new CFormField(
 					(new CMultiSelect([
 						'name' => 'filter_slaid',
@@ -57,11 +50,11 @@ $filter = (new CFilter())
 						]
 					]))->setWidth(ZBX_TEXTAREA_FILTER_STANDARD_WIDTH)
 				),
-				new CLabel(_('Service'), 'filter_serviceid'),
+				new CLabel(_('Service'), 'filter_serviceid_ms'),
 				new CFormField(
 					(new CMultiSelect([
 						'name' => 'filter_serviceid',
-						'object_name' => 'service',
+						'object_name' => 'services',
 						'data' => $data['service'] !== null
 							? [CArrayHelper::renameKeys($data['service'], ['serviceid' => 'id'])]
 							: [],
@@ -88,9 +81,9 @@ $filter = (new CFilter())
 			])
 	]);
 
-$widget = (new CWidget())
+$html_page = (new CHtmlPage())
 	->setTitle(_('SLA report'))
-	->setDocUrl(CDocHelper::getUrl(CDocHelper::SLAREPORT_LIST))
+	->setDocUrl(CDocHelper::getUrl(CDocHelper::SERVICES_SLAREPORT_LIST))
 	->addItem($filter);
 
 $report = new CTableInfo();
@@ -119,7 +112,7 @@ elseif ($data['service'] === null) {
 	foreach ($data['sli']['periods'] as $period) {
 		$header[] = CSlaHelper::getPeriodTag((int) $data['sla']['period'], $period['period_from'], $period['period_to'],
 			$data['sla']['timezone']
-		)->addClass($data['sla']['period'] != ZBX_SLA_PERIOD_ANNUALLY ? 'vertical' : null);
+		)->addClass($data['sla']['period'] != ZBX_SLA_PERIOD_ANNUALLY ? ZBX_STYLE_TEXT_VERTICAL : null);
 	}
 
 	$report->setHeader($header);
@@ -153,9 +146,8 @@ elseif ($data['service'] === null) {
 		$report->addRow($row);
 	}
 
-	$form
-		->addItem($report)
-		->addItem($data['paging']);
+	$report->setPageNavigation($data['paging']);
+	$form->addItem($report);
 }
 else {
 	$report->setHeader([
@@ -196,7 +188,7 @@ else {
 	$form->addItem($report);
 }
 
-$widget
+$html_page
 	->addItem($form)
 	->show();
 

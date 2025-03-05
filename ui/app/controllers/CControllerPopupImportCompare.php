@@ -1,21 +1,16 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -26,13 +21,17 @@ class CControllerPopupImportCompare extends CController {
 	public const CHANGE_REMOVED = 2;
 
 	private $toc = [];
+	private $id_counter = 0;
+
+	protected function init() {
+		$this->disableCsrfValidation();
+	}
 
 	protected function checkInput(): bool {
 		$fields = [
 			'import' => 'in 1',
 			'rules_preset' => 'in template',
-			'rules' => 'array',
-			'import_overlayid' => 'required|string'
+			'rules' => 'array'
 		];
 
 		$ret = $this->validateInput($fields);
@@ -64,7 +63,8 @@ class CControllerPopupImportCompare extends CController {
 
 	protected function doAction(): void {
 		$rules = [
-			'groups' => ['updateExisting' => false, 'createMissing' => false],
+			'host_groups' => ['updateExisting' => false, 'createMissing' => false],
+			'template_groups' => ['updateExisting' => false, 'createMissing' => false],
 			'hosts' => ['updateExisting' => false, 'createMissing' => false],
 			'templates' => ['updateExisting' => false, 'createMissing' => false],
 			'templateDashboards' => ['updateExisting' => false, 'createMissing' => false, 'deleteMissing' => false],
@@ -83,7 +83,8 @@ class CControllerPopupImportCompare extends CController {
 		// Adjust defaults for given rule preset, if specified.
 		switch ($this->getInput('rules_preset')) {
 			case 'template':
-				$rules['groups'] = ['updateExisting' => true, 'createMissing' => true];
+				$rules['host_groups'] = ['updateExisting' => true, 'createMissing' => true];
+				$rules['template_groups'] = ['updateExisting' => true, 'createMissing' => true];
 				$rules['templates'] = ['updateExisting' => true, 'createMissing' => true];
 				$rules['templateDashboards'] = ['updateExisting' => true, 'createMissing' => true,
 					'deleteMissing' => false
@@ -131,7 +132,6 @@ class CControllerPopupImportCompare extends CController {
 
 		$data = [
 			'title' => _('Templates'),
-			'import_overlayid' => $this->getInput('import_overlayid'),
 			'user' => [
 				'debug_mode' => $this->getDebugMode()
 			]
@@ -146,6 +146,9 @@ class CControllerPopupImportCompare extends CController {
 		else {
 			$data['diff'] = $this->blocksToDiff($result, 1);
 			$data['diff_toc'] = $this->normalizeToc($this->toc);
+
+			// Check if at least one entity is removed.
+			$data['with_removed_entities'] = array_key_exists('removed', $this->toc);
 		}
 
 		$this->setResponse(new CControllerResponseData($data));
@@ -162,7 +165,8 @@ class CControllerPopupImportCompare extends CController {
 			'added' => _('Added')
 		];
 		$names = [
-			'groups' => _('Groups'),
+			'host_groups' => _('Host groups'),
+			'template_groups' => _('Template groups'),
 			'templates' => _('Templates'),
 			'triggers' => _('Triggers'),
 			'graphs' => _('Graphs'),
@@ -321,27 +325,7 @@ class CControllerPopupImportCompare extends CController {
 		return $yaml_key;
 	}
 
-	private function objectToRows(array $before, array $after, int $depth, string $id): array {
-		if ($before && $after) {
-			$outer_change_type = self::CHANGE_NONE;
-		}
-		else if ($before) {
-			$outer_change_type = self::CHANGE_REMOVED;
-		}
-		else if ($after) {
-			$outer_change_type = self::CHANGE_ADDED;
-		}
-		else {
-			$outer_change_type = self::CHANGE_NONE;
-		}
-
-		$rows = [[
-			'value' => '-',
-			'depth' => $depth,
-			'change_type' => $outer_change_type,
-			'id' => $id
-		]];
-
+	private function objectToRows(array $before, array $after, int $depth, int $id): array {
 		$all_keys = [];
 
 		foreach (array_keys($before) as $key) {
@@ -368,6 +352,8 @@ class CControllerPopupImportCompare extends CController {
 		}
 
 		unset($all_keys['uuid']);
+
+		$rows = [];
 
 		foreach ($all_keys as $key => $change_type) {
 			switch ($change_type) {
@@ -419,6 +405,10 @@ class CControllerPopupImportCompare extends CController {
 			}
 		}
 
+		if ($rows) {
+			$rows[0] += ['id' => $id];
+		}
+
 		return $rows;
 	}
 
@@ -441,10 +431,11 @@ class CControllerPopupImportCompare extends CController {
 				foreach ($entities as $entity) {
 					$before = array_key_exists('before', $entity) ? $entity['before'] : [];
 					$after = array_key_exists('after', $entity) ? $entity['after'] : [];
-					$object = $before ? $before : $after;
+					$object = $before ?: $after;
 					unset($entity['before'], $entity['after']);
 
-					$id = $object['uuid'];
+					$id = $this->id_counter++;
+
 					$this->toc[$change_type][$entity_type][] = [
 						'name' => $this->nameForToc($entity_type, $object),
 						'id' => $id
@@ -459,6 +450,7 @@ class CControllerPopupImportCompare extends CController {
 				}
 			}
 		}
+
 		return $rows;
 	}
 

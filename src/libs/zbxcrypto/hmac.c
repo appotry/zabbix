@@ -1,32 +1,20 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-#include "common.h"
 #include "zbxcrypto.h"
+
 #include "zbxhash.h"
-#include "sha256crypt.h"
-
-#define ZBX_MD5_BLOCK_SIZE	64
-#define ZBX_MD5_DIGEST_SIZE	16
-
-#define ZBX_SHA256_BLOCK_SIZE	64
-#define ZBX_SHA256_DIGEST_SIZE	32
 
 static void	*hmac_hash_init(zbx_crypto_hash_t type)
 {
@@ -91,7 +79,6 @@ static void	hmac_hash(zbx_crypto_hash_t type, const char *left, size_t left_len,
 	if (0 != right_len)
 		hmac_hash_append(type, ctx, right, right_len);
 	hmac_hash_finish(type, ctx, out);
-
 }
 
 int	zbx_hmac(zbx_crypto_hash_t hash_type, const char *key, size_t key_len, const char *text, size_t text_len,
@@ -99,21 +86,23 @@ int	zbx_hmac(zbx_crypto_hash_t hash_type, const char *key, size_t key_len, const
 {
 	size_t	block_size, digest_size, out_len, i;
 	char	*key_block, *key_ipad, *key_opad, *ihash, *ohash;
-
+#define MD5_BLOCK_SIZE		64
+#define SHA256_BLOCK_SIZE	64
 	switch (hash_type)
 	{
 		case ZBX_HASH_MD5:
-			block_size = ZBX_MD5_BLOCK_SIZE;
+			block_size = MD5_BLOCK_SIZE;
 			digest_size = ZBX_MD5_DIGEST_SIZE;
 			break;
 		case ZBX_HASH_SHA256:
-			block_size = ZBX_SHA256_BLOCK_SIZE;
+			block_size = SHA256_BLOCK_SIZE;
 			digest_size = ZBX_SHA256_DIGEST_SIZE;
 			break;
 		default:
 			return FAIL;
 	}
-
+#undef MD5_BLOCK_SIZE
+#undef SHA256_BLOCK_SIZE
 	key_block = (char *)zbx_malloc(NULL, block_size);
 	key_ipad = (char *)zbx_malloc(NULL, block_size);
 	key_opad = (char *)zbx_malloc(NULL, block_size);

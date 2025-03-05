@@ -10,7 +10,6 @@ DIST_SUBDIRS = \
 	linux \
 	netbsd \
 	openbsd \
-	osf \
 	osx \
 	simple \
 	solaris \
@@ -42,6 +41,7 @@ libzbxagentsysinfo_a_CFLAGS = \
 	-DWITH_HOSTNAME_METRIC
 
 libzbxagentsysinfo_a_SOURCES = \
+	sysinfo.h \
 	specsysinfo.h \
 	sysinfo.c
 

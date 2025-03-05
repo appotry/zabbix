@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 require_once dirname(__FILE__).'/../include/CWebTest.php';
@@ -29,6 +24,13 @@ class testSidebarMenu extends CWebTest {
 
 	public static function getMainData() {
 		return [
+			[
+				[
+					'section' => 'Dashboards',
+					'page' => 'Dashboards',
+					'header' => 'Global view'
+				]
+			],
 			[
 				[
 					'section' => 'Monitoring',
@@ -69,12 +71,6 @@ class testSidebarMenu extends CWebTest {
 			[
 				[
 					'section' => 'Services',
-					'page' => 'Service actions'
-				]
-			],
-			[
-				[
-					'section' => 'Services',
 					'page' => 'SLA'
 				]
 			],
@@ -107,21 +103,26 @@ class testSidebarMenu extends CWebTest {
 			[
 				[
 					'section' => 'Reports',
+					'page' => 'Scheduled reports'
+				]
+			],
+			[
+				[
+					'section' => 'Reports',
 					'page' => 'Availability report'
 				]
 			],
 			[
 				[
 					'section' => 'Reports',
-					'page' => 'Triggers top 100',
-					'header' => '100 busiest triggers'
+					'page' => 'Top 100 triggers',
+					'header' => 'Top 100 triggers'
 				]
 			],
 			[
 				[
 					'section' => 'Reports',
-					'page' => 'Audit',
-					'header' => 'Audit log'
+					'page' => 'Audit log'
 				]
 			],
 			[
@@ -138,36 +139,56 @@ class testSidebarMenu extends CWebTest {
 			],
 			[
 				[
-					'section' => 'Configuration',
+					'section' => 'Data collection',
+					'page' => 'Template groups'
+				]
+			],
+			[
+				[
+					'section' => 'Data collection',
 					'page' => 'Host groups'
 				]
 			],
 			[
 				[
-					'section' => 'Configuration',
+					'section' => 'Data collection',
 					'page' => 'Templates'
 				]
 			],
 			[
 				[
-					'section' => 'Configuration',
+					'section' => 'Data collection',
 					'page' => 'Hosts'
 				]
 			],
 			[
 				[
-					'section' => 'Configuration',
+					'section' => 'Data collection',
 					'page' => 'Maintenance',
 					'header' => 'Maintenance periods'
 				]
 			],
 			[
 				[
-					'section' => 'Configuration',
+					'section' => 'Data collection',
+					'page' => 'Event correlation'
+				]
+			],
+			[
+				[
+					'section' => 'Data collection',
+					'page' => 'Discovery',
+					'header' => 'Discovery rules'
+				]
+			],
+			[
+				[
+					'section' => 'Alerts',
 					'page' => 'Actions',
 					'third_level' =>
 					[
 						'Trigger actions',
+						'Service actions',
 						'Discovery actions',
 						'Autoregistration actions',
 						'Internal actions'
@@ -176,15 +197,44 @@ class testSidebarMenu extends CWebTest {
 			],
 			[
 				[
-					'section' => 'Configuration',
-					'page' => 'Event correlation'
+					'section' => 'Alerts',
+					'page' => 'Media types'
 				]
 			],
 			[
 				[
-					'section' => 'Configuration',
-					'page' => 'Discovery',
-					'header' => 'Discovery rules'
+					'section' => 'Alerts',
+					'page' => 'Scripts'
+				]
+			],
+			[
+				[
+					'section' => 'Users',
+					'page' => 'User groups'
+				]
+			],
+			[
+				[
+					'section' => 'Users',
+					'page' => 'User roles'
+				]
+			],
+			[
+				[
+					'section' => 'Users',
+					'page' => 'Users'
+				]
+			],
+			[
+				[
+					'section' => 'Users',
+					'page' => 'API tokens'
+				]
+			],
+			[
+				[
+					'section' => 'Users',
+					'page' => 'Authentication'
 				]
 			],
 			[
@@ -195,16 +245,26 @@ class testSidebarMenu extends CWebTest {
 					[
 						'GUI',
 						'Autoregistration',
-						'Housekeeping',
 						'Images',
 						'Icon mapping',
 						'Regular expressions',
-						'Macros',
 						'Trigger displaying options',
+						'Geographical maps',
 						'Modules',
-						'API tokens',
 						'Other'
 					]
+				]
+			],
+			[
+				[
+					'section' => 'Administration',
+					'page' => 'Audit log'
+				]
+			],
+			[
+				[
+					'section' => 'Administration',
+					'page' => 'Housekeeping'
 				]
 			],
 			[
@@ -216,37 +276,7 @@ class testSidebarMenu extends CWebTest {
 			[
 				[
 					'section' => 'Administration',
-					'page' => 'Authentication'
-				]
-			],
-			[
-				[
-					'section' => 'Administration',
-					'page' => 'User groups'
-				]
-			],
-			[
-				[
-					'section' => 'Administration',
-					'page' => 'User roles'
-				]
-			],
-			[
-				[
-					'section' => 'Administration',
-					'page' => 'Users'
-				]
-			],
-			[
-				[
-					'section' => 'Administration',
-					'page' => 'Media types'
-				]
-			],
-			[
-				[
-					'section' => 'Administration',
-					'page' => 'Scripts'
+					'page' => 'Macros'
 				]
 			],
 			[
@@ -264,8 +294,13 @@ class testSidebarMenu extends CWebTest {
 			[
 				[
 					'section' => 'User settings',
-					'page' => 'Profile',
-					'header' => 'User profile: Zabbix Administrator'
+					'page' => 'Profile'
+				]
+			],
+			[
+				[
+					'section' => 'User settings',
+					'page' => 'Notifications'
 				]
 			],
 			[
@@ -284,14 +319,14 @@ class testSidebarMenu extends CWebTest {
 	 */
 	public function testSidebarMenu_Main($data) {
 		$this->page->login()->open('')->waitUntilReady();
-		$this->query('xpath://li[@class="is-selected"]/a[text()="Dashboard"]')->waitUntilReady();
+		$this->query('xpath://li[@class="is-selected"]/a[text()="Dashboards"]')->waitUntilReady();
 
 		$menu__type = ($data['section'] === 'User settings') ? 'user' : 'main';
 		// First level menu.
 		$main_section = $this->query('xpath://ul[@class="menu-'.$menu__type.'"]')->query('link', $data['section']);
 
 		// Click on the first level menu and wait for it to fully open.
-		if ($data['section'] !== 'Monitoring') {
+		if ($data['section'] !== 'Dashboards') {
 			$main_section->waitUntilReady()->one()->click();
 			$element = $this->query('xpath://a[text()="'.$data['section'].'"]/../ul[@class="submenu"]')->one();
 			CElementQuery::wait()->until(function () use ($element) {
@@ -300,13 +335,10 @@ class testSidebarMenu extends CWebTest {
 			});
 
 			$submenu = $element->query('link', $data['page'])->one();
-		}
-		else {
-			$submenu = $main_section->one()->parents('tag:li')->query('link', $data['page'])->one();
-		}
 
-		// Open second level menu.
-		$submenu->waitUntilClickable()->click();
+			// Open second level menu.
+			$submenu->waitUntilClickable()->click();
+		}
 
 		// Checking 3rd level menu.
 		if (array_key_exists('third_level', $data)) {
@@ -342,12 +374,12 @@ class testSidebarMenu extends CWebTest {
 			}
 
 			// Clicking hide/collapse button.
-			$this->query('button', $hide)->one()->click();
+			$this->query('xpath://button[@title='.CXPathHelper::escapeQuotes($hide).']')->one()->click();
 			$this->assertTrue($this->query('xpath://aside[@class="sidebar is-'.$view.'"]')->waitUntilReady()->exists());
 
 			// Waiting sidemenu to hide/collapse.
 			if ($view === 'compact') {
-				$this->query('class:zabbix-sidebar-logo')->one(false)->waitUntilNotVisible();
+				$this->query('class:zabbix-logo-sidebar')->one(false)->waitUntilNotVisible();
 			}
 			elseif ($view === 'hidden') {
 				$this->query('xpath://aside[@class="sidebar is-hidden"]')->one(false)->waitUntilNotVisible();
@@ -360,7 +392,7 @@ class testSidebarMenu extends CWebTest {
 			$this->query('xpath://aside[@class="sidebar is-'.$view.' is-opened"]')->one()->waitUntilVisible();
 
 			// Returning standard sidemenu view clicking on unhide, expand button.
-			$this->query('button', $unhide)->one()->waitUntilClickable()->click();
+			$this->query('xpath://button[@title='.CXPathHelper::escapeQuotes($unhide).']')->one()->waitUntilClickable()->click();
 			$this->assertTrue($this->query('class:sidebar')->one()->isVisible());
 		}
 	}
@@ -382,7 +414,7 @@ class testSidebarMenu extends CWebTest {
 			[
 				[
 					'section' => 'Help',
-					'link' => 'https://www.zabbix.com/documentation/6.2/'
+					'link' => 'https://www.zabbix.com/documentation/'.ZABBIX_EXPORT_VERSION.'/'
 				]
 			],
 			[

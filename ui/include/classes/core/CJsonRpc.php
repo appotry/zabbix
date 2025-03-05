@@ -1,27 +1,25 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
 class CJsonRpc {
 
 	const VERSION = '2.0';
+
+	public const AUTH_TYPE_HEADER = 2;
+	public const AUTH_TYPE_COOKIE = 3;
 
 	/**
 	 * API client to use for making requests.
@@ -53,9 +51,11 @@ class CJsonRpc {
 	/**
 	 * Executes API requests.
 	 *
+	 * @param CHttpRequest $request
+	 *
 	 * @return string JSON encoded value
 	 */
-	public function execute() {
+	public function execute(CHttpRequest $request) {
 		if (json_last_error()) {
 			$this->jsonError([], '-32700', null, null, true);
 			return json_encode($this->_response[0], JSON_UNESCAPED_SLASHES);
@@ -72,7 +72,24 @@ class CJsonRpc {
 			}
 
 			list($api, $method) = explode('.', $call['method']) + [1 => ''];
-			$result = $this->apiClient->callMethod($api, $method, $call['params'], $call['auth']);
+
+			$header = $request->getAuthBearerValue();
+			if ($header != null) {
+				$auth = [
+					'type' => self::AUTH_TYPE_HEADER,
+					'auth' => $header
+				];
+			}
+			else {
+				$session = new CEncryptedCookieSession();
+
+				$auth = [
+					'type' => self::AUTH_TYPE_COOKIE,
+					'auth' => $session->extractSessionId()
+				];
+			}
+
+			$result = $this->apiClient->callMethod($api, $method, $call['params'], $auth);
 
 			$this->processResult($call, $result);
 		}
@@ -95,7 +112,6 @@ class CJsonRpc {
 			'jsonrpc' =>	['type' => API_STRING_UTF8, 'flags' => API_REQUIRED, 'in' => self::VERSION],
 			'method' =>		['type' => API_STRING_UTF8, 'flags' => API_REQUIRED],
 			'params' =>		['type' => API_JSONRPC_PARAMS, 'flags' => API_REQUIRED],
-			'auth' =>		['type' => API_STRING_UTF8, 'flags' => API_NOT_EMPTY | API_ALLOW_NULL, 'default' => null],
 			'id' =>			['type' => API_JSONRPC_ID]
 		]];
 

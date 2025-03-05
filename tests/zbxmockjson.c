@@ -1,20 +1,15 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 #include "zbxalgo.h"
@@ -67,7 +62,9 @@ static void	json_flatten_value(const char *ptr, const char *path, zbx_vector_ptr
 
 	if (FAIL == zbx_json_brackets_open(ptr, &jp_value))
 	{
-		zbx_json_decodevalue_dyn(ptr, &value, &value_alloc, &type);
+		if (NULL == zbx_json_decodevalue_dyn(ptr, &value, &value_alloc, &type))
+			type = ZBX_JSON_TYPE_NULL;
+
 		json_append_prop(props, path, (ZBX_JSON_TYPE_NULL != type ? value : "null"));
 	}
 	else
@@ -203,8 +200,8 @@ void	__zbx_mock_assert_json_eq(const char *file, int line, const char *prefix_ms
 
 		if (0 != strcmp(pair_expected->first, pair_returned->first))
 		{
-			_FAIL(file, line, prefix_msg, "Expected key \"%s\" while got \"%s\"", pair_expected->first,
-					pair_returned->first);
+			_FAIL(file, line, prefix_msg, "Expected key \"%s\" while got \"%s\"",
+					(char *)pair_expected->first, (char *)pair_returned->first);
 		}
 
 		if ('/' == *(char *)pair_expected->second)
@@ -213,7 +210,7 @@ void	__zbx_mock_assert_json_eq(const char *file, int line, const char *prefix_ms
 			if (NULL == zbx_regexp_match(pair_returned->second, pattern, NULL))
 			{
 				_FAIL(file, line, prefix_msg, "Key \"%s\" value \"%s\" does not match pattern \"%s\"",
-						pair_returned->first, pair_returned->second, pattern);
+						(char *)pair_returned->first, (char *)pair_returned->second, pattern);
 			}
 		}
 		else
@@ -221,7 +218,8 @@ void	__zbx_mock_assert_json_eq(const char *file, int line, const char *prefix_ms
 			if (0 != strcmp(pair_expected->second, pair_returned->second))
 			{
 				_FAIL(file, line, prefix_msg, "Expected key \"%s\" value \"%s\" while got \"%s\"",
-						pair_expected->first, pair_expected->second, pair_returned->second);
+						(char *)pair_expected->first, (char *)pair_expected->second,
+						(char *)pair_returned->second);
 
 			}
 		}
@@ -230,13 +228,13 @@ void	__zbx_mock_assert_json_eq(const char *file, int line, const char *prefix_ms
 	if (i < props_expected.values_num)
 	{
 		zbx_ptr_pair_t	*pair_expected = &props_expected.values[i];
-		_FAIL(file, line, prefix_msg, "Expected key \"%s\" while got nothing", pair_expected->first);
+		_FAIL(file, line, prefix_msg, "Expected key \"%s\" while got nothing", (char *)pair_expected->first);
 	}
 
 	if (i < props_returned.values_num)
 	{
 		zbx_ptr_pair_t	*pair_returned = &props_returned.values[i];
-		_FAIL(file, line, prefix_msg, "Did not expect key \"%s\"", pair_returned->first);
+		_FAIL(file, line, prefix_msg, "Did not expect key \"%s\"", (char *)pair_returned->first);
 	}
 
 	for (i = 0; i < props_expected.values_num; i++)

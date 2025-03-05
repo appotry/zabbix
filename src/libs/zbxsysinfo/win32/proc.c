@@ -1,33 +1,28 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-#include "common.h"
-#include "sysinfo.h"
+#include "zbxsysinfo.h"
+#include "../sysinfo.h"
 
-#include <tlhelp32.h>
-
-#include "zbxsymbols.h"
-#include "log.h"
 #include "zbxjson.h"
 #include "zbxalgo.h"
+#include "zbxstr.h"
+#include "zbxwin32.h"
 
-#define MAX_PROCESSES	4096
+#include <tlhelp32.h>
+#include <sddl.h> /* ConvertSidToStringSid */
+
 #define MAX_NAME	256
 
 typedef struct
@@ -40,6 +35,9 @@ typedef struct
 	zbx_uint64_t	processes;
 	zbx_uint64_t	threads;
 	zbx_int64_t	handles;
+
+	char		*user;
+	char		*sid;
 
 	double		cputime_user;
 	double		cputime_system;
@@ -60,16 +58,19 @@ ZBX_PTR_VECTOR_DECL(proc_data_ptr, proc_data_t *)
 ZBX_PTR_VECTOR_IMPL(proc_data_ptr, proc_data_t *)
 
 /* function 'zbx_get_process_username' require 'userName' with size 'MAX_NAME' */
-static int	zbx_get_process_username(HANDLE hProcess, char *userName)
+static int	zbx_get_process_username(HANDLE hProcess, char *userName, char *sid)
 {
 	HANDLE		tok;
 	TOKEN_USER	*ptu = NULL;
 	DWORD		sz = 0, nlen, dlen;
-	wchar_t		name[MAX_NAME], dom[MAX_NAME];
+	wchar_t		name[MAX_NAME], dom[MAX_NAME], *sid_string;
 	int		iUse, res = FAIL;
 
 	/* clean result; */
 	*userName = '\0';
+
+	if (NULL != sid)
+		*sid = '\0';
 
 	/* open the processes token */
 	if (0 == OpenProcessToken(hProcess, TOKEN_QUERY, &tok))
@@ -93,6 +94,17 @@ static int	zbx_get_process_username(HANDLE hProcess, char *userName)
 	if (0 == LookupAccountSid(NULL, ptu->User.Sid, name, &nlen, dom, &dlen, (PSID_NAME_USE)&iUse))
 		goto lbl_err;
 
+	if (NULL != sid)
+	{
+		if (TRUE == ConvertSidToStringSid(ptu->User.Sid, &sid_string))
+		{
+			zbx_unicode_to_utf8_static(sid_string, sid, MAX_NAME);
+			LocalFree(sid_string);
+		}
+		else
+			goto lbl_err;
+	}
+
 	zbx_unicode_to_utf8_static(name, userName, MAX_NAME);
 
 	res = SUCCEED;
@@ -104,7 +116,7 @@ lbl_err:
 	return res;
 }
 
-int	PROC_NUM(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	proc_num(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	HANDLE			hProcessSnap, hProcess;
 	PROCESSENTRY32		pe32;
@@ -169,7 +181,7 @@ int	PROC_NUM(AGENT_REQUEST *request, AGENT_RESULT *result)
 		{
 			hProcess = OpenProcess(access, FALSE, pe32.th32ProcessID);
 
-			if (NULL == hProcess || SUCCEED != zbx_get_process_username(hProcess, uname) ||
+			if (NULL == hProcess || SUCCEED != zbx_get_process_username(hProcess, uname, NULL) ||
 					0 != stricmp(uname, userName))
 			{
 				proc_ok = 0;
@@ -236,51 +248,51 @@ static int	GetProcessAttribute(HANDLE hProcess, int attr, int type, int count, d
 			break;
 		case 5:        /* gdiobj */
 		case 6:        /* userobj */
-			if (NULL == zbx_GetGuiResources)
+			if (NULL == zbx_get_GetGuiResources())
 				return SYSINFO_RET_FAIL;
 
-			value = (double)zbx_GetGuiResources(hProcess, 5 == attr ? 0 : 1);
+			value = (double)(*zbx_get_GetGuiResources())(hProcess, 5 == attr ? 0 : 1);
 			break;
 		case 7:        /* io_read_b */
-			if (NULL == zbx_GetProcessIoCounters)
+			if (NULL == zbx_get_GetProcessIoCounters())
 				return SYSINFO_RET_FAIL;
 
-			zbx_GetProcessIoCounters(hProcess, &ioCounters);
+			(*zbx_get_GetProcessIoCounters())(hProcess, &ioCounters);
 			value = (double)((__int64)ioCounters.ReadTransferCount);
 			break;
 		case 8:        /* io_read_op */
-			if (NULL == zbx_GetProcessIoCounters)
+			if (NULL == zbx_get_GetProcessIoCounters())
 				return SYSINFO_RET_FAIL;
 
-			zbx_GetProcessIoCounters(hProcess, &ioCounters);
+			(*zbx_get_GetProcessIoCounters())(hProcess, &ioCounters);
 			value = (double)((__int64)ioCounters.ReadOperationCount);
 			break;
 		case 9:        /* io_write_b */
-			if (NULL == zbx_GetProcessIoCounters)
+			if (NULL == zbx_get_GetProcessIoCounters())
 				return SYSINFO_RET_FAIL;
 
-			zbx_GetProcessIoCounters(hProcess, &ioCounters);
+			(*zbx_get_GetProcessIoCounters())(hProcess, &ioCounters);
 			value = (double)((__int64)ioCounters.WriteTransferCount);
 			break;
 		case 10:       /* io_write_op */
-			if (NULL == zbx_GetProcessIoCounters)
+			if (NULL == zbx_get_GetProcessIoCounters())
 				return SYSINFO_RET_FAIL;
 
-			zbx_GetProcessIoCounters(hProcess, &ioCounters);
+			(*zbx_get_GetProcessIoCounters())(hProcess, &ioCounters);
 			value = (double)((__int64)ioCounters.WriteOperationCount);
 			break;
 		case 11:       /* io_other_b */
-			if (NULL == zbx_GetProcessIoCounters)
+			if (NULL == zbx_get_GetProcessIoCounters())
 				return SYSINFO_RET_FAIL;
 
-			zbx_GetProcessIoCounters(hProcess, &ioCounters);
+			(*zbx_get_GetProcessIoCounters())(hProcess, &ioCounters);
 			value = (double)((__int64)ioCounters.OtherTransferCount);
 			break;
 		case 12:       /* io_other_op */
-			if (NULL == zbx_GetProcessIoCounters)
+			if (NULL == zbx_get_GetProcessIoCounters())
 				return SYSINFO_RET_FAIL;
 
-			zbx_GetProcessIoCounters(hProcess, &ioCounters);
+			(*zbx_get_GetProcessIoCounters())(hProcess, &ioCounters);
 			value = (double)((__int64)ioCounters.OtherOperationCount);
 			break;
 		default:       /* Unknown attribute */
@@ -325,7 +337,7 @@ static int	GetProcessAttribute(HANDLE hProcess, int attr, int type, int count, d
  *         avg - average value for all processes named <process>
  *         sum - sum of values for all processes named <process>
  */
-int	PROC_INFO(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	proc_info(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	HANDLE			hProcessSnap, hProcess;
 	PROCESSENTRY32		pe32;
@@ -458,10 +470,12 @@ int	PROC_INFO(AGENT_REQUEST *request, AGENT_RESULT *result)
 static void	proc_data_free(proc_data_t *proc_data)
 {
 	zbx_free(proc_data->name);
+	zbx_free(proc_data->user);
+	zbx_free(proc_data->sid);
 	zbx_free(proc_data);
 }
 
-int	PROC_GET(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	proc_get(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 #define SUM_PROC_VALUE_DBL(param)					\
 	do								\
@@ -472,13 +486,14 @@ int	PROC_GET(AGENT_REQUEST *request, AGENT_RESULT *result)
 			proc_data->param = -1.0;			\
 	} while(0)
 
-	int				zbx_proc_mode, i;
+	int				zbx_proc_mode;
 	struct zbx_json			j;
 	HANDLE				hProcessSnap, hThreadSnap;
 	PROCESSENTRY32			pe32;
 	DWORD				access;
 	const OSVERSIONINFOEX		*vi;
-	char				*param, *procName, *userName, *procComm, baseName[MAX_PATH], uname[MAX_NAME];
+	char				*param, *procName, *userName, *procComm, baseName[MAX_PATH], uname[MAX_NAME],
+					sid[MAX_NAME];
 	proc_data_t			*proc_data;
 	zbx_vector_proc_data_ptr_t	proc_data_ctx;
 
@@ -552,6 +567,7 @@ int	PROC_GET(AGENT_REQUEST *request, AGENT_RESULT *result)
 	do
 	{
 		HANDLE	hProcess;
+		int	ret_usr;
 
 		zbx_unicode_to_utf8_static(pe32.szExeFile, baseName, MAX_NAME);
 
@@ -561,11 +577,10 @@ int	PROC_GET(AGENT_REQUEST *request, AGENT_RESULT *result)
 		if (NULL == (hProcess = OpenProcess(access, FALSE, pe32.th32ProcessID)))
 			continue;
 
-		if (NULL != userName && '\0' != *userName && (SUCCEED != zbx_get_process_username(hProcess, uname) ||
-				0 != stricmp(uname, userName)))
-		{
+		ret_usr = zbx_get_process_username(hProcess, uname, sid);
+
+		if (NULL != userName && '\0' != *userName && (SUCCEED != ret_usr || 0 != stricmp(uname, userName)))
 			goto next;
-		}
 
 		if (ZBX_PROC_MODE_THREAD == zbx_proc_mode)
 		{
@@ -586,6 +601,8 @@ int	PROC_GET(AGENT_REQUEST *request, AGENT_RESULT *result)
 					proc_data->ppid = pe32.th32ParentProcessID;
 					proc_data->name = zbx_strdup(NULL, baseName);
 					proc_data->tid = te32.th32ThreadID;
+					proc_data->sid = zbx_strdup(NULL, SUCCEED == ret_usr ? sid : "-1");
+					proc_data->user = zbx_strdup(NULL, SUCCEED == ret_usr ? uname : "-1");
 
 					zbx_vector_proc_data_ptr_append(&proc_data_ctx, proc_data);
 				}
@@ -605,6 +622,8 @@ int	PROC_GET(AGENT_REQUEST *request, AGENT_RESULT *result)
 			proc_data->ppid = pe32.th32ParentProcessID;
 			proc_data->name = zbx_strdup(NULL, baseName);
 			proc_data->threads = pe32.cntThreads;
+			proc_data->sid = zbx_strdup(NULL, SUCCEED == ret_usr ? sid : "-1");
+			proc_data->user = zbx_strdup(NULL, SUCCEED == ret_usr ? uname : "-1");
 
 			if (FALSE != GetProcessHandleCount(hProcess, &handleCount))
 				proc_data->handles = (zbx_uint64_t)handleCount;
@@ -628,8 +647,8 @@ int	PROC_GET(AGENT_REQUEST *request, AGENT_RESULT *result)
 			else
 				proc_data->cputime_system = proc_data->cputime_user = -1.0;
 
-			if (NULL != zbx_GetProcessIoCounters &&
-					FALSE != zbx_GetProcessIoCounters(hProcess, &ioCounters))
+			if (NULL != zbx_get_GetProcessIoCounters() &&
+					FALSE != (*zbx_get_GetProcessIoCounters())(hProcess, &ioCounters))
 			{
 				proc_data->io_read_b = (double)((__int64)ioCounters.ReadTransferCount);
 				proc_data->io_read_op = (double)((__int64)ioCounters.ReadOperationCount);
@@ -659,14 +678,12 @@ next:
 
 	if (ZBX_PROC_MODE_SUMMARY == zbx_proc_mode)
 	{
-		int	k;
-
-		for (i = 0; i < proc_data_ctx.values_num; i++)
+		for (int i = 0; i < proc_data_ctx.values_num; i++)
 		{
 			proc_data = proc_data_ctx.values[i];
 			proc_data->processes = 1;
 
-			for (k = i + 1; k < proc_data_ctx.values_num; k++)
+			for (int k = i + 1; k < proc_data_ctx.values_num; k++)
 			{
 				proc_data_t	*pdata_cmp = proc_data_ctx.values[k];
 
@@ -701,7 +718,7 @@ next:
 
 	zbx_json_initarray(&j, ZBX_JSON_STAT_BUF_LEN);
 
-	for (i = 0; i < proc_data_ctx.values_num; i++)
+	for (int i = 0; i < proc_data_ctx.values_num; i++)
 	{
 		proc_data = proc_data_ctx.values[i];
 
@@ -715,7 +732,12 @@ next:
 
 		zbx_json_addstring(&j, "name", proc_data->name, ZBX_JSON_TYPE_STRING);
 
-		if (ZBX_PROC_MODE_SUMMARY == zbx_proc_mode)
+		if (ZBX_PROC_MODE_SUMMARY != zbx_proc_mode)
+		{
+			zbx_json_addstring(&j, "user", proc_data->user, ZBX_JSON_TYPE_STRING);
+			zbx_json_addstring(&j, "sid", proc_data->sid, ZBX_JSON_TYPE_STRING);
+		}
+		else
 			zbx_json_adduint64(&j, "processes", proc_data->processes);
 
 		if (ZBX_PROC_MODE_THREAD != zbx_proc_mode)

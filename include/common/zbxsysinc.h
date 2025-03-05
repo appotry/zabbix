@@ -1,20 +1,15 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 #ifndef ZABBIX_SYSINC_H
@@ -130,10 +125,6 @@
 #	include <sys/times.h>
 #endif
 
-#ifdef HAVE_LINUX_KERNEL_H
-#	include <linux/kernel.h>
-#endif
-
 #ifdef HAVE_ARPA_NAMESER_H
 #	ifdef MAC_OS_X
 #		define BIND_8_COMPAT 1
@@ -155,10 +146,6 @@
 
 #ifdef HAVE_FCNTL_H
 #	include <fcntl.h>
-#endif
-
-#ifdef HAVE_KNLIST_H
-#	include <knlist.h>
 #endif
 
 #ifdef HAVE_KSTAT_H
@@ -184,11 +171,10 @@
 #	include <mach/mach_host.h>
 #endif
 
-#ifdef HAVE_MTENT_H
-#	include <mtent.h>
-#endif
-
 #ifdef HAVE_NETDB_H
+#if defined(_AIX)       /* AIX 5.1 needs this to get hstrerror() declaration */
+#define _USE_IRS
+#endif
 #	include <netdb.h>
 #endif
 
@@ -343,16 +329,8 @@
 #	include <sys/shm.h>
 #endif
 
-#ifdef HAVE_SYS_FILE_H
-#	include <sys/file.h>
-#endif
-
 #ifdef HAVE_MATH_H
 #	include <math.h>
-#endif
-
-#ifdef HAVE_PCRE_H
-#	include <pcre.h>
 #endif
 
 #ifdef HAVE_PCRE2_H
@@ -387,21 +365,6 @@
 
 #ifdef HAVE_LIBCURL
 #	include <curl/curl.h>
-#	if !defined(HAVE_FUNCTION_CURL_EASY_ESCAPE)
-#		define curl_easy_escape(handle, string, length) curl_escape(string, length)
-#	endif
-#	if 0x071004 >= LIBCURL_VERSION_NUM	/* version 7.16.4 */
-#		define CURLOPT_KEYPASSWD	CURLOPT_SSLKEYPASSWD
-#	endif
-#	if 0x071400 <= LIBCURL_VERSION_NUM	/* version 7.20.0 */
-#		define HAVE_SMTP_AUTHENTICATION	1
-#	endif
-#	if 0x071501 <= LIBCURL_VERSION_NUM	/* version 7.21.6 */
-#		define ZBX_CURLOPT_ACCEPT_ENCODING	CURLOPT_ACCEPT_ENCODING
-#	else
-#		define ZBX_CURLOPT_ACCEPT_ENCODING	CURLOPT_ENCODING
-#	endif
-#	define ZBX_CURLOPT_MAXREDIRS	10L
 #endif
 
 /* Required for advanced sigaction */
@@ -440,6 +403,22 @@
 
 #ifdef HAVE_FLOAT_H
 #	include <float.h>
+#endif
+
+#ifdef HAVE_SYS_UTSNAME_H
+#	include <sys/utsname.h>
+#endif
+
+#ifdef HAVE_POLL_H
+#	include <poll.h>
+#endif
+
+#ifdef HAVE_MALLOC_H
+#	include"malloc.h"
+#endif
+
+#ifdef HAVE_LIBGEN_H
+#	include <libgen.h>
 #endif
 
 #endif

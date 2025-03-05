@@ -1,20 +1,15 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 #include "zbxmocktest.h"
@@ -23,10 +18,11 @@
 #include "zbxmockutil.h"
 #include "zbxalgo.h"
 #include "zbxself.h"
+#include "../../../src/zabbix_server/server_constants.h"
 
 #include "mock_service.h"
 
-zbx_uint64_t __wrap_DCget_nextid(const char *table_name, int num);
+zbx_uint64_t __wrap_zbx_dc_get_nextid(const char *table_name, int num);
 void	*__wrap_zbx_add_event(unsigned char source, unsigned char object, zbx_uint64_t objectid,
 		const zbx_timespec_t *timespec, int value, const char *trigger_description,
 		const char *trigger_expression, const char *trigger_recovery_expression, unsigned char trigger_priority,
@@ -36,34 +32,26 @@ void	*__wrap_zbx_add_event(unsigned char source, unsigned char object, zbx_uint6
 int	__wrap_zbx_process_events(zbx_vector_ptr_t *trigger_diff, zbx_vector_uint64_t *triggerids_lock);
 void	__wrap_zbx_clean_events(void);
 int	__wrap_zbx_interface_availability_is_set(const void *ia);
+void	__wrap_zbx_rtc_subscribe(unsigned char proc_type, int proc_num, zbx_uint32_t *msgs, int msgs_num,
+		int config_timeout, void *rtc);
+void	__wrap_zbx_rtc_notify_finished_sync(int config_timeout, zbx_uint32_t code, const char *process_name,
+		void *rtc);
+void	__wrap_zbx_dc_set_itservices_num(int num);
 
+void	__wrap_zbx_dc_set_itservices_num(int num)
+{
+	ZBX_UNUSED(num);
+}
 
 /* stubs to satisfy hard link dependenceies */
-
-int	get_process_info_by_thread(int local_server_num, unsigned char *local_process_type, int *local_process_num);
-
-int	CONFIG_SERVICEMAN_SYNC_FREQUENCY = 0;
 
 pid_t	*threads;
 int	threads_num;
 
-void	update_selfmon_counter(unsigned char state)
+void	zbx_update_selfmon_counter(const zbx_thread_info_t *info, unsigned char state)
 {
 	ZBX_UNUSED(state);
-}
-
-int	get_process_info_by_thread(int local_server_num, unsigned char *local_process_type, int *local_process_num)
-{
-	ZBX_UNUSED(local_server_num);
-	ZBX_UNUSED(local_process_type);
-	ZBX_UNUSED(local_process_num);
-	return 0;
-}
-
-int	MAIN_ZABBIX_ENTRY(int flags)
-{
-	ZBX_UNUSED(flags);
-	return 0;
+	ZBX_UNUSED(info);
 }
 
 /* service tree mock */
@@ -123,12 +111,12 @@ void	mock_init_service_cache(const char *path)
 		service_local.name = zbx_strdup(NULL, zbx_mock_get_object_member_string(hservice, "name"));
 		service = (zbx_service_t *)zbx_hashset_insert(&cache.services, &service_local, sizeof(service_local));
 
-		zbx_vector_ptr_create(&service->children);
-		zbx_vector_ptr_create(&service->parents);
-		zbx_vector_ptr_create(&service->service_problem_tags);
-		zbx_vector_ptr_create(&service->service_problems);
-		zbx_vector_ptr_create(&service->status_rules);
-		zbx_vector_ptr_create(&service->tags);
+		zbx_vector_service_ptr_create(&service->children);
+		zbx_vector_service_ptr_create(&service->parents);
+		zbx_vector_service_problem_tag_ptr_create(&service->service_problem_tags);
+		zbx_vector_service_problem_ptr_create(&service->service_problems);
+		zbx_vector_service_rule_ptr_create(&service->status_rules);
+		zbx_vector_service_tag_ptr_create(&service->tags);
 
 		service->status = zbx_mock_get_object_member_int(hservice, "status");
 
@@ -217,7 +205,7 @@ void	mock_init_service_cache(const char *path)
 				rule->limit_status = zbx_mock_get_object_member_int(hrule, "limit");
 				rule->limit_value = zbx_mock_get_object_member_int(hrule, "value");
 				rule->new_status = zbx_mock_get_object_member_int(hrule, "status");
-				zbx_vector_ptr_append(&service->status_rules, rule);
+				zbx_vector_service_rule_ptr_append(&service->status_rules, rule);
 			}
 		}
 
@@ -234,7 +222,7 @@ void	mock_init_service_cache(const char *path)
 				memset(problem, 0, sizeof(zbx_service_problem_t));
 				problem->eventid = zbx_mock_get_object_member_uint64(hevent, "id");
 				problem->severity = zbx_mock_get_object_member_int(hevent, "severity");
-				zbx_vector_ptr_append(&service->service_problems, problem);
+				zbx_vector_service_problem_ptr_append(&service->service_problems, problem);
 			}
 		}
 
@@ -265,8 +253,8 @@ void	mock_init_service_cache(const char *path)
 							value);
 				}
 
-				zbx_vector_ptr_append(&service->children, child);
-				zbx_vector_ptr_append(&child->parents, service);
+				zbx_vector_service_ptr_append(&service->children, child);
+				zbx_vector_service_ptr_append(&child->parents, service);
 			}
 		}
 
@@ -283,8 +271,8 @@ void	mock_init_service_cache(const char *path)
 							value);
 				}
 
-				zbx_vector_ptr_append(&service->parents, parent);
-				zbx_vector_ptr_append(&parent->children, service);
+				zbx_vector_service_ptr_append(&service->parents, parent);
+				zbx_vector_service_ptr_append(&parent->children, service);
 			}
 		}
 
@@ -296,11 +284,11 @@ void	mock_init_service_cache(const char *path)
 	/* remove duplicate parent/children references */
 	while (NULL != (service = (zbx_service_t *)zbx_hashset_iter_next(&iter)))
 	{
-		zbx_vector_ptr_sort(&service->parents, ZBX_DEFAULT_PTR_COMPARE_FUNC);
-		zbx_vector_ptr_uniq(&service->parents, ZBX_DEFAULT_PTR_COMPARE_FUNC);
+		zbx_vector_service_ptr_sort(&service->parents, ZBX_DEFAULT_PTR_COMPARE_FUNC);
+		zbx_vector_service_ptr_uniq(&service->parents, ZBX_DEFAULT_PTR_COMPARE_FUNC);
 
-		zbx_vector_ptr_sort(&service->children, ZBX_DEFAULT_PTR_COMPARE_FUNC);
-		zbx_vector_ptr_uniq(&service->children, ZBX_DEFAULT_PTR_COMPARE_FUNC);
+		zbx_vector_service_ptr_sort(&service->children, ZBX_DEFAULT_PTR_COMPARE_FUNC);
+		zbx_vector_service_ptr_uniq(&service->children, ZBX_DEFAULT_PTR_COMPARE_FUNC);
 	}
 }
 
@@ -313,14 +301,14 @@ void	mock_destroy_service_cache(void)
 
 	while (NULL != (service = (zbx_service_t *)zbx_hashset_iter_next(&iter)))
 	{
-		zbx_vector_ptr_destroy(&service->children);
-		zbx_vector_ptr_destroy(&service->parents);
-		zbx_vector_ptr_destroy(&service->service_problem_tags);
-		zbx_vector_ptr_destroy(&service->tags);
-		zbx_vector_ptr_clear_ext(&service->service_problems, zbx_ptr_free);
-		zbx_vector_ptr_destroy(&service->service_problems);
-		zbx_vector_ptr_clear_ext(&service->status_rules, zbx_ptr_free);
-		zbx_vector_ptr_destroy(&service->status_rules);
+		zbx_vector_service_ptr_destroy(&service->children);
+		zbx_vector_service_ptr_destroy(&service->parents);
+		zbx_vector_service_problem_tag_ptr_destroy(&service->service_problem_tags);
+		zbx_vector_service_tag_ptr_destroy(&service->tags);
+		zbx_vector_service_problem_ptr_clear_ext(&service->service_problems, zbx_service_problem_free);
+		zbx_vector_service_problem_ptr_destroy(&service->service_problems);
+		zbx_vector_service_rule_ptr_clear_ext(&service->status_rules, zbx_service_rule_free);
+		zbx_vector_service_rule_ptr_destroy(&service->status_rules);
 
 		zbx_free(service->name);
 	}
@@ -330,7 +318,7 @@ void	mock_destroy_service_cache(void)
 
 /* function stubs to cut off library dependencies */
 
-zbx_uint64_t	__wrap_DCget_nextid(const char *table_name, int num)
+zbx_uint64_t	__wrap_zbx_dc_get_nextid(const char *table_name, int num)
 {
 	ZBX_UNUSED(table_name);
 	ZBX_UNUSED(num);
@@ -385,4 +373,23 @@ int	__wrap_zbx_interface_availability_is_set(const void *ia)
 	return FAIL;
 }
 
+void	__wrap_zbx_rtc_subscribe(unsigned char proc_type, int proc_num, zbx_uint32_t *msgs, int msgs_num,
+		int config_timeout, void *rtc)
+{
+	ZBX_UNUSED(proc_type);
+	ZBX_UNUSED(proc_num);
+	ZBX_UNUSED(msgs);
+	ZBX_UNUSED(msgs_num);
+	ZBX_UNUSED(config_timeout);
+	ZBX_UNUSED(rtc);
+}
+
+void	__wrap_zbx_rtc_notify_finished_sync(int config_timeout, zbx_uint32_t code, const char *process_name,
+		void *rtc)
+{
+	ZBX_UNUSED(config_timeout);
+	ZBX_UNUSED(code);
+	ZBX_UNUSED(process_name);
+	ZBX_UNUSED(rtc);
+}
 

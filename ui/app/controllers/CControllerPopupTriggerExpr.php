@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -45,7 +40,7 @@ class CControllerPopupTriggerExpr extends CController {
 	private $period_seasons = [];
 
 	protected function init() {
-		$this->disableSIDvalidation();
+		$this->disableCsrfValidation();
 
 		$this->metrics = [
 			PARAM_TYPE_TIME => _('Time'),
@@ -364,7 +359,7 @@ class CControllerPopupTriggerExpr extends CController {
 			],
 			'atan2' => [
 				'types' => [ZBX_FUNCTION_TYPE_MATH],
-				'description' => _('atan2() - The arctangent of the ordinate (exprue) and abscissa coordinates specified as an angle, expressed in radians'),
+				'description' => _('atan2() - The arctangent of the ordinate (value) and abscissa coordinates specified as an angle, expressed in radians'),
 				'params' => $this->param1SecCount + [
 					'abscissa' => [
 						'C' => _('Abscissa'),
@@ -626,6 +621,13 @@ class CControllerPopupTriggerExpr extends CController {
 				'allowed_types' => $this->allowedTypesAny,
 				'operators' => $this->operators
 			],
+			'firstclock' => [
+				'types' => [ZBX_FUNCTION_TYPE_HISTORY],
+				'description' => _('firstclock() - Timestamp of the oldest value in the specified time interval'),
+				'params' => $this->param1Sec + $this->period_optional,
+				'allowed_types' => $this->allowedTypesAny,
+				'operators' => $this->operators
+			],
 			'floor' => [
 				'types' => [ZBX_FUNCTION_TYPE_MATH],
 				'description' => _('floor() - Rounds down to the nearest smaller integer'),
@@ -683,6 +685,35 @@ class CControllerPopupTriggerExpr extends CController {
 				'allowed_types' => $this->allowedTypesStr,
 				'operators' => $this->operators
 			],
+			'jsonpath' => [
+				'types' => [ZBX_FUNCTION_TYPE_STRING],
+				'description' => _('jsonpath() - Returns JSONPath result'),
+				'params' => [
+					'last' => [
+						'C' => _('Last of').' (T)',
+						'T' => T_ZBX_INT,
+						'M' => [PARAM_TYPE_COUNTS => _('Count')],
+						'A' => false
+					],
+					'shift' => [
+						'C' => _('Time shift'),
+						'T' => T_ZBX_INT,
+						'A' => false
+					],
+					'path' => [
+						'C' => _('JSONPath'),
+						'T' => T_ZBX_STR,
+						'A' => true
+					],
+					'replace' => [
+						'C' => _('Default'),
+						'T' => T_ZBX_STR,
+						'A' => false
+					]
+				],
+				'allowed_types' => $this->allowedTypesStr,
+				'operators' => $this->operators
+			],
 			'kurtosis' => [
 				'types' => [ZBX_FUNCTION_TYPE_AGGREGATE],
 				'description' => _('kurtosis() - Measures the "tailedness" of the probability distribution'),
@@ -693,6 +724,13 @@ class CControllerPopupTriggerExpr extends CController {
 			'last' => [
 				'types' => [ZBX_FUNCTION_TYPE_HISTORY],
 				'description' => _('last() - Last (most recent) T value'),
+				'params' => $this->param1SecCount,
+				'allowed_types' => $this->allowedTypesAny,
+				'operators' => $this->operators
+			],
+			'lastclock' => [
+				'types' => [ZBX_FUNCTION_TYPE_HISTORY],
+				'description' => _('lastclock() - Timestamp of the last (most recent) T value'),
 				'params' => $this->param1SecCount,
 				'allowed_types' => $this->allowedTypesAny,
 				'operators' => $this->operators
@@ -751,6 +789,13 @@ class CControllerPopupTriggerExpr extends CController {
 				'params' => $this->period_optional + $this->param1Str,
 				'allowed_types' => $this->allowedTypesLog,
 				'operators' => ['=', '<>']
+			],
+			'logtimestamp' => [
+				'types' => [ZBX_FUNCTION_TYPE_HISTORY],
+				'description' => _('logtimestamp() - Timestamp of the last (most recent) T log message'),
+				'params' => $this->period_optional,
+				'allowed_types' => $this->allowedTypesLog,
+				'operators' => $this->operators
 			],
 			'ltrim' => [
 				'types' => [ZBX_FUNCTION_TYPE_STRING],
@@ -1172,6 +1217,35 @@ class CControllerPopupTriggerExpr extends CController {
 				'params' => $this->param1SecCount,
 				'allowed_types' => $this->allowedTypesNumeric,
 				'operators' => $this->operators
+			],
+			'xmlxpath' => [
+				'types' => [ZBX_FUNCTION_TYPE_STRING],
+				'description' => _('xmlxpath() - Returns XML XPath result'),
+				'params' => [
+					'last' => [
+						'C' => _('Last of').' (T)',
+						'T' => T_ZBX_INT,
+						'M' => [PARAM_TYPE_COUNTS => _('Count')],
+						'A' => false
+					],
+					'shift' => [
+						'C' => _('Time shift'),
+						'T' => T_ZBX_INT,
+						'A' => false
+					],
+					'path' => [
+						'C' => _('XPath'),
+						'T' => T_ZBX_STR,
+						'A' => true
+					],
+					'replace' => [
+						'C' => _('Default'),
+						'T' => T_ZBX_STR,
+						'A' => false
+					]
+				],
+				'allowed_types' => $this->allowedTypesStr,
+				'operators' => $this->operators
 			]
 		];
 
@@ -1182,6 +1256,7 @@ class CControllerPopupTriggerExpr extends CController {
 		$fields = [
 			'dstfrm' =>				'string|fatal',
 			'dstfld1' =>			'string|not_empty',
+			'context' =>			'required|string|in host,template',
 			'expression' =>			'string',
 			'itemid' =>				'db items.itemid',
 			'parent_discoveryid' =>	'db items.itemid',
@@ -1236,8 +1311,6 @@ class CControllerPopupTriggerExpr extends CController {
 
 		// Opening the popup when editing an expression in the trigger constructor.
 		if (($dstfld1 === 'expr_temp' || $dstfld1 === 'recovery_expr_temp') && $expression !== '') {
-			$expression = utf8RawUrlDecode($expression);
-
 			if ($expression_parser->parse($expression) == CParser::PARSE_SUCCESS) {
 				$math_function_token = null;
 				$hist_function_token = null;
@@ -1394,6 +1467,10 @@ class CControllerPopupTriggerExpr extends CController {
 		}
 
 		if ($item) {
+			if ($item['value_type'] == ITEM_VALUE_TYPE_BINARY) {
+				throw new Exception(_s('Binary item "%1$s" cannot be used in trigger', $item['key_']));
+			}
+
 			$itemid = $item['itemid'];
 			$item_value_type = $item['value_type'];
 			$item_key = $item['key_'];
@@ -1421,6 +1498,7 @@ class CControllerPopupTriggerExpr extends CController {
 			'parent_discoveryid' => $this->getInput('parent_discoveryid', ''),
 			'dstfrm' => $this->getInput('dstfrm'),
 			'dstfld1' => $dstfld1,
+			'context' => $this->getInput('context'),
 			'itemid' => $itemid,
 			'value' => $value,
 			'params' => $params,
@@ -1429,7 +1507,9 @@ class CControllerPopupTriggerExpr extends CController {
 			'item_required' => !in_array($function, array_merge(getStandaloneFunctions(), getFunctionsConstants())),
 			'functions' => $this->functions,
 			'function' => $function,
-			'function_type' => reset($this->functions[$function]['types']),
+			'function_type' => array_key_exists($function, $this->functions)
+				? reset($this->functions[$function]['types'])
+				: null,
 			'operator' => $operator,
 			'item_key' => $item_key,
 			'itemValueType' => $item_value_type,
@@ -1487,6 +1567,7 @@ class CControllerPopupTriggerExpr extends CController {
 						'mode',
 						'o',
 						'pattern',
+						'path',
 						'replace',
 						'season_unit',
 						'string',
@@ -1496,7 +1577,7 @@ class CControllerPopupTriggerExpr extends CController {
 					$quote_params = array_filter($quote_params, 'strlen');
 
 					foreach ($quote_params as $param_key => $param) {
-						$data['params'][$param_key] = quoteFunctionParam($param, true);
+						$data['params'][$param_key] = CExpressionParser::quoteString($param);
 					}
 
 					// Combine sec|#num and <time_shift|period_shift> parameters into one.
@@ -1522,9 +1603,9 @@ class CControllerPopupTriggerExpr extends CController {
 					$last_functions = [
 						'abs', 'acos', 'ascii', 'asin', 'atan', 'atan2', 'between', 'bitand', 'bitlength', 'bitlshift',
 						'bitnot', 'bitor', 'bitrshift', 'bitxor', 'bytelength', 'cbrt', 'ceil', 'char', 'concat', 'cos',
-						'cosh', 'cot', 'degrees', 'exp', 'expm1', 'floor', 'in', 'insert', 'left', 'length', 'log', 'log10',
-						'ltrim', 'mid', 'mod', 'power', 'radians', 'repeat', 'replace', 'right', 'round', 'signum',
-						'sin', 'sinh', 'sqrt', 'tan', 'trim', 'truncate'
+						'cosh', 'cot', 'degrees', 'exp', 'expm1', 'floor', 'in', 'insert', 'jsonpath', 'left', 'length',
+						'log', 'log10', 'ltrim', 'mid', 'mod', 'power', 'radians', 'repeat', 'replace', 'right', 'round',
+						'signum', 'sin', 'sinh', 'sqrt', 'tan', 'trim', 'truncate', 'xmlxpath'
 					];
 
 					if (in_array($function, $last_functions)) {

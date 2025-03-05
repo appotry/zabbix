@@ -1,50 +1,42 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
+
+use Zabbix\Core\{
+	CModule,
+	CWidget
+};
+
+use Zabbix\Widgets\CWidgetField;
 
 class CDashboardHelper {
 
 	/**
 	 * Get dashboard owner name.
-	 *
-	 * @static
-	 *
-	 * @param string $userid
-	 *
-	 * @return string
 	 */
-	public static function getOwnerName($userid): string {
+	public static function getOwnerName(string $userid): string {
 		$users = API::User()->get([
 			'output' => ['name', 'surname', 'username'],
 			'userids' => $userid
 		]);
 
-		$name = $users ? getUserFullname($users[0]) : _('Inaccessible user');
-
-		return $name;
+		return $users ? getUserFullname($users[0]) : _('Inaccessible user');
 	}
 
 	/**
 	 * Update editable flag.
-	 *
-	 * @static
 	 *
 	 * @param array $dashboards  An associative array of the dashboards.
 	 */
@@ -63,103 +55,134 @@ class CDashboardHelper {
 	}
 
 	/**
-	 * Prepare widget pages for dashboard grid.
+	 * Prepare dashboard pages and widgets for the presentation.
 	 *
-	 * @static
-	 *
-	 * @param array  $pages
-	 * @param string $templateid
-	 * @param bool   $with_rf_rate
+	 * @param array       $pages         Dashboard pages with widgets as returned by the dashboard API.
+	 * @param string|null $templateid    Template ID, if used.
+	 * @param bool        $with_rf_rate  Supply refresh rates for widgets, for the current user.
 	 *
 	 * @return array
 	 */
-	public static function preparePagesForGrid(array $pages, ?string $templateid, bool $with_rf_rate): array {
-		if (!$pages) {
-			return [];
-		}
-
-		$grid_pages = [];
-
-		$context = ($templateid === null)
-			? CWidgetConfig::CONTEXT_DASHBOARD
-			: CWidgetConfig::CONTEXT_TEMPLATE_DASHBOARD;
-
-		$known_widget_types = array_keys(CWidgetConfig::getKnownWidgetTypes($context));
+	public static function preparePages(array $pages, ?string $templateid, bool $with_rf_rate): array {
+		$prepared_pages = [];
 
 		foreach ($pages as $page) {
-			$grid_page_widgets = [];
+			$prepared_widgets = [];
 
 			CArrayHelper::sort($page['widgets'], ['y', 'x']);
 
-			foreach ($page['widgets'] as $widget) {
-				if (!in_array($widget['type'], $known_widget_types)) {
-					continue;
-				}
+			foreach ($page['widgets'] as $widget_data) {
+				$prepared_widget = [
+					'widgetid' => $widget_data['widgetid'],
+					'type' => $widget_data['type'],
+					'name' => $widget_data['name'],
+					'view_mode' => (int) $widget_data['view_mode'],
+					'pos' => [
+						'x' => (int) $widget_data['x'],
+						'y' => (int) $widget_data['y'],
+						'width' => (int) $widget_data['width'],
+						'height' => (int) $widget_data['height']
+					],
+					'rf_rate' => 0,
+					'fields' => [],
+					'messages' => []
+				];
 
-				$widgetid = $widget['widgetid'];
-				$fields_orig = self::convertWidgetFields($widget['fields']);
+				/** @var CWidget $widget */
+				$widget = APP::ModuleManager()->getModule($widget_data['type']);
 
-				// Transforms corrupted data to default values.
-				$widget_form = CWidgetConfig::getForm($widget['type'], json_encode($fields_orig), $templateid);
-				$widget_form->validate();
-				$fields = $widget_form->getFieldsData();
+				if ($widget !== null && $widget->getType() === CModule::TYPE_WIDGET) {
+					$form = $widget->getForm(self::constructWidgetFields($widget_data['fields']), $templateid);
 
-				if ($with_rf_rate) {
-					$rf_rate = (int) CProfile::get('web.dashboard.widget.rf_rate', -1, $widgetid);
+					$prepared_widget['messages'] = $form->validate();
+					$prepared_widget['fields'] = $form->getFieldsValues();
 
-					if ($rf_rate == -1) {
-						if ($context === CWidgetConfig::CONTEXT_DASHBOARD) {
-							$rf_rate = ($fields['rf_rate'] == -1)
-								? CWidgetConfig::getDefaultRfRate($widget['type'])
-								: $fields['rf_rate'];
+					if ($with_rf_rate) {
+						$rf_rate = (int) CProfile::get('web.dashboard.widget.rf_rate', -1, $widget_data['widgetid']);
+
+						if ($rf_rate == -1) {
+							$rf_rate = $prepared_widget['fields']['rf_rate'] == -1
+								? $widget->getDefaultRefreshRate()
+								: $prepared_widget['fields']['rf_rate'];
 						}
-						else {
-							$rf_rate = CWidgetConfig::getDefaultRfRate($widget['type']);
-						}
+
+						$prepared_widget['rf_rate'] = $rf_rate;
 					}
 				}
-				else {
-					$rf_rate = 0;
-				}
 
-				$grid_page_widgets[] = [
-					'widgetid' => $widgetid,
-					'type' => $widget['type'],
-					'name' => $widget['name'],
-					'view_mode' => $widget['view_mode'],
-					'pos' => [
-						'x' => (int) $widget['x'],
-						'y' => (int) $widget['y'],
-						'width' => (int) $widget['width'],
-						'height' => (int) $widget['height']
-					],
-					'rf_rate' => $rf_rate,
-					'fields' => $fields_orig,
-					'configuration' => CWidgetConfig::getConfiguration($widget['type'], $fields, $widget['view_mode'])
-				];
+				$prepared_widgets[] = $prepared_widget;
 			}
 
-			$grid_pages[] = [
+			$prepared_pages[] = [
 				'dashboard_pageid' => $page['dashboard_pageid'],
 				'name' => $page['name'],
 				'display_period' => $page['display_period'],
-				'widgets' => $grid_page_widgets
+				'widgets' => $prepared_widgets
 			];
 		}
 
-		return $grid_pages;
+		return $prepared_pages;
 	}
 
 	/**
-	 * Get widget pages with inaccessible fields unset.
+	 * Get dashboard data source requirements.
 	 *
-	 * @static
+	 * @param array $prepared_pages  Dashboard pages, prepared and validated using preparePages method.
 	 *
-	 * @param array $pages
-	 * @param array $pages[]['widgets']
-	 * @param array $pages[]['widgets'][]['fields']
-	 * @param array $pages[]['widgets'][]['fields'][]['type']
-	 * @param array $pages[]['widgets'][]['fields'][]['value']
+	 * @return array
+	 */
+	public static function getBroadcastRequirements(array $prepared_pages): array {
+		$requirements = [];
+
+		foreach ($prepared_pages as $prepared_page) {
+			foreach ($prepared_page['widgets'] as $widget_data) {
+				foreach ($widget_data['fields'] as $field) {
+					if (!is_array($field)) {
+						continue;
+					}
+
+					$objects = [$field];
+
+					while ($objects) {
+						$objects_next = [];
+
+						foreach ($objects as $object) {
+							if (array_key_exists(CWidgetField::FOREIGN_REFERENCE_KEY, $object)) {
+								[
+									'reference' => $reference,
+									'type' => $type
+								] = CWidgetField::parseTypedReference($object[CWidgetField::FOREIGN_REFERENCE_KEY]);
+
+								if ($reference === CWidgetField::REFERENCE_DASHBOARD) {
+									$requirements[$type] = true;
+								}
+							}
+							else {
+								foreach ($object as $object_next) {
+									if (is_array($object_next)) {
+										$objects_next[] = $object_next;
+									}
+								}
+							}
+
+							$objects = $objects_next;
+						}
+					}
+				}
+			}
+		}
+
+		return $requirements;
+	}
+
+	/**
+	 * Unset widget fields referring to inaccessible objects.
+	 *
+	 * @param array $pages  Dashboard pages with widgets, as returned by the dashboard API.
+	 *        array $pages[]['widgets']
+	 *        array $pages[]['widgets'][]['fields']
+	 *        array $pages[]['widgets'][]['fields'][]['type']
+	 *        array $pages[]['widgets'][]['fields'][]['value']
 	 *
 	 * @return array
 	 */
@@ -173,7 +196,10 @@ class CDashboardHelper {
 			ZBX_WIDGET_FIELD_TYPE_GRAPH_PROTOTYPE => [],
 			ZBX_WIDGET_FIELD_TYPE_MAP => [],
 			ZBX_WIDGET_FIELD_TYPE_SERVICE => [],
-			ZBX_WIDGET_FIELD_TYPE_SLA => []
+			ZBX_WIDGET_FIELD_TYPE_SLA => [],
+			ZBX_WIDGET_FIELD_TYPE_USER => [],
+			ZBX_WIDGET_FIELD_TYPE_ACTION => [],
+			ZBX_WIDGET_FIELD_TYPE_MEDIA_TYPE => []
 		];
 
 		foreach ($pages as $p_index => $page) {
@@ -315,6 +341,48 @@ class CDashboardHelper {
 			}
 		}
 
+		if ($ids[ZBX_WIDGET_FIELD_TYPE_USER]) {
+			$db_users = API::User()->get([
+				'output' => [],
+				'userids' => array_keys($ids[ZBX_WIDGET_FIELD_TYPE_USER]),
+				'preservekeys' => true
+			]);
+
+			foreach ($ids[ZBX_WIDGET_FIELD_TYPE_USER] as $userid => $indexes) {
+				if (!array_key_exists($userid, $db_users)) {
+					$inaccessible_indexes = array_merge($inaccessible_indexes, $indexes);
+				}
+			}
+		}
+
+		if ($ids[ZBX_WIDGET_FIELD_TYPE_ACTION]) {
+			$db_actions = API::Action()->get([
+				'output' => [],
+				'actionids' => array_keys($ids[ZBX_WIDGET_FIELD_TYPE_ACTION]),
+				'preservekeys' => true
+			]);
+
+			foreach ($ids[ZBX_WIDGET_FIELD_TYPE_ACTION] as $actionid => $indexes) {
+				if (!array_key_exists($actionid, $db_actions)) {
+					$inaccessible_indexes = array_merge($inaccessible_indexes, $indexes);
+				}
+			}
+		}
+
+		if ($ids[ZBX_WIDGET_FIELD_TYPE_MEDIA_TYPE]) {
+			$db_media_types = API::MediaType()->get([
+				'output' => [],
+				'mediatypeids' => array_keys($ids[ZBX_WIDGET_FIELD_TYPE_MEDIA_TYPE]),
+				'preservekeys' => true
+			]);
+
+			foreach ($ids[ZBX_WIDGET_FIELD_TYPE_MEDIA_TYPE] as $mediatypeid => $indexes) {
+				if (!array_key_exists($mediatypeid, $db_media_types)) {
+					$inaccessible_indexes = array_merge($inaccessible_indexes, $indexes);
+				}
+			}
+		}
+
 		foreach ($inaccessible_indexes as $index) {
 			unset($pages[$index['p']]['widgets'][$index['w']]['fields'][$index['f']]);
 		}
@@ -323,55 +391,93 @@ class CDashboardHelper {
 	}
 
 	/**
-	 * Converts fields, received from API to key/value format.
+	 * Construct widget fields from widget field data returned by the dashboards API.
 	 *
-	 * @static
-	 *
-	 * @param array $fields  fields as received from API
+	 * @param array $fields
 	 *
 	 * @return array
 	 */
-	public static function convertWidgetFields(array $fields): array {
-		$ret = [];
+	public static function constructWidgetFields(array $fields): array {
+		$fields_new = [];
 
 		foreach ($fields as $field) {
-			if (array_key_exists($field['name'], $ret)) {
-				$ret[$field['name']] = (array) $ret[$field['name']];
-				$ret[$field['name']][] = $field['value'];
+			if (array_key_exists($field['name'], $fields_new)) {
+				$fields_new[$field['name']] = (array) $fields_new[$field['name']];
+				$fields_new[$field['name']][] = $field['value'];
 			}
 			else {
-				$ret[$field['name']] = $field['value'];
+				$fields_new[$field['name']] = $field['value'];
 			}
 		}
 
-		return $ret;
+		return self::constructWidgetFieldsIntoObjects($fields_new);
 	}
 
 	/**
-	 * Checks, if any of widgets needs time selector.
+	 * Construct widget fields from destructured objects back into objects.
 	 *
-	 * @static
+	 * Example:
+	 *     In: [
+	 *         'a.0'       => 'value_1',
+	 *         'a.1'       => 'value_2',
+	 *         'b.0.c.0.d' => 'value_3'
+	 *     ]
 	 *
-	 * @param array $pages
+	 *     Out: [
+	 *         'a' => ['value_1', 'value_2'],
+	 *         'b' => [0 => ['c' => [0 => ['d' => 'value_3']]]]
+	 *     ]
 	 *
-	 * @return bool
+	 * @param array $fields
+	 *
+	 * @return array
 	 */
-	public static function hasTimeSelector(array $pages): bool {
-		foreach ($pages as $page) {
-			foreach ($page['widgets'] as $widget) {
-				if (CWidgetConfig::usesTimeSelector($widget['type'], $widget['fields'])) {
-					return true;
+	private static function constructWidgetFieldsIntoObjects(array $fields): array {
+		$fields_new = [];
+
+		uksort($fields,
+			static fn(string $key_1, string $key_2): int => strnatcmp($key_1, $key_2)
+		);
+
+		foreach ($fields as $key => $value) {
+			if (preg_match('/^([a-z_]+)((\\.([a-z_]+|[0-9]+))+)$/', $key, $matches) === 0) {
+				$fields_new[$key] = $value;
+
+				continue;
+			}
+
+			$field_name = $matches[1];
+			$field_path = $matches[2];
+
+			preg_match_all('/\\.([a-z_]+|[0-9]+)/', $field_path, $matches);
+
+			$field_path_keys = array_merge([$field_name], $matches[1]);
+
+			$field_ptr = &$fields_new;
+
+			for ($i = 0, $count = count($field_path_keys); $i < $count; $i++) {
+				$field_path_key = $field_path_keys[$i];
+
+				if ($i < $count - 1) {
+					if (!array_key_exists($field_path_key, $field_ptr)) {
+						$field_ptr[$field_path_key] = [];
+					}
+
+					$field_ptr = &$field_ptr[$field_path_key];
+				}
+				else {
+					$field_ptr[$field_path_key] = $value;
 				}
 			}
+
+			unset($field_ptr);
 		}
 
-		return false;
+		return $fields_new;
 	}
 
 	/**
 	 * Validate input parameters of dashboard pages.
-	 *
-	 * @static
 	 *
 	 * @var array  $dashboard_pages
 	 * @var array  $dashboard_pages[]['widgets']
@@ -387,7 +493,7 @@ class CDashboardHelper {
 	 *
 	 * @return array  Widgets and/or errors.
 	 */
-	public static function validateDashboardPages(array $dashboard_pages, string $templateid = null): array {
+	public static function validateDashboardPages(array $dashboard_pages, ?string $templateid = null): array {
 		$errors = [];
 
 		foreach ($dashboard_pages as $dashboard_page_index => &$dashboard_page) {
@@ -411,10 +517,10 @@ class CDashboardHelper {
 				$dashboard_page['widgets'] = [];
 			}
 
-			foreach ($dashboard_page['widgets'] as $widget_index => &$widget) {
+			foreach ($dashboard_page['widgets'] as $widget_index => &$widget_data) {
 				$widget_errors = [];
 
-				if (!array_key_exists('pos', $widget)) {
+				if (!array_key_exists('pos', $widget_data)) {
 					$widget_errors[] = _s('Invalid parameter "%1$s": %2$s.',
 						'pages['.$dashboard_page_index.'][widgets]['.$widget_index.']',
 						_s('the parameter "%1$s" is missing', 'pos')
@@ -422,7 +528,7 @@ class CDashboardHelper {
 				}
 				else {
 					foreach (['x', 'y', 'width', 'height'] as $field) {
-						if (!is_array($widget['pos']) || !array_key_exists($field, $widget['pos'])) {
+						if (!is_array($widget_data['pos']) || !array_key_exists($field, $widget_data['pos'])) {
 							$widget_errors[] = _s('Invalid parameter "%1$s": %2$s.',
 								'pages['.$dashboard_page_index.'][widgets]['.$widget_index.'][pos]',
 								_s('the parameter "%1$s" is missing', $field)
@@ -432,7 +538,7 @@ class CDashboardHelper {
 				}
 
 				foreach (['type', 'name', 'view_mode'] as $field) {
-					if (!array_key_exists($field, $widget)) {
+					if (!array_key_exists($field, $widget_data)) {
 						$widget_errors[] = _s('Invalid parameter "%1$s": %2$s.',
 							'pages['.$dashboard_page_index.'][widgets]['.$widget_index.']',
 							_s('the parameter "%1$s" is missing', $field)
@@ -446,28 +552,39 @@ class CDashboardHelper {
 					break 2;
 				}
 
-				$widget_fields = array_key_exists('fields', $widget) ? $widget['fields'] : '{}';
-				$widget['form'] = CWidgetConfig::getForm($widget['type'], $widget_fields, $templateid);
-				unset($widget['fields']);
+				$widget_fields = array_key_exists('fields', $widget_data) ? $widget_data['fields'] : [];
+				unset($widget_data['fields']);
 
-				if ($widget_errors = $widget['form']->validate()) {
-					if ($widget['name'] === '') {
-						$context = $templateid !== null
-							? CWidgetConfig::CONTEXT_TEMPLATE_DASHBOARD
-							: CWidgetConfig::CONTEXT_DASHBOARD;
+				if ($widget_data['type'] === ZBX_WIDGET_INACCESSIBLE) {
+					continue;
+				}
 
-						$widget_name = CWidgetConfig::getKnownWidgetTypes($context)[$widget['type']];
+				$widget = APP::ModuleManager()->getModule($widget_data['type']);
+
+				if ($widget === null || $widget->getType() !== CModule::TYPE_WIDGET) {
+					if ($widget_data['name'] !== '') {
+						$widget_name = $widget_data['name'];
 					}
 					else {
-						$widget_name = $widget['name'];
+						$widget_name = 'pages['.$dashboard_page_index.'][widgets]['.$widget_index.']';
 					}
 
+					$errors[] = _s('Cannot save widget "%1$s".', $widget_name).' '._('Inaccessible widget type.');
+
+					continue;
+				}
+
+				$widget_name = $widget_data['name'] !== '' ? $widget_data['name'] : $widget->getDefaultName();
+
+				$widget_data['form'] = $widget->getForm($widget_fields, $templateid);
+
+				if ($widget_errors = $widget_data['form']->validate()) {
 					foreach ($widget_errors as $error) {
 						$errors[] = _s('Cannot save widget "%1$s".', $widget_name).' '.$error;
 					}
 				}
 			}
-			unset($widget);
+			unset($widget_data);
 		}
 		unset($dashboard_page);
 
@@ -480,8 +597,6 @@ class CDashboardHelper {
 	/**
 	 * Prepare data for cloning template dashboards.
 	 * Replace item and graph ids to new ids.
-	 *
-	 * @static
 	 *
 	 * @param array  $dashboards  Dashboards array.
 	 * @param string $templateid  New template id.
@@ -567,5 +682,50 @@ class CDashboardHelper {
 		unset($dashboard);
 
 		return $dashboards;
+	}
+
+	public static function getWidgetLastType(): ?string {
+		$known_widgets = APP::ModuleManager()->getWidgets();
+
+		$widget_last_type = CProfile::get('web.dashboard.last_widget_type');
+
+		if (!array_key_exists($widget_last_type, $known_widgets)) {
+			$current_types = [];
+			$deprecated_types = [];
+
+			/** @var CWidget $widget */
+			foreach ($known_widgets as $widget) {
+				if (!$widget->isDeprecated()) {
+					$current_types[$widget->getId()] = $widget->getDefaultName();
+				}
+				else {
+					$deprecated_types[$widget->getId()] = $widget->getDefaultName();
+				}
+			}
+
+			natcasesort($current_types);
+			natcasesort($deprecated_types);
+
+			if ($current_types) {
+				$widget_last_type = array_key_first($current_types);
+			}
+			elseif ($deprecated_types) {
+				$widget_last_type = array_key_first($deprecated_types);
+			}
+			else {
+				$widget_last_type = null;
+			}
+		}
+
+		return $widget_last_type;
+	}
+
+	public static function getConfigurationHash(array $dashboard, array $widget_defaults): string {
+		ksort($widget_defaults);
+
+		return md5(json_encode([
+			array_intersect_key($dashboard, array_flip(['name', 'display_period', 'auto_start', 'pages'])),
+			$widget_defaults
+		], JSON_THROW_ON_ERROR));
 	}
 }

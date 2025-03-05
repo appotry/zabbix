@@ -1,20 +1,15 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 package webpage
 
@@ -27,37 +22,29 @@ import (
 	"strings"
 	"time"
 
-	"git.zabbix.com/ap/plugin-support/conf"
-	"git.zabbix.com/ap/plugin-support/plugin"
-	"zabbix.com/internal/agent"
-	"zabbix.com/pkg/web"
-	"zabbix.com/pkg/zbxregexp"
+	"golang.zabbix.com/agent2/internal/agent"
+	"golang.zabbix.com/agent2/pkg/web"
+	"golang.zabbix.com/agent2/pkg/zbxregexp"
+	"golang.zabbix.com/sdk/errs"
+	"golang.zabbix.com/sdk/plugin"
 )
-
-type Options struct {
-	plugin.SystemOptions `conf:"optional,name=System"`
-	Timeout              int `conf:"optional,range=1:30"`
-}
-
-type Plugin struct {
-	plugin.Base
-	options Options
-}
 
 var impl Plugin
 
-func (p *Plugin) Configure(global *plugin.GlobalOptions, options interface{}) {
-	if err := conf.Unmarshal(options, &p.options); err != nil {
-		p.Warningf("cannot unmarshal configuration options: %s", err)
-	}
-	if p.options.Timeout == 0 {
-		p.options.Timeout = global.Timeout
-	}
+type Plugin struct {
+	plugin.Base
 }
 
-func (p *Plugin) Validate(options interface{}) error {
-	var o Options
-	return conf.Unmarshal(options, &o)
+func init() {
+	err := plugin.RegisterMetrics(
+		&impl, "WebPage",
+		"web.page.get", "Get content of a web page.",
+		"web.page.perf", "Loading time of full web page (in seconds).",
+		"web.page.regexp", "Find string on a web page.",
+	)
+	if err != nil {
+		panic(errs.Wrap(err, "failed to register metrics"))
+	}
 }
 
 func (p *Plugin) Export(key string, params []string, ctx plugin.ContextProvider) (interface{}, error) {
@@ -118,7 +105,7 @@ func (p *Plugin) Export(key string, params []string, ctx plugin.ContextProvider)
 			output = "\\0"
 		}
 
-		s, err := web.Get(params[0], time.Duration(p.options.Timeout)*time.Second, true)
+		s, err := web.Get(params[0], time.Duration(ctx.Timeout())*time.Second, true)
 		if err != nil {
 			return nil, err
 		}
@@ -141,7 +128,7 @@ func (p *Plugin) Export(key string, params []string, ctx plugin.ContextProvider)
 
 		start := time.Now()
 
-		_, err := web.Get(params[0], time.Duration(p.options.Timeout)*time.Second, false)
+		_, err := web.Get(params[0], time.Duration(ctx.Timeout())*time.Second, false)
 		if err != nil {
 			return nil, err
 		}
@@ -152,14 +139,6 @@ func (p *Plugin) Export(key string, params []string, ctx plugin.ContextProvider)
 			return nil, fmt.Errorf("Too many parameters.")
 		}
 
-		return web.Get(params[0], time.Duration(p.options.Timeout)*time.Second, true)
+		return web.Get(params[0], time.Duration(ctx.Timeout())*time.Second, true)
 	}
-
-}
-
-func init() {
-	plugin.RegisterMetrics(&impl, "WebPage",
-		"web.page.get", "Get content of a web page.",
-		"web.page.perf", "Loading time of full web page (in seconds).",
-		"web.page.regexp", "Find string on a web page.")
 }

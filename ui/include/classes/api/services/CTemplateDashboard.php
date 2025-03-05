@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -43,17 +38,8 @@ class CTemplateDashboard extends CDashboardGeneral {
 			// filter
 			'dashboardids' =>			['type' => API_IDS, 'flags' => API_ALLOW_NULL | API_NORMALIZE, 'default' => null],
 			'templateids' =>			['type' => API_IDS, 'flags' => API_ALLOW_NULL | API_NORMALIZE, 'default' => null],
-			'filter' =>					['type' => API_OBJECT, 'flags' => API_ALLOW_NULL, 'default' => null, 'fields' => [
-				'uuid' =>					['type' => API_STRINGS_UTF8, 'flags' => API_ALLOW_NULL | API_NORMALIZE],
-				'dashboardid' =>			['type' => API_IDS, 'flags' => API_ALLOW_NULL | API_NORMALIZE],
-				'name' =>					['type' => API_STRINGS_UTF8, 'flags' => API_ALLOW_NULL | API_NORMALIZE],
-				'templateid' =>				['type' => API_IDS, 'flags' => API_ALLOW_NULL | API_NORMALIZE],
-				'display_period' =>			['type' => API_INTS32, 'flags' => API_ALLOW_NULL | API_NORMALIZE, 'in' => implode(',', DASHBOARD_DISPLAY_PERIODS)],
-				'auto_start' =>				['type' => API_INTS32, 'flags' => API_ALLOW_NULL | API_NORMALIZE, 'in' => '0,1']
-			]],
-			'search' =>					['type' => API_OBJECT, 'flags' => API_ALLOW_NULL, 'default' => null, 'fields' => [
-				'name' =>					['type' => API_STRINGS_UTF8, 'flags' => API_ALLOW_NULL | API_NORMALIZE]
-			]],
+			'filter' =>					['type' => API_FILTER, 'flags' => API_ALLOW_NULL, 'default' => null, 'fields' => ['uuid', 'dashboardid', 'name', 'templateid', 'display_period', 'auto_start']],
+			'search' =>					['type' => API_FILTER, 'flags' => API_ALLOW_NULL, 'default' => null, 'fields' => ['name']],
 			'searchByAny' =>			['type' => API_BOOLEAN, 'default' => false],
 			'startSearch' =>			['type' => API_FLAG, 'default' => false],
 			'excludeSearch' =>			['type' => API_FLAG, 'default' => false],
@@ -93,30 +79,58 @@ class CTemplateDashboard extends CDashboardGeneral {
 		$options['groupCount'] = ($options['groupCount'] && $options['countOutput']);
 
 		// permissions
-		if (in_array(self::$userData['type'], [USER_TYPE_ZABBIX_USER, USER_TYPE_ZABBIX_ADMIN])) {
-			if ($options['templateids'] !== null) {
-				$options['templateids'] = array_keys(API::Template()->get([
-					'output' => [],
-					'templateids' => $options['templateids'],
-					'editable' => $options['editable'],
-					'preservekeys' => true
-				]));
+		if (self::$userData['type'] != USER_TYPE_SUPER_ADMIN) {
+			if (self::$userData['ugsetid'] == 0) {
+				return $options['countOutput'] ? '0' : [];
+			}
+
+			if ($options['editable']) {
+				$sql_parts['from'][] = 'host_hgset hh';
+				$sql_parts['from'][] = 'permission p';
+				$sql_parts['where'][] = 'd.templateid=hh.hostid';
+				$sql_parts['where'][] = 'hh.hgsetid=p.hgsetid';
+				$sql_parts['where'][] = 'p.ugsetid='.self::$userData['ugsetid'];
+				$sql_parts['where'][] = 'p.permission='.PERM_READ_WRITE;
 			}
 			else {
-				$permission = $options['editable'] ? PERM_READ_WRITE : PERM_READ;
-				$user_groups = getUserGroupsByUserId(self::$userData['userid']);
+				$db_host_templates = DBselect(
+					'SELECT DISTINCT ht.templateid'.
+					' FROM hosts h'.
+					' JOIN host_hgset hh ON h.hostid=hh.hostid'.
+					' JOIN permission p ON hh.hgsetid=p.hgsetid'.
+						' AND p.ugsetid='.self::$userData['ugsetid'].
+					' JOIN hosts_templates ht ON h.hostid=ht.hostid'.
+					' WHERE h.status IN ('.HOST_STATUS_MONITORED.','.HOST_STATUS_NOT_MONITORED.')'.
+						' AND h.flags IN ('.ZBX_FLAG_DISCOVERY_NORMAL.','.ZBX_FLAG_DISCOVERY_CREATED.')'
+				);
 
-				$sql_parts['where'][] = 'EXISTS ('.
-					'SELECT NULL'.
-					' FROM hosts_groups hgg'.
-						' JOIN rights r'.
-							' ON r.id=hgg.groupid'.
-								' AND '.dbConditionInt('r.groupid', $user_groups).
-					' WHERE d.templateid=hgg.hostid'.
-					' GROUP BY hgg.hostid'.
-					' HAVING MIN(r.permission)>'.PERM_DENY.
-						' AND MAX(r.permission)>='.zbx_dbstr($permission).
-					')';
+				$templateids = [];
+
+				while ($db_host_template = DBfetch($db_host_templates)) {
+					$templateids[$db_host_template['templateid']] = true;
+				}
+
+				$all_templateids = [];
+
+				while ($templateids) {
+					$all_templateids += $templateids;
+
+					$db_parent_templates = DBselect(
+						'SELECT ht.templateid'.
+						' FROM hosts_templates ht'.
+						' WHERE '.dbConditionId('ht.hostid', array_keys($templateids))
+					);
+
+					$templateids = [];
+
+					while ($db_parent_template = DBfetch($db_parent_templates)) {
+						$templateids[$db_parent_template['templateid']] = true;
+					}
+				}
+
+				$options['templateids'] = $options['templateids'] !== null
+					? array_intersect($options['templateids'], array_keys($all_templateids))
+					: array_keys($all_templateids);
 			}
 		}
 
@@ -247,7 +261,7 @@ class CTemplateDashboard extends CDashboardGeneral {
 		$api_input_rules = ['type' => API_OBJECTS, 'flags' => API_NOT_EMPTY | API_NORMALIZE, 'uniq' => [['uuid'], ['templateid', 'name']], 'fields' => [
 			'uuid' =>			['type' => API_UUID],
 			'name' =>			['type' => API_STRING_UTF8, 'flags' => API_REQUIRED | API_NOT_EMPTY, 'length' => DB::getFieldLength('dashboard', 'name')],
-			'templateid' =>		['type' => API_ID, 'flags' => API_REQUIRED | API_NOT_EMPTY],
+			'templateid' =>		['type' => API_ID, 'flags' => API_REQUIRED],
 			'display_period' =>	['type' => API_INT32, 'in' => implode(',', DASHBOARD_DISPLAY_PERIODS)],
 			'auto_start' =>		['type' => API_INT32, 'in' => '0,1'],
 			'pages' =>			['type' => API_OBJECTS, 'flags' => API_REQUIRED | API_NOT_EMPTY, 'length' => DASHBOARD_MAX_PAGES, 'fields' => [
@@ -258,9 +272,9 @@ class CTemplateDashboard extends CDashboardGeneral {
 					'name' =>			['type' => API_STRING_UTF8, 'length' => DB::getFieldLength('widget', 'name')],
 					'view_mode' =>		['type' => API_INT32, 'in' => implode(',', [ZBX_WIDGET_VIEW_MODE_NORMAL, ZBX_WIDGET_VIEW_MODE_HIDDEN_HEADER])],
 					'x' =>				['type' => API_INT32, 'in' => '0:'.(DASHBOARD_MAX_COLUMNS - 1)],
-					'y' =>				['type' => API_INT32, 'in' => '0:'.(DASHBOARD_MAX_ROWS - 2)],
+					'y' =>				['type' => API_INT32, 'in' => '0:'.(DASHBOARD_MAX_ROWS - 1)],
 					'width' =>			['type' => API_INT32, 'in' => '1:'.DASHBOARD_MAX_COLUMNS],
-					'height' =>			['type' => API_INT32, 'in' => '2:'.DASHBOARD_WIDGET_MAX_ROWS],
+					'height' =>			['type' => API_INT32, 'in' => '1:'.DASHBOARD_MAX_ROWS],
 					'fields' =>			['type' => API_OBJECTS, 'fields' => [
 						'type' =>			['type' => API_INT32, 'flags' => API_REQUIRED, 'in' => implode(',', array_keys(self::WIDGET_FIELD_TYPE_COLUMNS))],
 						'name' =>			['type' => API_STRING_UTF8, 'length' => DB::getFieldLength('widget_field', 'name'), 'default' => DB::getDefault('widget_field', 'name')],
@@ -289,36 +303,66 @@ class CTemplateDashboard extends CDashboardGeneral {
 			self::exception(ZBX_API_ERROR_PERMISSIONS, _('No permissions to referred object or it does not exist!'));
 		}
 
-		$this->checkAndAddUuid($dashboards);
+		self::addUuid($dashboards);
+
+		self::checkUuidDuplicates($dashboards);
 		$this->checkDuplicates($dashboards);
 		$this->checkWidgets($dashboards);
 		$this->checkWidgetFields($dashboards);
 	}
 
 	/**
-	 * Check that no duplicate UUID is being added. Add UUID to all template dashboards, if it doesn't exist.
+	 * Add the UUID to those of the given template dashboards that don't have the 'uuid' parameter set.
 	 *
-	 * @param array $dashboards_to_create
-	 *
-	 * @throws APIException
+	 * @param array $dashboards
 	 */
-	protected function checkAndAddUuid(array &$dashboards_to_create): void {
-		foreach ($dashboards_to_create as &$dashboard) {
+	private static function addUuid(array &$dashboards): void {
+		foreach ($dashboards as &$dashboard) {
 			if (!array_key_exists('uuid', $dashboard)) {
 				$dashboard['uuid'] = generateUuidV4();
 			}
 		}
 		unset($dashboard);
+	}
 
-		$db_uuid = DB::select('dashboard', [
+	/**
+	 * Verify template dashboard UUIDs are not repeated.
+	 *
+	 * @param array      $dashboards
+	 * @param array|null $db_dashboards
+	 *
+	 * @throws APIException
+	 */
+	private static function checkUuidDuplicates(array $dashboards, ?array $db_dashboards = null): void {
+		$dashboard_indexes = [];
+
+		foreach ($dashboards as $i => $dashboard) {
+			if (!array_key_exists('uuid', $dashboard)) {
+				continue;
+			}
+
+			if ($db_dashboards === null || $dashboard['uuid'] !== $db_dashboards[$dashboard['dashboardid']]['uuid']) {
+				$dashboard_indexes[$dashboard['uuid']] = $i;
+			}
+		}
+
+		if (!$dashboard_indexes) {
+			return;
+		}
+
+		$duplicates = DB::select('dashboard', [
 			'output' => ['uuid'],
-			'filter' => ['uuid' => array_column($dashboards_to_create, 'uuid')],
+			'filter' => [
+				'uuid' => array_keys($dashboard_indexes)
+			],
 			'limit' => 1
 		]);
 
-		if ($db_uuid) {
+		if ($duplicates) {
 			self::exception(ZBX_API_ERROR_PARAMETERS,
-				_s('Entry with UUID "%1$s" already exists.', $db_uuid[0]['uuid'])
+				_s('Invalid parameter "%1$s": %2$s.', '/'.($dashboard_indexes[$duplicates[0]['uuid']] + 1),
+					_('template dashboard with the same UUID already exists')
+				)
 			);
 		}
 	}
@@ -329,8 +373,9 @@ class CTemplateDashboard extends CDashboardGeneral {
 	 *
 	 * @throws APIException if the input is invalid.
 	 */
-	protected function validateUpdate(array &$dashboards, array &$db_dashboards = null): void {
-		$api_input_rules = ['type' => API_OBJECTS, 'flags' => API_NOT_EMPTY | API_NORMALIZE, 'uniq' => [['dashboardid']], 'fields' => [
+	protected function validateUpdate(array &$dashboards, ?array &$db_dashboards = null): void {
+		$api_input_rules = ['type' => API_OBJECTS, 'flags' => API_NOT_EMPTY | API_NORMALIZE, 'uniq' => [['uuid'], ['dashboardid']], 'fields' => [
+			'uuid' => 				['type' => API_UUID],
 			'dashboardid' =>		['type' => API_ID, 'flags' => API_REQUIRED],
 			'name' =>				['type' => API_STRING_UTF8, 'flags' => API_NOT_EMPTY, 'length' => DB::getFieldLength('dashboard', 'name')],
 			'display_period' =>		['type' => API_INT32, 'in' => implode(',', DASHBOARD_DISPLAY_PERIODS)],
@@ -345,9 +390,9 @@ class CTemplateDashboard extends CDashboardGeneral {
 					'name' =>				['type' => API_STRING_UTF8, 'length' => DB::getFieldLength('widget', 'name')],
 					'view_mode' =>			['type' => API_INT32, 'in' => implode(',', [ZBX_WIDGET_VIEW_MODE_NORMAL, ZBX_WIDGET_VIEW_MODE_HIDDEN_HEADER])],
 					'x' =>					['type' => API_INT32, 'in' => '0:'.(DASHBOARD_MAX_COLUMNS - 1)],
-					'y' =>					['type' => API_INT32, 'in' => '0:'.(DASHBOARD_MAX_ROWS - 2)],
+					'y' =>					['type' => API_INT32, 'in' => '0:'.(DASHBOARD_MAX_ROWS - 1)],
 					'width' =>				['type' => API_INT32, 'in' => '1:'.DASHBOARD_MAX_COLUMNS],
-					'height' =>				['type' => API_INT32, 'in' => '2:'.DASHBOARD_WIDGET_MAX_ROWS],
+					'height' =>				['type' => API_INT32, 'in' => '1:'.DASHBOARD_MAX_ROWS],
 					'fields' =>				['type' => API_OBJECTS, 'fields' => [
 						'type' =>				['type' => API_INT32, 'flags' => API_REQUIRED, 'in' => implode(',', array_keys(self::WIDGET_FIELD_TYPE_COLUMNS))],
 						'name' =>				['type' => API_STRING_UTF8, 'length' => DB::getFieldLength('widget_field', 'name'), 'default' => DB::getDefault('widget_field', 'name')],
@@ -366,7 +411,7 @@ class CTemplateDashboard extends CDashboardGeneral {
 		}
 
 		$db_dashboards = $this->get([
-			'output' => ['dashboardid', 'name', 'templateid', 'display_period', 'auto_start'],
+			'output' => ['uuid', 'dashboardid', 'name', 'templateid', 'display_period', 'auto_start'],
 			'dashboardids' => array_column($dashboards, 'dashboardid'),
 			'editable' => true,
 			'preservekeys' => true
@@ -394,6 +439,7 @@ class CTemplateDashboard extends CDashboardGeneral {
 		// Check ownership of the referenced pages and widgets.
 		$this->checkReferences($dashboards, $db_dashboards);
 
+		self::checkUuidDuplicates($dashboards, $db_dashboards);
 		$this->checkDuplicates($dashboards, $db_dashboards);
 		$this->checkWidgets($dashboards, $db_dashboards);
 		$this->checkWidgetFields($dashboards, $db_dashboards);
@@ -407,7 +453,7 @@ class CTemplateDashboard extends CDashboardGeneral {
 	 *
 	 * @throws APIException if dashboard names are not unique.
 	 */
-	protected function checkDuplicates(array $dashboards, array $db_dashboards = null): void {
+	protected function checkDuplicates(array $dashboards, ?array $db_dashboards = null): void {
 		$names_by_templateid = [];
 
 		foreach ($dashboards as $dashboard) {

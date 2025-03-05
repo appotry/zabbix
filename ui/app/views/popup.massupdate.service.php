@@ -1,21 +1,16 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -25,6 +20,7 @@
 
 // create form
 $form = (new CForm())
+	->addItem((new CVar(CSRF_TOKEN_NAME, CCsrfTokenHelper::get('service')))->removeId())
 	->setId('massupdate-form')
 	->addVar('action', 'popup.massupdate.service')
 	->addVar('ids', $data['ids'])
@@ -33,7 +29,7 @@ $form = (new CForm())
 
 $tags_form_grid = (new CFormGrid())
 	->addItem([
-		(new CVisibilityBox('visible[tags]', 'tags-div', _('Original')))->setLabel(_('Tags')),
+		(new CVisibilityBox('visible[tags]', 'tags-field', _('Original')))->setLabel(_('Tags')),
 		new CFormField(
 			(new CDiv([
 				(new CRadioButtonList('mass_update_tags', ZBX_ACTION_ADD))
@@ -43,12 +39,12 @@ $tags_form_grid = (new CFormGrid())
 					->setModern(true)
 					->addStyle('margin-bottom: 5px;'),
 				renderTagTable([['tag' => '', 'value' => '']])
-					->setHeader([_('Name'), _('Value'), _('Action')])
-					->setId('tags-table'),
-				(new CScriptTemplate('tag-row-tmpl'))
-					->addItem(renderTagTableRow('#{rowNum}', '', '', ['add_post_js' => false]))
+					->setHeader([_('Name'), _('Value'), ''])
+					->addClass('tags-table'),
+				(new CTemplateTag('tag-row-tmpl'))
+					->addItem(renderTagTableRow('#{rowNum}', ['tag' => '', 'value' => ''], ['add_post_js' => false]))
 			]))
-				->setId('tags-div')
+				->setId('tags-field')
 				->addClass(ZBX_STYLE_TABLE_FORMS)
 		)
 	]);

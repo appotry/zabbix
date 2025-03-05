@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 require_once dirname(__FILE__).'/../include/CIntegrationTest.php';
@@ -100,7 +95,7 @@ class testItemState extends CIntegrationTest {
 
 		// Create items
 		foreach (self::$items as $key => $item) {
-			$items[] = [
+			$new_item = [
 				'name' => $key,
 				'key_' => $item['key'],
 				'type' => $item['type'],
@@ -110,6 +105,14 @@ class testItemState extends CIntegrationTest {
 				'delay' => '1s',
 				'status' => ITEM_STATUS_DISABLED
 			];
+
+			if ($new_item['type'] == ITEM_TYPE_ZABBIX_ACTIVE) {
+				$new_item['interfaceid'] = 0;
+			} else {
+				$new_item['interfaceid'] = self::$interfaceid;
+			}
+
+			$items[] = $new_item;
 		}
 
 		$response = $this->call('item.create', $items);
@@ -137,11 +140,12 @@ class testItemState extends CIntegrationTest {
 		return [
 			self::COMPONENT_SERVER => [
 				'DebugLevel' => 4,
-				'LogFileSize' => 20
+				'LogFileSize' => 20,
+				'ListenPort' => self::getConfigurationValue(self::COMPONENT_SERVER, 'ListenPort', 10051)
 			],
 			self::COMPONENT_AGENT => [
 				'Hostname' => 'test_host',
-				'ServerActive' => '127.0.0.1:'.self::getConfigurationValue(self::COMPONENT_SERVER, 'ListenPort'),
+				'ServerActive' => '127.0.0.1:'.self::getConfigurationValue(self::COMPONENT_SERVER, 'ListenPort', 10051),
 				'RefreshActiveChecks' => self::REFRESH_ACT_CHKS_INTERVAL,
 				'BufferSend' => 1
 			]
@@ -253,12 +257,13 @@ class testItemState extends CIntegrationTest {
 
 		$wait = $delay + self::LOG_LINE_WAIT_TIME;
 		$key = self::$items[$scenario['name']]['key'];
+		$itemid = self::$items[$scenario['name']]['itemid'];
 
 		// Wait for item to be checked
-		$first_check = $this->getLogLineTimestamp(self::COMPONENT_SERVER, ["In get_value() key:'".$key."'"], $wait);
+		$first_check = $this->getLogLineTimestamp(self::COMPONENT_SERVER, ["In process_async_result() itemid:".$itemid." key:'".$key."'"], $wait);
 
-		// Check item state
-		sleep(1);
+		// Wait for item state to be flushed (once per second in preprocessing manager and in poller)
+		sleep(2);
 
 		$response = $this->call('item.get', [
 			'itemids' => self::$items[$scenario['name']]['itemid'],
@@ -270,10 +275,10 @@ class testItemState extends CIntegrationTest {
 		);
 
 		// Verify item checks intervals
-		$check = $this->getLogLineTimestamp(self::COMPONENT_SERVER, ["In get_value() key:'".$key."'"], $wait);
+		$check = $this->getLogLineTimestamp(self::COMPONENT_SERVER, ["In process_async_result() itemid:".$itemid." key:'".$key."'"], $wait);
 		$this->assertTrue($check <= $first_check + $delay + 1);
 
-		$next_check = $this->getLogLineTimestamp(self::COMPONENT_SERVER, ["In get_value() key:'".$key."'"], $wait);
+		$next_check = $this->getLogLineTimestamp(self::COMPONENT_SERVER, ["In process_async_result() itemid:".$itemid." key:'".$key."'"], $wait);
 		$this->assertTrue($next_check <= $check + $delay + 1 && $next_check >= $check + $delay - 1);
 	}
 
@@ -283,11 +288,16 @@ class testItemState extends CIntegrationTest {
 	protected function checkItemStateActive($scenario, $state, &$refresh) {
 		$wait = max($scenario['delay_s'], self::REFRESH_ACT_CHKS_INTERVAL) + self::PROCESS_ACT_CHKS_DELAY
 			+ self::LOG_LINE_WAIT_TIME;
-		$key = self::$items[$scenario['name']]['key'];
+		$itemid = self::$items[$scenario['name']]['itemid'];
 
-		// Wait for item to be checked
+		// Wait for first check that happens right after configuration refresh
 		$check = $this->getLogLineTimestamp(self::COMPONENT_SERVER,
-				[',"data":[{"host":"test_host","key":"'.$key.'","value":"'], $wait
+				[',"data":[{"itemid":'.$itemid.',"value":"'], $wait
+		);
+
+		// Wait for first scheduled check
+		$check = $this->getLogLineTimestamp(self::COMPONENT_SERVER,
+				[',"data":[{"itemid":'.$itemid.',"value":"'], $wait
 		);
 
 		// Update last refresh timestamp
@@ -307,9 +317,9 @@ class testItemState extends CIntegrationTest {
 				'Unexpected item state='.$response['result'][0]['state'].' (expected='.$state.')'
 		);
 
-		// Verify item checks intervals
+		// Wait for next scheduled check and verify item checks intervals
 		$next_check = $this->getLogLineTimestamp(self::COMPONENT_SERVER,
-				[',"data":[{"host":"test_host","key":"'.$key.'","value":"'], $wait
+				[',"data":[{"itemid":'.$itemid.',"value":"'], $wait
 		);
 
 		while ($next_check > $refresh + self::REFRESH_ACT_CHKS_INTERVAL) {

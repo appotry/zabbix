@@ -1,27 +1,21 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-#include "common.h"
-#include "sysinfo.h"
-#include "log.h"
+#include "zbxsysinfo.h"
+#include "../sysinfo.h"
 
-int	KERNEL_MAXFILES(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	kernel_maxfiles(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 #ifdef HAVE_FUNCTION_SYSCTL_KERN_MAXFILES
 	int	mib[2];
@@ -45,11 +39,12 @@ int	KERNEL_MAXFILES(AGENT_REQUEST *request, AGENT_RESULT *result)
 #else
 	SET_MSG_RESULT(result, zbx_strdup(NULL, "Agent was compiled without support for \"kern.maxfiles\" system"
 			" parameter."));
+
 	return SYSINFO_RET_FAIL;
 #endif
 }
 
-int	KERNEL_MAXPROC(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	kernel_maxproc(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 #ifdef HAVE_FUNCTION_SYSCTL_KERN_MAXPROC
 	int	mib[2];
@@ -73,5 +68,7 @@ int	KERNEL_MAXPROC(AGENT_REQUEST *request, AGENT_RESULT *result)
 #else
 	SET_MSG_RESULT(result, zbx_strdup(NULL, "Agent was compiled without support for \"kern.maxproc\" system"
 			" parameter."));
+
+	return SYSINFO_RET_FAIL;
 #endif
 }

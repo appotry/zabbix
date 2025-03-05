@@ -1,20 +1,15 @@
 #
-# Zabbix
-# Copyright (C) 2001-2022 Zabbix SIA
+# Copyright (C) 2001-2025 Zabbix SIA
 #
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
-# (at your option) any later version.
+# This program is free software: you can redistribute it and/or modify it under the terms of
+# the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+# This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+# without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+# See the GNU Affero General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+# You should have received a copy of the GNU Affero General Public License along with this program.
+# If not, see <https://www.gnu.org/licenses/>.
 #
 
 AC_DEFUN([LIBXML2_CHECK_CONFIG],
@@ -24,16 +19,19 @@ AC_DEFUN([LIBXML2_CHECK_CONFIG],
     AC_ARG_WITH(libxml2,
         [
 If you want to use XML library:
-AC_HELP_STRING([--with-libxml2@<:@=ARG@:>@],
+AS_HELP_STRING([--with-libxml2@<:@=ARG@:>@],
     [use libxml2 client library @<:@default=no@:>@, see PKG_CONFIG_PATH environment variable to specify .pc file location]
         )],
         [
         if test "$withval" = "no"; then
             want_libxml2="no"
+            _libxml2_with="no"
         elif test "$withval" = "yes"; then
             want_libxml2="yes"
+            _libxml2_with="yes"
         else
             want_libxml2="yes"
+            _libxml2_with=$withval
         fi
         ],
         [want_libxml2="no"]
@@ -49,27 +47,43 @@ AC_HELP_STRING([--with-libxml2@<:@=ARG@:>@],
     dnl
 
     if test "$want_libxml2" = "yes"; then
-        AC_REQUIRE([PKG_PROG_PKG_CONFIG])
-        PKG_PROG_PKG_CONFIG()
+        if test "$_libxml2_with" != "yes"; then
+            XML2_INCDIR=$_libxml2_with/include/libxml2
+            XML2_LIBDIR=$_libxml2_with/lib
+            LIBXML2_CFLAGS="-I$XML2_INCDIR"
+            LIBXML2_LDFLAGS="-L$XML2_LIBDIR"
+            _full_libxml2_libs=$LIBXML2_LDFLAGS
+            configured_libxml2="yes"
+        else
+            AC_REQUIRE([PKG_PROG_PKG_CONFIG])
+            m4_ifdef([PKG_PROG_PKG_CONFIG], [PKG_PROG_PKG_CONFIG()], [:])
 
-        if test -x "$PKG_CONFIG"; then
+            if test -x "$PKG_CONFIG"; then
 
-            LIBXML2_CFLAGS="`$PKG_CONFIG --cflags libxml-2.0`"
+                LIBXML2_CFLAGS="`$PKG_CONFIG --cflags libxml-2.0`"
 
-            _full_libxml2_libs="`$PKG_CONFIG --libs libxml-2.0`"
+                _full_libxml2_libs="`$PKG_CONFIG --libs libxml-2.0`"
 
-            for i in $_full_libxml2_libs; do
-                case $i in
-                   -lxml2)
-                        ;;
-                   -L*)
-                        LIBXML2_LDFLAGS="${LIBXML2_LDFLAGS} $i"
-                        ;;
-                   -R*)
-                        LIBXML2_LDFLAGS="${LIBXML2_LDFLAGS} -Wl,$i"
-                        ;;
-                esac
-            done
+                for i in $_full_libxml2_libs; do
+                    case $i in
+                       -lxml2)
+                            ;;
+                       -L*)
+                            LIBXML2_LDFLAGS="${LIBXML2_LDFLAGS} $i"
+                            ;;
+                       -R*)
+                            LIBXML2_LDFLAGS="${LIBXML2_LDFLAGS} -Wl,$i"
+                            ;;
+                    esac
+                done
+
+                configured_libxml2="yes"
+            else
+                configured_libxml2="no"
+            fi
+        fi
+
+        if test "$configured_libxml2" = "yes"; then
 
             if test "x$enable_static" = "xyes"; then
                 for i in $_full_libxml2_libs; do
@@ -88,6 +102,20 @@ AC_HELP_STRING([--with-libxml2@<:@=ARG@:>@],
                 done
             fi
 
+            if test "$_libxml2_with" != "yes"; then
+                if test -f $_libxml2_with/include/libxml2/libxml/xmlversion.h; then
+                    LIBXML2_VERSION=`cat $_libxml2_with/include/libxml2/libxml/xmlversion.h \
+                                  | grep '#define.*LIBXML_DOTTED_VERSION.*' \
+                                  | sed -e 's/#define LIBXML_DOTTED_VERSION  *//' \
+                                  | sed -e 's/  *\/\*.*\*\///' \
+                                  | sed -e 's/\"//g'`
+                else
+                    AC_MSG_ERROR([Not found libxml2 library])
+                fi
+            else
+                LIBXML2_VERSION=`$PKG_CONFIG --version libxml-2.0`
+            fi
+
             _save_libxml2_libs="${LIBS}"
             _save_libxml2_ldflags="${LDFLAGS}"
             _save_libxml2_cflags="${CFLAGS}"
@@ -96,7 +124,7 @@ AC_HELP_STRING([--with-libxml2@<:@=ARG@:>@],
             CFLAGS="${CFLAGS} ${LIBXML2_CFLAGS}"
 
             AC_CHECK_LIB(xml2, xmlReadMemory, [
-                    LIBXML2_LIBS="-lxml2 ${LIBXML2_LIBS}"
+                    LIBXML2_LIBS="${LIBXML2_LIBS} -lxml2"
                     ],[
                     AC_MSG_ERROR([Not found libxml2 library])
                     ])
@@ -107,8 +135,6 @@ AC_HELP_STRING([--with-libxml2@<:@=ARG@:>@],
             unset _save_libxml2_libs
             unset _save_libxml2_ldflags
             unset _save_libxml2_cflags
-
-            LIBXML2_VERSION=`$PKG_CONFIG --version libxml-2.0`
 
             AC_DEFINE([HAVE_LIBXML2], [1], [Define to 1 if libxml2 libraries are available])
 

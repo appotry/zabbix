@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -25,17 +20,20 @@
 
 $this->includeJsFile('administration.image.edit.js.php');
 
-$widget = (new CWidget())
+$html_page = (new CHtmlPage())
 	->setTitle(_('Images'))
 	->setTitleSubmenu(getAdministrationGeneralSubmenu())
 	->setDocUrl(CDocHelper::getUrl(CDocHelper::ADMINISTRATION_IMAGE_EDIT));
 
+$csrf_token = CCsrfTokenHelper::get('image');
+
 $form = (new CForm('post', (new CUrl('zabbix.php'))
-		->setArgument('action', ($data['imageid'] == 0) ? 'image.create' : 'image.update')
-		->getUrl(), 'multipart/form-data')
-	)
-		->setAttribute('aria-labeledby', ZBX_STYLE_PAGE_TITLE)
-		->addVar('imagetype', $data['imagetype']);
+	->setArgument('action', ($data['imageid'] == 0) ? 'image.create' : 'image.update')
+	->getUrl(), 'multipart/form-data')
+)
+	->addItem((new CVar(CSRF_TOKEN_NAME, $csrf_token))->removeId())
+	->setAttribute('aria-labelledby', CHtmlPage::PAGE_TITLE_ID)
+	->addVar('imagetype', $data['imagetype']);
 
 if ($data['imageid'] != 0) {
 	$form->addVar('imageid', $data['imageid']);
@@ -81,7 +79,7 @@ if ($data['imageid'] != 0) {
 					->setArgument('action', 'image.delete')
 					->setArgument('imageid', $data['imageid'])
 					->setArgument('imagetype', $data['imagetype'])
-					->setArgumentSID(),
+					->setArgument(CSRF_TOKEN_NAME, $csrf_token),
 				_('Delete selected image?')
 			))->setId('delete'),
 			(new CRedirectButton(_('Cancel'), (new CUrl('zabbix.php'))
@@ -103,4 +101,4 @@ else {
 	));
 }
 
-$widget->addItem($form->addItem($tab_view))->show();
+$html_page->addItem($form->addItem($tab_view))->show();

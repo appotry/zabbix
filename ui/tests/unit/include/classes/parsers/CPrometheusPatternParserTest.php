@@ -1,21 +1,16 @@
 ﻿<?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -233,6 +228,76 @@ class CPrometheusPatternParserTest extends TestCase {
 				]
 			],
 			[
+				'{label1="{$MACRO}"}', 0, [],
+				[
+					'rc' => CParser::PARSE_SUCCESS,
+					'match' => '{label1="{$MACRO}"}'
+				]
+			],
+			[
+				'{label1="{{$MACRO}.regsub(\"([0-9]+)\", \\\\1)}"}', 0, [],
+				[
+					'rc' => CParser::PARSE_SUCCESS,
+					'match' => '{label1="{{$MACRO}.regsub(\"([0-9]+)\", \\\\1)}"}'
+				]
+			],
+			[
+				'{label1="{$MACRO} abc {$MACRO2}"}', 0, [],
+				[
+					'rc' => CParser::PARSE_SUCCESS,
+					'match' => '{label1="{$MACRO} abc {$MACRO2}"}'
+				]
+			],
+			[
+				'{label1="{$MACRO}"}', 0, ['usermacros' => true],
+				[
+					'rc' => CParser::PARSE_SUCCESS,
+					'match' => '{label1="{$MACRO}"}'
+				]
+			],
+			[
+				'{label1="{{$MACRO}.regsub(\"([0-9]+)\", \\\\1)}"}', 0, ['usermacros' => true],
+				[
+					'rc' => CParser::PARSE_SUCCESS,
+					'match' => '{label1="{{$MACRO}.regsub(\"([0-9]+)\", \\\\1)}"}'
+				]
+			],
+			[
+				'{label1="{$MACRO} abc {$MACRO2}"}', 0, ['usermacros' => true],
+				[
+					'rc' => CParser::PARSE_SUCCESS,
+					'match' => '{label1="{$MACRO} abc {$MACRO2}"}'
+				]
+			],
+			[
+				'{label1="{#LLD_MACRO}"}', 0, [],
+				[
+					'rc' => CParser::PARSE_SUCCESS,
+					'match' => '{label1="{#LLD_MACRO}"}'
+				]
+			],
+			[
+				'{label1="{#LLD_MACRO} abc {#LLD_MACRO2}"}', 0, [],
+				[
+					'rc' => CParser::PARSE_SUCCESS,
+					'match' => '{label1="{#LLD_MACRO} abc {#LLD_MACRO2}"}'
+				]
+			],
+			[
+				'{label1="{#LLD_MACRO}"}', 0, ['lldmacros' => true],
+				[
+					'rc' => CParser::PARSE_SUCCESS,
+					'match' => '{label1="{#LLD_MACRO}"}'
+				]
+			],
+			[
+				'{label1="{#LLD_MACRO} abc {#LLD_MACRO2}"}', 0, ['lldmacros' => true],
+				[
+					'rc' => CParser::PARSE_SUCCESS,
+					'match' => '{label1="{#LLD_MACRO} abc {#LLD_MACRO2}"}'
+				]
+			],
+			[
 				'{label1="value1"}==666', 0, [],
 				[
 					'rc' => CParser::PARSE_SUCCESS,
@@ -310,6 +375,20 @@ class CPrometheusPatternParserTest extends TestCase {
 				]
 			],
 			[
+				'{{$M}.regsub("([0-9]+)", \1)}', 0, ['usermacros' => true],
+				[
+					'rc' => CParser::PARSE_SUCCESS,
+					'match' => '{{$M}.regsub("([0-9]+)", \1)}'
+				]
+			],
+			[
+				'{$M}{label1="value1"}=={{$M}.regsub("([0-9]+)", \1)}', 0, ['usermacros' => true],
+				[
+					'rc' => CParser::PARSE_SUCCESS,
+					'match' => '{$M}{label1="value1"}=={{$M}.regsub("([0-9]+)", \1)}'
+				]
+			],
+			[
 				'{$M}{label1="{$M}"}=={$M}', 0, ['usermacros' => true],
 				[
 					'rc' => CParser::PARSE_SUCCESS,
@@ -342,6 +421,34 @@ class CPrometheusPatternParserTest extends TestCase {
 				[
 					'rc' => CParser::PARSE_SUCCESS,
 					'match' => '{#LLD1}{{#LLD2}="value1"}=={#LLD3}'
+				]
+			],
+			[
+				'{{#LLD_MACRO}.regsub("(.*)_([0-9]+)", \1)}', 0, ['lldmacros' => true],
+				[
+					'rc' => CParser::PARSE_SUCCESS,
+					'match' => '{{#LLD_MACRO}.regsub("(.*)_([0-9]+)", \1)}'
+				]
+			],
+			[
+				'metric == {{#LLD_MACRO}.regsub("(.*)_([0-9]+)", \1)}', 0, ['lldmacros' => true],
+				[
+					'rc' => CParser::PARSE_SUCCESS,
+					'match' => 'metric == {{#LLD_MACRO}.regsub("(.*)_([0-9]+)", \1)}'
+				]
+			],
+			[
+				'metric{{#LLD_MACRO}="value1"} == Nan', 0, ['lldmacros' => true],
+				[
+					'rc' => CParser::PARSE_SUCCESS,
+					'match' => 'metric{{#LLD_MACRO}="value1"} == Nan'
+				]
+			],
+			[
+				'metric{{{#LLD_MACRO}.regsub("(.*)_([0-9]+)", \1)} = "value1"} == Nan', 0, ['lldmacros' => true],
+				[
+					'rc' => CParser::PARSE_SUCCESS,
+					'match' => 'metric{{{#LLD_MACRO}.regsub("(.*)_([0-9]+)", \1)} = "value1"} == Nan'
 				]
 			],
 			// Label value can by anything, no user macro enabling flag is required.
@@ -380,6 +487,13 @@ class CPrometheusPatternParserTest extends TestCase {
 				[
 					'rc' => CParser::PARSE_SUCCESS,
 					'match' => '{label1!~"value1"}'
+				]
+			],
+			[
+				'{#LLD}  {label1="value1"}  ==  {{#LLD}.regsub("^([0-9]+)", "{#LLD}: \1")}', 0, ['lldmacros' => true],
+				[
+					'rc' => CParser::PARSE_SUCCESS,
+					'match' => '{#LLD}  {label1="value1"}  ==  {{#LLD}.regsub("^([0-9]+)", "{#LLD}: \1")}'
 				]
 			],
 			// partial success
@@ -559,12 +673,36 @@ class CPrometheusPatternParserTest extends TestCase {
 					'match' => 'metric'
 				]
 			],
-			// Functional macros are not supported.
+			// Incorrect syntax of functional LLD macros in label.
 			[
-				'{#LLD}  {label1="value1"}  ==  {{#LLD}.regsub("^([0-9]+)", "{#LLD}: \1")}', 0, ['lldmacros' => true],
+				'metric  {{{#LLD}.regsub("^([0-9]+)", "{#LLD}: \1")="value1"}  ==  Nan', 0, ['lldmacros' => true],
 				[
 					'rc' => CParser::PARSE_SUCCESS_CONT,
-					'match' => '{#LLD}  {label1="value1"}'
+					'match' => 'metric'
+				]
+			],
+			// Multiple macros for metric.
+			[
+				'{#LLD_MACRO}{#LLD_MACRO2}', 0, ['lldmacros' => true],
+				[
+					'rc' => CParser::PARSE_SUCCESS_CONT,
+					'match' => '{#LLD_MACRO}'
+				]
+			],
+			// Multiple macros for label.
+			[
+				'metric{{#LLD_MACRO}{#LLD_MACRO2} = "value"}', 0, ['lldmacros' => true],
+				[
+					'rc' => CParser::PARSE_SUCCESS_CONT,
+					'match' => 'metric'
+				]
+			],
+			// Multiple macros for value.
+			[
+				'metric{label = "value"} == {#LLD_MACRO}{#LLD_MACRO2}', 0, ['lldmacros' => true],
+				[
+					'rc' => CParser::PARSE_SUCCESS_CONT,
+					'match' => 'metric{label = "value"} == {#LLD_MACRO}'
 				]
 			],
 			// fail
@@ -759,6 +897,34 @@ class CPrometheusPatternParserTest extends TestCase {
 					'match' => ''
 				]
 			],
+			[
+				'{label1={$MACRO}}==""', 0, [],
+				[
+					'rc' => CParser::PARSE_FAIL,
+					'match' => ''
+				]
+			],
+			[
+				'{label1={$MACRO}}==""', 0, ['usermacros' => true],
+				[
+					'rc' => CParser::PARSE_FAIL,
+					'match' => ''
+				]
+			],
+			[
+				'{label1={#LLD_MACRO}}==""', 0, [],
+				[
+					'rc' => CParser::PARSE_FAIL,
+					'match' => ''
+				]
+			],
+			[
+				'{label1={#LLD_MACRO}}==""', 0, ['lldmacros' => true],
+				[
+					'rc' => CParser::PARSE_FAIL,
+					'match' => ''
+				]
+			],
 			// LLD macros are not enabled.
 			[
 				'{#LLD}{label1="value1"}=={#LLD}', 0, ['usermacros' => true],
@@ -767,9 +933,25 @@ class CPrometheusPatternParserTest extends TestCase {
 					'match' => ''
 				]
 			],
-			// Functional macros are not supported.
+			// Multiple LLD macros in label.
 			[
-				'{{#LLD}.regsub("^([0-9]+)", "{#LLD}: \1")}  {label1="value1"}  ==  {{#LLD}.regsub("^([0-9]+)", "{#LLD}: \1")}', 0, ['lldmacros' => true],
+				'{{#LLD_MACRO}{#LLD_MACRO2}="value1"}==Inf', 0, ['usermacros' => true],
+				[
+					'rc' => CParser::PARSE_FAIL,
+					'match' => ''
+				]
+			],
+			// Incorrect syntax of functional LLD macros in metric.
+			[
+				'{{#LLD}.regsub("^([0-9]+)", "{#LLD}: \1")  {label1="value1"}  ==  value', 0, ['lldmacros' => true],
+				[
+					'rc' => CParser::PARSE_FAIL,
+					'match' => ''
+				]
+			],
+			// Incorrect syntax of functional LLD macros in metric.
+			[
+				'{{{#LLD}.regsub("^([0-9]+)", "{#LLD}: \1")="value1"}  ==  value', 0, ['lldmacros' => true],
 				[
 					'rc' => CParser::PARSE_FAIL,
 					'match' => ''

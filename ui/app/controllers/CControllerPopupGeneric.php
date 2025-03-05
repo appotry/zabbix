@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -25,6 +20,7 @@ require_once dirname(__FILE__).'/../../include/items.inc.php';
 require_once dirname(__FILE__).'/../../include/users.inc.php';
 require_once dirname(__FILE__).'/../../include/js.inc.php';
 require_once dirname(__FILE__).'/../../include/discovery.inc.php';
+
 class CControllerPopupGeneric extends CController {
 
 	/**
@@ -32,25 +28,37 @@ class CControllerPopupGeneric extends CController {
 	 *
 	 * @var array
 	 */
-	const ALLOWED_ITEM_TYPES = [ITEM_TYPE_ZABBIX, ITEM_TYPE_ZABBIX_ACTIVE, ITEM_TYPE_SIMPLE, ITEM_TYPE_INTERNAL,
-		ITEM_TYPE_IPMI, ITEM_TYPE_SNMPTRAP, ITEM_TYPE_DB_MONITOR, ITEM_TYPE_JMX
+	const ALLOWED_ITEM_TYPES = [ITEM_TYPE_ZABBIX, ITEM_TYPE_ZABBIX_ACTIVE, ITEM_TYPE_SIMPLE, ITEM_TYPE_SNMPTRAP,
+		ITEM_TYPE_INTERNAL, ITEM_TYPE_DB_MONITOR, ITEM_TYPE_IPMI, ITEM_TYPE_JMX
 	];
 
 	/**
-	 * Popups having group filter selector.
+	 * Popups having host group filter selector.
 	 *
 	 * @array
 	 */
-	const POPUPS_HAVING_GROUP_FILTER = ['hosts', 'templates', 'host_templates'];
+	const POPUPS_HAVING_HOST_GROUP_FILTER = ['hosts', 'host_templates'];
+
+	/**
+	 * Popups having template group filter selector.
+	 *
+	 * @array
+	 */
+	const POPUPS_HAVING_TEMPLATE_GROUP_FILTER = ['templates'];
 
 	/**
 	 * Popups having host filter selector.
 	 *
 	 * @array
 	 */
-	const POPUPS_HAVING_HOST_FILTER = ['triggers', 'items', 'graphs', 'graph_prototypes',
-		'item_prototypes'
-	];
+	const POPUPS_HAVING_HOST_FILTER = ['items', 'item_prototypes', 'triggers', 'graphs', 'graph_prototypes'];
+
+	/**
+	 * Popups having template filter selector.
+	 *
+	 * @array
+	 */
+	const POPUPS_HAVING_TEMPLATE_FILTER = ['template_items', 'template_triggers'];
 
 	/**
 	 * General properties for supported dialog types.
@@ -67,11 +75,18 @@ class CControllerPopupGeneric extends CController {
 	private $source_table;
 
 	/**
-	 * Groups set in filter.
+	 * Host groups set in filter.
 	 *
 	 * @var array
 	 */
 	protected $groupids = [];
+
+	/**
+	 * Template groups set in filter.
+	 *
+	 * @var array
+	 */
+	protected $template_groupids = [];
 
 	/**
 	 * Hosts set in filter.
@@ -81,11 +96,25 @@ class CControllerPopupGeneric extends CController {
 	protected $hostids = [];
 
 	/**
+	 * Template set in filter.
+	 *
+	 * @var array
+	 */
+	protected $templateids = [];
+
+	/**
 	 * Either Host filter need to be filled to load results.
 	 *
 	 * @var bool
 	 */
 	protected $host_preselect_required;
+
+	/**
+	 * Either template filter need to be filled to load results.
+	 *
+	 * @var bool
+	 */
+	protected $template_preselect_required;
 
 	/**
 	 * Either Host group filter need to be filled to load results.
@@ -95,14 +124,26 @@ class CControllerPopupGeneric extends CController {
 	protected $group_preselect_required;
 
 	/**
+	 * Either template group filter need to be filled to load results.
+	 *
+	 * @var bool
+	 */
+	protected $template_group_preselect_required;
+
+	/**
 	 * Set of disabled options.
 	 *
 	 * @var array
 	 */
 	protected $disableids = [];
 
+	/**
+	 * @var array
+	 */
+	private $page_options = [];
+
 	protected function init() {
-		$this->disableSIDvalidation();
+		$this->disableCsrfValidation();
 
 		$this->popup_properties = [
 			'hosts' => [
@@ -119,7 +160,7 @@ class CControllerPopupGeneric extends CController {
 			],
 			'templates' => [
 				'title' => _('Templates'),
-				'min_user_type' => USER_TYPE_ZABBIX_ADMIN,
+				'min_user_type' => USER_TYPE_ZABBIX_USER,
 				'allowed_src_fields' => 'hostid,host',
 				'form' => [
 					'name' => 'templateform',
@@ -153,10 +194,22 @@ class CControllerPopupGeneric extends CController {
 					_('Name')
 				]
 			],
+			'template_groups' => [
+				'title' => _('Template groups'),
+				'min_user_type' => USER_TYPE_ZABBIX_USER,
+				'allowed_src_fields' => 'groupid,name',
+				'form' => [
+					'name' => 'templateGroupsform',
+					'id' => 'templateGroups'
+				],
+				'table_columns' => [
+					_('Name')
+				]
+			],
 			'proxies' => [
 				'title' => _('Proxies'),
 				'min_user_type' => USER_TYPE_ZABBIX_ADMIN,
-				'allowed_src_fields' => 'proxyid,host',
+				'allowed_src_fields' => 'proxyid,name',
 				'form' => [
 					'name' => 'proxiesform',
 					'id' => 'proxies'
@@ -165,7 +218,33 @@ class CControllerPopupGeneric extends CController {
 					_('Name')
 				]
 			],
+			'proxy_groups' => [
+				'title' => _('Proxy groups'),
+				'min_user_type' => USER_TYPE_ZABBIX_ADMIN,
+				'allowed_src_fields' => 'proxy_groupid,name',
+				'form' => [
+					'name' => 'proxy_groups_form',
+					'id' => 'proxy-groups'
+				],
+				'table_columns' => [
+					_('Name')
+				]
+			],
 			'triggers' => [
+				'title' => _('Triggers'),
+				'min_user_type' => USER_TYPE_ZABBIX_USER,
+				'allowed_src_fields' => 'description,triggerid,expression',
+				'form' => [
+					'name' => 'triggerform',
+					'id' => 'triggers'
+				],
+				'table_columns' => [
+					_('Name'),
+					_('Severity'),
+					_('Status')
+				]
+			],
+			'template_triggers' => [
 				'title' => _('Triggers'),
 				'min_user_type' => USER_TYPE_ZABBIX_USER,
 				'allowed_src_fields' => 'description,triggerid,expression',
@@ -228,8 +307,24 @@ class CControllerPopupGeneric extends CController {
 					'id' => 'items'
 				],
 				'table_columns' => [
-					_('Name'),
-					_('Key'),
+					(new CColHeader(_('Name')))->addStyle('width: 30%;'),
+					(new CColHeader(_('Key')))->addStyle('width: 30%;'),
+					_('Type'),
+					_('Type of information'),
+					_('Status')
+				]
+			],
+			'template_items' => [
+				'title' => _('Items'),
+				'min_user_type' => USER_TYPE_ZABBIX_USER,
+				'allowed_src_fields' => 'itemid,name',
+				'form' => [
+					'name' => 'itemform',
+					'id' => 'items'
+				],
+				'table_columns' => [
+					(new CColHeader(_('Name')))->addStyle('width: 30%;'),
+					(new CColHeader(_('Key')))->addStyle('width: 30%;'),
 					_('Type'),
 					_('Type of information'),
 					_('Status')
@@ -241,7 +336,8 @@ class CControllerPopupGeneric extends CController {
 				'allowed_src_fields' => 'key',
 				'table_columns' => [
 					_('Key'),
-					_('Name')
+					_('Name'),
+					''
 				]
 			],
 			'graphs' => [
@@ -279,8 +375,8 @@ class CControllerPopupGeneric extends CController {
 					'id' => 'items'
 				],
 				'table_columns' => [
-					_('Name'),
-					_('Key'),
+					(new CColHeader(_('Name')))->addStyle('width: 30%;'),
+					(new CColHeader(_('Key')))->addStyle('width: 30%;'),
 					_('Type'),
 					_('Type of information')
 				]
@@ -366,6 +462,19 @@ class CControllerPopupGeneric extends CController {
 					_('Mapping')
 				]
 			],
+			'template_valuemaps' => [
+				'title' => _('Value mapping'),
+				'min_user_type' => USER_TYPE_ZABBIX_ADMIN,
+				'allowed_src_fields' => 'valuemapid,name',
+				'form' => [
+					'name' => 'valuemapform',
+					'id' => 'valuemaps'
+				],
+				'table_columns' => [
+					_('Name'),
+					_('Mapping')
+				]
+			],
 			'dashboard' => [
 				'title' => _('Dashboards'),
 				'min_user_type' => USER_TYPE_ZABBIX_USER,
@@ -385,6 +494,42 @@ class CControllerPopupGeneric extends CController {
 				'form' => [
 					'name' => 'slaform',
 					'id' => 'sla'
+				],
+				'table_columns' => [
+					_('Name')
+				]
+			],
+			'actions' => [
+				'title' => _('Actions'),
+				'min_user_type' => USER_TYPE_ZABBIX_USER,
+				'allowed_src_fields' => 'actionid,name',
+				'form' => [
+					'name' => 'actionform',
+					'id' => 'actions'
+				],
+				'table_columns' => [
+					_('Actions')
+				]
+			],
+			'media_types' => [
+				'title' => _('Media types'),
+				'min_user_type' => USER_TYPE_ZABBIX_USER,
+				'allowed_src_fields' => 'mediatypeid,name',
+				'form' => [
+					'name' => 'media_typeform',
+					'id' => 'media_types'
+				],
+				'table_columns' => [
+					_('Media type')
+				]
+			],
+			'host_inventory' => [
+				'title' => _('Inventory'),
+				'min_user_type' => USER_TYPE_ZABBIX_USER,
+				'allowed_src_fields' => 'id,name',
+				'form' => [
+					'name' => 'inventory_form',
+					'id' => 'inventory_form'
 				],
 				'table_columns' => [
 					_('Name')
@@ -409,8 +554,11 @@ class CControllerPopupGeneric extends CController {
 			'srctbl' =>								'string',
 			'srcfld1' =>							'string|required|in '.$this->popup_properties[$this->source_table]['allowed_src_fields'],
 			'groupid' =>							'db hstgrp.groupid',
+			'templategroupid' =>					'db hstgrp.groupid',
 			'group' =>								'string',
+			'templategroup' =>						'string',
 			'hostid' =>								'db hosts.hostid',
+			'templateid' =>							'db hosts.hostid',
 			'host' =>								'string',
 			'parent_discoveryid' =>					'db items.itemid',
 			'templates' =>							'string|not_empty',
@@ -434,12 +582,10 @@ class CControllerPopupGeneric extends CController {
 			'with_monitored_triggers' =>			'in 1',
 			'with_monitored_items' =>				'in 1',
 			'with_httptests' => 					'in 1',
-			'with_hosts_and_templates' =>			'in 1',
-			'with_webitems' =>						'in 1',
 			'with_inherited' =>						'in 1',
 			'itemtype' =>							'in '.implode(',', self::ALLOWED_ITEM_TYPES),
 			'value_types' =>						'array',
-			'context' =>							'string|in host,template',
+			'context' =>							'string|in host,template,audit',
 			'enabled_only' =>						'in 1',
 			'disable_names' =>						'array',
 			'numeric' =>							'in 1',
@@ -448,8 +594,16 @@ class CControllerPopupGeneric extends CController {
 			'enrich_parent_groups' =>				'in 1',
 			'filter_groupid_rst' =>					'in 1',
 			'filter_hostid_rst' =>					'in 1',
+			'filter_templateid_rst' =>				'in 1',
 			'user_type' =>							'in '.implode(',', [USER_TYPE_ZABBIX_USER, USER_TYPE_ZABBIX_ADMIN, USER_TYPE_SUPER_ADMIN]),
-			'hostids' => 							'array'
+			'group_status' =>						'in '.implode(',', [GROUP_STATUS_ENABLED, GROUP_STATUS_DISABLED]),
+			'hostids' =>							'array',
+			'host_pattern' =>						'array|not_empty',
+			'host_pattern_wildcard_allowed' =>		'in 1',
+			'host_pattern_multiple' =>				'in 1',
+			'hide_host_filter' =>					'in 1',
+			'resolve_macros' =>						'in 1',
+			'exclude_provisioned' =>				'in 1'
 		];
 
 		// Set destination and source field validation roles.
@@ -468,15 +622,6 @@ class CControllerPopupGeneric extends CController {
 		// Set disabled options to property for ability to modify them in result fetching.
 		if ($ret && $this->hasInput('disableids')) {
 			$this->disableids = $this->getInput('disableids');
-		}
-
-		if ($ret && $this->getInput('value_types', [])) {
-			foreach ($this->getInput('value_types') as $value_type) {
-				if (!is_numeric($value_type) || $value_type < 0 || $value_type > 15) {
-					error(_s('Incorrect value "%1$s" for "%2$s" field.', $value_type, 'value_types'));
-					$ret = false;
-				}
-			}
 		}
 
 		if (!$ret) {
@@ -518,6 +663,29 @@ class CControllerPopupGeneric extends CController {
 			$this->groupids = array_keys($host_groups);
 		}
 
+		// Check template group permissions.
+		$templategroup_options = [];
+
+		if ($this->getInput('templategroup', '') !== '') {
+			$templategroup_options['filter']['name'] = $this->getInput('templategroup');
+		}
+		elseif ($this->hasInput('templategroupid')) {
+			$templategroup_options['groupids'] = $this->getInput('templategroupid');
+		}
+
+		if ($templategroup_options) {
+			$template_groups = API::TemplateGroup()->get([
+				'output' => [],
+				'preservekeys' => true
+			] + $templategroup_options);
+
+			if (!$template_groups) {
+				return false;
+			}
+
+			$this->template_groupids = array_keys($template_groups);
+		}
+
 		// Check host permissions.
 		$host_options = [];
 
@@ -546,6 +714,26 @@ class CControllerPopupGeneric extends CController {
 			$this->hostids = array_keys($hosts);
 		}
 
+		// Check template permissions.
+		$template_options = [];
+
+		if ($this->hasInput('templateid')) {
+			$template_options['templateids'] = $this->getInput('templateid');
+		}
+
+		if ($template_options) {
+			$templates = API::Template()->get([
+				'output' => [],
+				'preservekeys' => true
+			] + $template_options);
+
+			if (!$templates) {
+				return false;
+			}
+
+			$this->templateids = array_keys($templates);
+		}
+
 		// Check discovery rule permissions.
 		if ($this->hasInput('parent_discoveryid')) {
 			$lld_rules = API::DiscoveryRule()->get([
@@ -571,15 +759,21 @@ class CControllerPopupGeneric extends CController {
 
 		$group_options = [];
 		$host_options = [];
+		$templategroup_options = [];
+		$template_options = [];
 
 		if ($this->hasInput('writeonly')) {
 			$group_options['editable'] = 1;
 			$host_options['editable'] = 1;
+			$templategroup_options['editable'] = 1;
+			$template_options['editable'] = 1;
 		}
 
 		if ($this->hasInput('with_items')) {
 			$group_options['with_items'] = 1;
 			$host_options['with_items'] = 1;
+			$templategroup_options['with_items'] = 1;
+			$template_options['with_items'] = 1;
 		}
 		elseif ($this->hasInput('with_monitored_items')) {
 			$group_options['with_monitored_items'] = 1;
@@ -589,39 +783,45 @@ class CControllerPopupGeneric extends CController {
 		if ($this->hasInput('with_httptests')) {
 			$group_options['with_httptests'] = 1;
 			$host_options['with_httptests'] = 1;
+			$templategroup_options['with_httptests'] = 1;
 		}
 
 		if ($this->source_table === 'hosts' && !$this->hasInput('templated_hosts')) {
-			$group_options['real_hosts'] = 1;
+			$group_options['with_hosts'] = 1;
 		}
 		elseif ($this->source_table === 'templates') {
 			$host_options['templated_hosts'] = 1;
-			$group_options['templated_hosts'] = 1;
+			$templategroup_options['with_templates'] = 1;
 		}
 
 		if ($this->hasInput('monitored_hosts')) {
-			$group_options['monitored_hosts'] = 1;
+			$group_options['with_monitored_hosts'] = 1;
 			$host_options['monitored_hosts'] = 1;
 		}
 		elseif ($this->hasInput('real_hosts')) {
-			$group_options['real_hosts'] = 1;
+			$group_options['with_hosts'] = 1;
 			$host_options['real_hosts'] = 1;
 		}
 		elseif ($this->hasInput('templated_hosts')) {
 			$host_options['templated_hosts'] = 1;
-			$group_options['templated_hosts'] = 1;
+			$templategroup_options['with_templates'] = 1;
 		}
 		elseif ($this->source_table !== 'templates' && $this->source_table !== 'host_templates') {
-			$group_options['with_hosts_and_templates'] = 1;
+			$group_options['with_hosts'] = 1;
 		}
 
 		if ($this->hasInput('groupid')) {
 			$host_options['groupid'] = $this->getInput('groupid');
-			$group_options['groupid'] = $this->getInput('groupid');
 		}
 
-		if ($this->hasInput('enrich_parent_groups') || $this->group_preselect_required) {
+		if ($this->hasInput('templategroupid')) {
+			$template_options['groupid'] = $this->getInput('templategroupid');
+		}
+
+		if ($this->hasInput('enrich_parent_groups') || $this->group_preselect_required
+				|| $this->template_group_preselect_required) {
 			$group_options['enrich_parent_groups'] = 1;
+			$templategroup_options['enrich_parent_groups'] = 1;
 		}
 
 		foreach (['with_graphs', 'with_graph_prototypes', 'with_simple_graph_items',
@@ -629,6 +829,8 @@ class CControllerPopupGeneric extends CController {
 			if ($this->hasInput($name)) {
 				$group_options[$name] = 1;
 				$host_options[$name] = 1;
+				$templategroup_options[$name] = 1;
+				$template_options[$name] = 1;
 				break;
 			}
 		}
@@ -660,9 +862,36 @@ class CControllerPopupGeneric extends CController {
 			];
 		}
 
+		// Template group dropdown.
+		if ($this->template_group_preselect_required) {
+			$groups = $this->template_groupids
+				? API::TemplateGroup()->get([
+					'output' => ['name', 'groupid'],
+					'groupids' => $this->template_groupids
+				])
+				: [];
+
+			$filter['templategroups'] = [
+				'multiple' => false,
+				'name' => 'popup_template_group',
+				'object_name' => 'templateGroup',
+				'data' => CArrayHelper::renameObjectsKeys($groups, ['groupid' => 'id']),
+				'selectedLimit' => 1,
+				'popup' => [
+					'parameters' => [
+						'srctbl' => 'template_groups',
+						'srcfld1' => 'groupid',
+						'dstfld1' => 'popup_template_group'
+					] + $templategroup_options
+				],
+				'add_post_js' => false
+			];
+		}
+
 		// Host dropdown.
 		if (in_array($this->source_table, self::POPUPS_HAVING_HOST_FILTER)
-				&& ($this->source_table !== 'item_prototypes' || !$this->page_options['parent_discoveryid'])) {
+				&& ($this->source_table !== 'item_prototypes' || !$this->page_options['parent_discoveryid'])
+				&& !$this->hasInput('hide_host_filter')) {
 
 			$src_name = 'hosts';
 			if (!array_key_exists('monitored_hosts', $host_options)
@@ -699,13 +928,45 @@ class CControllerPopupGeneric extends CController {
 				'object_name' => $src_name,
 				'data' => array_values($hosts),
 				'selectedLimit' => 1,
-				'disabled' => $this->hasInput('only_hostid'),
+				'readonly' => $this->hasInput('only_hostid'),
 				'popup' => [
 					'parameters' => [
 						'srctbl' => $src_name,
 						'srcfld1' => 'hostid',
 						'dstfld1' => 'popup_host'
 					] + $host_options
+				],
+				'add_post_js' => false
+			];
+		}
+
+		// Template dropdown.
+		if (in_array($this->source_table, self::POPUPS_HAVING_TEMPLATE_FILTER)) {
+			$src_name = 'templates';
+
+			$templates = $this->templateids
+				? API::Template()->get([
+					'output' => ['name', 'hostid'],
+					'templateids' => $this->templateids
+				])
+				: [];
+
+			$templates = CArrayHelper::renameObjectsKeys($templates, ['templateid' => 'id']);
+
+			$this->templateids = array_column($templates, 'id');
+			$filter['templates'] = [
+				'multiple' => false,
+				'name' => 'popup_template',
+				'object_name' => $src_name,
+				'data' => array_values($templates),
+				'selectedLimit' => 1,
+				'disabled' => $this->hasInput('only_hostid'),
+				'popup' => [
+					'parameters' => [
+						'srctbl' => $src_name,
+						'srcfld1' => 'hostid',
+						'dstfld1' => 'popup_template'
+					] + $template_options
 				],
 				'add_post_js' => false
 			];
@@ -771,7 +1032,43 @@ class CControllerPopupGeneric extends CController {
 			$this->groupids = CProfile::getArray('web.popup.generic.filter_groupid', []);
 		}
 
+		if ($this->template_groupids) {
+			CProfile::updateArray( 'web.popup.generic.filter_templategroupid', $this->template_groupids,
+				PROFILE_TYPE_ID
+			);
+		}
+		elseif ($this->hasInput('filter_groupid_rst')) {
+			CProfile::delete('web.popup.generic.filter_templategroupid');
+		}
+		else {
+			$this->template_groupids = CProfile::getArray('web.popup.generic.filter_templategroupid', []);
+		}
+
 		if ($this->hostids) {
+			CProfile::updateArray('web.popup.generic.filter_hostid', $this->hostids, PROFILE_TYPE_ID);
+		}
+		elseif ($this->hasInput('host_pattern')) {
+			$host_pattern_multiple = $this->hasInput('host_pattern_multiple');
+			$host_patterns = $host_pattern_multiple
+				? $this->getInput('host_pattern')
+				: [$this->getInput('host_pattern')];
+			$host_pattern_wildcard_enabled = $this->hasInput('host_pattern_wildcard_allowed')
+				&& !in_array('*', $host_patterns, true);
+
+			$hosts = API::Host()->get([
+				'output' => ['name'],
+				'search' => [
+					'name' => $host_pattern_wildcard_enabled ? $host_patterns : null
+				],
+				'searchWildcardsEnabled' => $host_pattern_wildcard_enabled,
+				'searchByAny' => true,
+				'preservekeys' => true
+			]);
+
+			CArrayHelper::sort($hosts, ['name']);
+
+			$this->hostids = $hosts ? [array_key_first($hosts)] : [];
+
 			CProfile::updateArray('web.popup.generic.filter_hostid', $this->hostids, PROFILE_TYPE_ID);
 		}
 		elseif ($this->hasInput('filter_hostid_rst')) {
@@ -781,10 +1078,25 @@ class CControllerPopupGeneric extends CController {
 			$this->hostids = CProfile::getArray('web.popup.generic.filter_hostid', []);
 		}
 
+		if ($this->templateids) {
+			CProfile::updateArray('web.popup.generic.filter_templateid', $this->templateids, PROFILE_TYPE_ID);
+		}
+		elseif ($this->hasInput('filter_templateid_rst')) {
+			CProfile::delete('web.popup.generic.filter_templateid');
+		}
+		else {
+			$this->templateids = CProfile::getArray('web.popup.generic.filter_templateid', []);
+		}
+
 		// Set popup options.
 		$this->host_preselect_required = in_array($this->source_table, self::POPUPS_HAVING_HOST_FILTER);
-		$this->group_preselect_required = in_array($this->source_table, self::POPUPS_HAVING_GROUP_FILTER)
+		$this->group_preselect_required = in_array($this->source_table, self::POPUPS_HAVING_HOST_GROUP_FILTER)
 			|| ($this->source_table === 'valuemaps' && !$this->hasInput('hostids'));
+		$this->template_group_preselect_required = in_array(
+			$this->source_table,
+			self::POPUPS_HAVING_TEMPLATE_GROUP_FILTER
+		) || ($this->source_table === 'template_valuemaps' && !$this->hasInput('hostids'));
+		$this->template_preselect_required = in_array($this->source_table, self::POPUPS_HAVING_TEMPLATE_FILTER);
 		$this->page_options = $this->getPageOptions();
 
 		// Make control filters. Must be called before extending groupids.
@@ -792,6 +1104,7 @@ class CControllerPopupGeneric extends CController {
 
 		// Select subgroups.
 		$this->groupids = getSubGroups($this->groupids);
+		$this->template_groupids = getTemplateSubGroups($this->template_groupids);
 
 		// Load results.
 		$records = $this->fetchResults();
@@ -809,7 +1122,9 @@ class CControllerPopupGeneric extends CController {
 			'table_columns' => $popup['table_columns'],
 			'table_records' => $records,
 			'preselect_required' => (($this->host_preselect_required && !$this->hostids)
-				|| ($this->group_preselect_required && !$this->groupids)),
+				|| ($this->group_preselect_required && !$this->groupids)
+				|| ($this->template_group_preselect_required && !$this->template_groupids)
+				|| ($this->template_preselect_required && !$this->templateids)),
 			'user' => [
 				'debug_mode' => $this->getDebugMode()
 			]
@@ -895,13 +1210,6 @@ class CControllerPopupGeneric extends CController {
 				}
 				break;
 
-			case 'items':
-				foreach ($records as $itemid => $row) {
-					$records[$row['name']] = ['itemid' => $row['name']] + $row;
-					unset($records[$itemid]);
-				}
-				break;
-
 			case 'graphs':
 				foreach ($records as $graphid => $row) {
 					$records[$row['name']] = [
@@ -950,26 +1258,38 @@ class CControllerPopupGeneric extends CController {
 					'output' => API_OUTPUT_EXTEND
 				];
 
+				if ($this->hasInput('group_status')) {
+					$options['status'] = $this->getInput('group_status');
+				}
+
 				$records = API::UserGroup()->get($options);
 				CArrayHelper::sort($records, ['name']);
 				break;
 
 			case 'users':
 				$options += [
-					'output' => ['username', 'name', 'surname', 'type', 'theme', 'lang']
+					'output' => ['userid', 'username', 'name', 'surname']
 				];
 
+				if ($this->hasInput('exclude_provisioned')) {
+					$options['filter']['userdirectoryid'] = 0;
+				}
+
 				$records = API::User()->get($options);
+
+				if ($this->hasInput('context')) {
+					$records[0] = ['userid' => 0, 'username' => 'System', 'name' => '', 'surname' => ''];
+				}
+
 				CArrayHelper::sort($records, ['username']);
 				break;
 
 			case 'templates':
 				$options += [
 					'output' => ['templateid', 'name'],
-					'groupids' => $this->groupids ? $this->groupids : null
+					'groupids' => $this->template_groupids ? $this->template_groupids : null
 				];
-
-				$records = (!$this->group_preselect_required || $this->groupids)
+				$records = (!$this->template_group_preselect_required || $this->template_groupids)
 					? API::Template()->get($options)
 					: [];
 
@@ -984,8 +1304,7 @@ class CControllerPopupGeneric extends CController {
 					'real_hosts' => $this->hasInput('real_hosts') ? '1' : null,
 					'with_httptests' => $this->hasInput('with_httptests') ? '1' : null,
 					'with_items' => $this->hasInput('with_items') ? true : null,
-					'with_triggers' => $this->hasInput('with_triggers') ? true : null,
-					'templated_hosts' => $this->hasInput('with_hosts_and_templates') ? true : null
+					'with_triggers' => $this->hasInput('with_triggers') ? true : null
 				];
 
 				if ($this->hasInput('with_monitored_triggers')) {
@@ -1027,22 +1346,15 @@ class CControllerPopupGeneric extends CController {
 			case 'host_groups':
 				$options += [
 					'output' => ['groupid', 'name'],
-					'with_triggers' => $this->hasInput('with_triggers') ? true : null
+					'with_triggers' => $this->hasInput('with_triggers')
 				];
 
 				if (array_key_exists('real_hosts', $this->page_options)) {
-					$options['real_hosts'] = 1;
-				}
-				elseif ($this->hasInput('templated_hosts')) {
-					$options['templated_hosts'] = 1;
+					$options['with_hosts'] = true;
 				}
 
 				if ($this->hasInput('with_httptests')) {
-					$options['with_httptests'] = 1;
-				}
-
-				if ($this->hasInput('with_hosts_and_templates')) {
-					$options['with_hosts_and_templates'] = 1;
+					$options['with_httptests'] = true;
 				}
 
 				if ($this->hasInput('with_items')) {
@@ -1060,6 +1372,33 @@ class CControllerPopupGeneric extends CController {
 				$records = API::HostGroup()->get($options);
 				if ($this->hasInput('enrich_parent_groups')) {
 					$records = enrichParentGroups($records);
+				}
+
+				CArrayHelper::sort($records, ['name']);
+				$records = CArrayHelper::renameObjectsKeys($records, ['groupid' => 'id']);
+				break;
+
+			case 'template_groups':
+				$options += [
+					'output' => ['groupid', 'name'],
+					'with_triggers' => $this->hasInput('with_triggers')
+				];
+
+				if ($this->hasInput('templated_hosts')) {
+					$options['with_templates'] = true;
+				}
+
+				if ($this->hasInput('with_httptests')) {
+					$options['with_httptests'] = true;
+				}
+
+				if ($this->hasInput('with_items')) {
+					$options['with_items'] = true;
+				}
+
+				$records = API::TemplateGroup()->get($options);
+				if ($this->hasInput('enrich_parent_groups')) {
+					$records = enrichParentTemplateGroups($records);
 				}
 
 				CArrayHelper::sort($records, ['name']);
@@ -1103,6 +1442,49 @@ class CControllerPopupGeneric extends CController {
 				CArrayHelper::sort($records, ['description']);
 				break;
 
+			case 'template_triggers':
+				$options += [
+					'output' => ['triggerid', 'expression', 'description', 'status', 'priority', 'state'],
+					'selectHosts' => ['name'],
+					'selectItems' => ['status'],
+					'selectDependencies' => ['triggerid', 'expression', 'description'],
+					'expandDescription' => true
+				];
+
+				if ($this->templateids) {
+					$options['templateids'] = $this->templateids;
+				}
+				elseif ($this->groupids) {
+					$options['groupids'] = $this->groupids;
+				}
+
+				if (!$this->template_preselect_required || $this->templateids) {
+					$records = API::Trigger()->get($options);
+
+					if ($this->hasInput('with_monitored_triggers')) {
+						foreach ($records as $id => $record) {
+							foreach ($record['items'] as $item) {
+								if ($item['status'] != ITEM_STATUS_ACTIVE) {
+									unset($records[$id]);
+
+									break;
+								}
+							}
+
+							if ($record['status'] != TRIGGER_STATUS_ENABLED) {
+								unset($records[$id]);
+							}
+						}
+
+					}
+				}
+				else {
+					$records = [];
+				}
+
+				CArrayHelper::sort($records, ['description']);
+				break;
+
 			case 'trigger_prototypes':
 				$options += [
 					'output' => ['triggerid', 'expression', 'description', 'status', 'priority', 'state'],
@@ -1125,18 +1507,22 @@ class CControllerPopupGeneric extends CController {
 
 			case 'items':
 			case 'item_prototypes':
+				$name_field = $this->source_table === 'items' && $this->getInput('resolve_macros', 0)
+					? 'name_resolved'
+					: 'name';
+
 				$options += [
-					'output' => ['itemid', 'name', 'key_', 'flags', 'type', 'value_type', 'status'],
+					'output' => ['itemid', $name_field, 'key_', 'flags', 'type', 'value_type', 'status'],
 					'selectHosts' => ['name'],
 					'templated' => $this->hasInput('templated_hosts') ? true : null
 				];
 
 				if ($this->source_table === 'items') {
-					$options['output'] = array_merge($options['output'], ['state']);
+					$options['output'][] = 'state';
 				}
 
 				if ($this->page_options['parent_discoveryid']) {
-					$options['discoveryids'] = [$this->page_options['parent_discoveryid']];
+					$options['discoveryids'] = $this->page_options['parent_discoveryid'];
 				}
 				elseif ($this->hostids) {
 					$options['hostids'] = $this->hostids;
@@ -1158,18 +1544,40 @@ class CControllerPopupGeneric extends CController {
 					$records = API::ItemPrototype()->get($options);
 				}
 				else {
-					if ($this->hasInput('with_webitems')) {
-						$options['webitems'] = true;
-					}
+					$records = [];
 
-					if ($this->hasInput('normal_only')) {
-						$options['filter']['flags'] = ZBX_FLAG_DISCOVERY_NORMAL;
-					}
+					if (!$this->host_preselect_required || $this->hostids) {
+						if ($this->hasInput('normal_only')) {
+							$options['filter']['flags'] = ZBX_FLAG_DISCOVERY_NORMAL;
+						}
 
-					$records = (!$this->host_preselect_required || $this->hostids)
-						? API::Item()->get($options)
-						: [];
+						$records = API::Item()->get($options + ['webitems' => true]);
+
+						if ($this->getInput('resolve_macros', 0)) {
+							$records = CArrayHelper::renameObjectsKeys($records, ['name_resolved' => 'name']);
+						}
+					}
 				}
+
+				CArrayHelper::sort($records, ['name']);
+				break;
+
+			case 'template_items':
+				$options += [
+					'output' => ['itemid', 'name', 'key_', 'flags', 'type', 'value_type', 'status'],
+					'selectHosts' => ['name']
+				];
+
+				if ($this->page_options['parent_discoveryid']) {
+					$options['discoveryids'] = $this->page_options['parent_discoveryid'];
+				}
+				elseif ($this->templateids) {
+					$options['templateids'] = $this->templateids;
+				}
+
+				$records = !$this->template_preselect_required || $this->templateids
+					? API::Item()->get($options + ['webitems' => true])
+					: [];
 
 				CArrayHelper::sort($records, ['name']);
 				break;
@@ -1199,19 +1607,26 @@ class CControllerPopupGeneric extends CController {
 				break;
 
 			case 'sysmaps':
-				$options += [
-					'output' => API_OUTPUT_EXTEND
-				];
+				$records = API::Map()->get([
+					'output' => ['sysmapid', 'name'],
+					'preservekeys' => true
+				]);
 
-				$records = API::Map()->get($options);
+				$records = CArrayHelper::renameObjectsKeys($records, ['sysmapid' => 'id']);
 
 				CArrayHelper::sort($records, ['name']);
 				break;
 
 			case 'drules':
+				$filter = [];
+
+				if ($this->getInput('enabled_only', 0)) {
+					$filter['status'] = DRULE_STATUS_ACTIVE;
+				}
+
 				$records = API::DRule()->get([
 					'output' => ['druleid', 'name'],
-					'filter' => ['status' => DRULE_STATUS_ACTIVE],
+					'filter' => $filter,
 					'preservekeys' => true
 				]);
 
@@ -1221,7 +1636,7 @@ class CControllerPopupGeneric extends CController {
 
 			case 'dchecks':
 				$records = API::DRule()->get([
-					'selectDChecks' => ['dcheckid', 'type', 'key_', 'ports'],
+					'selectDChecks' => ['dcheckid', 'type', 'key_', 'ports', 'allow_redirect'],
 					'output' => ['druleid', 'name']
 				]);
 
@@ -1230,12 +1645,22 @@ class CControllerPopupGeneric extends CController {
 
 			case 'proxies':
 				$options += [
-					'output' => ['proxyid', 'host']
+					'output' => ['proxyid', 'name']
 				];
 
 				$records = API::Proxy()->get($options);
-				CArrayHelper::sort($records, ['host']);
-				$records = CArrayHelper::renameObjectsKeys($records, ['proxyid' => 'id', 'host' => 'name']);
+				CArrayHelper::sort($records, ['name']);
+				$records = CArrayHelper::renameObjectsKeys($records, ['proxyid' => 'id']);
+				break;
+
+			case 'proxy_groups':
+				$options += [
+					'output' => ['proxy_groupid', 'name']
+				];
+
+				$records = API::ProxyGroup()->get($options);
+				CArrayHelper::sort($records, ['name']);
+				$records = CArrayHelper::renameObjectsKeys($records, ['proxy_groupid' => 'id']);
 				break;
 
 			case 'roles':
@@ -1304,53 +1729,40 @@ class CControllerPopupGeneric extends CController {
 				break;
 
 			case 'valuemaps':
+			case 'template_valuemaps':
 				/**
 				 * Show list of value maps with their mappings for defined hosts or templates.
 				 *
-				 * context  Define context for hostids value maps: host, template. Required together with "hostids".
+				 * context  Define context for hostids value maps: host, template. Required.
 				 * hostids  Array of host or template ids to get value maps from. Filter by groups will be displayed if
-				 *          this parameter is not set;
+				 *          this parameter is not set.
 				 */
 				$records = [];
+				$hostids = $this->getInput('hostids', []);
+				$context = $this->getInput('context', '');
 
-				if (($this->hasInput('hostids') && !$this->hasInput('context'))
-						|| (!$this->hasInput('hostids') && !$this->groupids)) {
+				if ($context === '' || (!$hostids && !$this->groupids && !$this->template_groupids)) {
 					break;
 				}
 
 				$limit = CSettingsHelper::get(CSettingsHelper::SEARCH_LIMIT);
 
-				if ($this->hasInput('hostids')) {
-					$hostids = $this->getInput('hostids');
-					$context = $this->getInput('context');
+				$options = [
+					'output' => ['name'],
+					'preservekeys' => true
+				];
 
-					if ($context === 'host') {
-						$hosts = API::Host()->get([
-							'output' => ['name'],
-							'hostids' => $hostids,
-							'preservekeys' => true
-						]);
-					}
-					else {
-						$hosts = API::Template()->get([
-							'output' => ['name'],
-							'templateids' => $hostids,
-							'preservekeys' => true
-						]);
-					}
+				if ($hostids) {
+					$hosts = $context === 'host'
+						? API::Host()->get($options + ['hostids' => $hostids])
+						: API::Template()->get($options + ['templateids' => $hostids]);
 				}
 				else {
-					$hosts = API::Host()->get([
-						'output' => ['name'],
-						'groupids' => $this->groupids,
-						'preservekeys' => true,
-						'limit' => $limit
-					]) + API::Template()->get([
-						'output' => ['name'],
-						'groupids' => $this->groupids,
-						'preservekeys' => true,
-						'limit' => $limit
-					]);
+					$options['limit'] = $limit;
+
+					$hosts = $context === 'host'
+						? API::Host()->get($options + ['groupids' => $this->groupids])
+						: API::Template()->get($options + ['groupids' => $this->template_groupids]);
 
 					$hostids = array_keys($hosts);
 				}
@@ -1405,6 +1817,31 @@ class CControllerPopupGeneric extends CController {
 				$records = API::Sla()->get($options);
 				CArrayHelper::sort($records, ['name']);
 				$records = CArrayHelper::renameObjectsKeys($records, ['slaid' => 'id']);
+				break;
+
+			case 'actions':
+				$options += ['output' => ['name']];
+
+				$records = API::Action()->get($options);
+				CArrayHelper::sort($records, ['name']);
+				break;
+
+			case 'media_types':
+				$options += ['output' => ['mediatypeid', 'name']];
+
+				$records = API::MediaType()->get($options);
+				CArrayHelper::sort($records, ['name']);
+				break;
+
+			case 'host_inventory':
+				$records = [];
+
+				foreach (getHostInventories(true) as $inventory_field) {
+					$records[$inventory_field['nr']] = [
+						'id' => $inventory_field['nr'],
+						'name' => $inventory_field['title']
+					];
+				}
 				break;
 		}
 

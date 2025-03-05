@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 require_once dirname(__FILE__).'/../include/CLegacyWebTest.php';
@@ -125,7 +120,7 @@ class testZBX6663 extends CLegacyWebTest {
 			[
 				[
 					'template' => 'Template ZBX6663 First',
-					'link' => 'Discovery rules',
+					'link' => 'Discovery',
 					'checkbox' => 'items'
 				]
 			],
@@ -153,7 +148,7 @@ class testZBX6663 extends CLegacyWebTest {
 			[
 				[
 					'template' => 'Template ZBX6663 First',
-					'link' => 'Web scenarios',
+					'link' => 'Web',
 					'checkbox' => 'httptests'
 				]
 			]
@@ -189,22 +184,20 @@ class testZBX6663 extends CLegacyWebTest {
 		}
 
 		if (isset($zbx_data['template'])) {
-			$this->zbxTestLogin('templates.php');
+			$this->zbxTestLogin('zabbix.php?action=template.list');
 			$this->query('button:Reset')->one()->click();
 			$form = $this->query('name:zbx_filter')->asForm()->waitUntilReady()->one();
 			$form->fill(['Name' => $zbx_data['template']]);
 			$this->query('button:Apply')->one()->waitUntilClickable()->click();
-			$this->zbxTestClickLinkText($zbx_data['template']);
 
 			if (isset($zbx_data['discoveryRule'])) {
-				$this->zbxTestClickLinkTextWait('Discovery rules');
+				$this->query('class:list-table')->asTable()->one()->getRow(0)->query('link:Discovery')->waitUntilVisible()->one()->click();
 				$this->zbxTestCheckHeader('Discovery rules');
 				$this->zbxTestClickLinkTextWait($this->discoveryRule);
 				$this->zbxTestClickLinkTextWait($zbx_data['discoveryRule']);
 			}
 			else {
-				$link = $zbx_data['link'];
-				$this->zbxTestClickXpathWait('//div[@class="header-navigation"]//a[text()="'.$link.'"]');
+				$this->query('class:list-table')->asTable()->one()->getRow(0)->query('link', $zbx_data['link'])->waitUntilVisible()->one()->click();
 			}
 		}
 

@@ -1,20 +1,15 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -31,6 +26,8 @@
 	const ZBX_STYLE_MACRO_VALUE_TEXT = 'macro-value-text';
 	const ZBX_STYLE_MACRO_VALUE_SECRET = 'macro-value-secret';
 	const ZBX_STYLE_MACRO_VALUE_VAULT = 'macro-value-vault';
+
+	const ZBX_STYLE_ICON_SECRET = 'icon-secret';
 
 	function btnUndoFocusEventHandle() {
 		$(this)
@@ -74,8 +71,9 @@
 			.val(ZBX_MACRO_TYPE_SECRET)
 			.trigger('change');
 
-		$('.btn-dropdown-container button', $container).addClass('btn-alt btn-dropdown-toggle icon-secret');
-
+		$('.btn-dropdown-container button', $container)
+			.removeClass([ZBX_ICON_TEXT, ZBX_ICON_LOCK])
+			.addClass(['btn-alt', 'btn-dropdown-toggle', ZBX_ICON_EYE_OFF]);
 		$this.hide();
 	}
 
@@ -153,7 +151,8 @@
 					id: $input.attr('id'),
 					name: $input.attr('name'),
 					placeholder: t('value'),
-					maxlength: $input.attr('maxlength')
+					maxlength: $input.attr('maxlength'),
+					spellcheck: false
 				})
 				.text($input.is(':disabled') ? '' : $input.val())
 				.on('focus blur', btnUndoFocusEventHandle)

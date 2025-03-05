@@ -1,42 +1,38 @@
-<?php
+<?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
 /**
  * SVG graphs axis class.
  */
-class CSvgGraphAxis extends CSvgTag {
+class CSvgGraphAxis extends CSvgGroup {
+
+	private const ZBX_STYLE_CLASS = 'svg-graph-axis';
+
+	private const ZBX_STYLE_GRAPH_AXIS_LEFT = 'svg-graph-axis-left';
+	private const ZBX_STYLE_GRAPH_AXIS_RIGHT = 'svg-graph-axis-right';
+	private const ZBX_STYLE_GRAPH_AXIS_BOTTOM = 'svg-graph-axis-bottom';
 
 	/**
-	 * CSS class name for axis container.
-	 *
-	 * @var array
-	 */
-	private $css_class;
-
-	/**
-	 * Axis type. One of CSvgGraphAxis::AXIS_* constants.
+	 * Axis triangle icon size.
 	 *
 	 * @var int
 	 */
-	private $type;
+	private const ZBX_ARROW_SIZE = 5;
+
+	private const ZBX_ARROW_OFFSET = 5;
 
 	/**
 	 * Array of labels. Key is coordinate, value is text label.
@@ -46,12 +42,11 @@ class CSvgGraphAxis extends CSvgTag {
 	private $labels;
 
 	/**
-	 * Axis triangle icon size.
+	 * Axis type. One of CSvgGraphAxis::AXIS_* constants.
 	 *
 	 * @var int
 	 */
-	const ZBX_ARROW_SIZE = 5;
-	const ZBX_ARROW_OFFSET = 5;
+	private $type;
 
 	/**
 	 * Color for labels.
@@ -67,15 +62,23 @@ class CSvgGraphAxis extends CSvgTag {
 	 */
 	private $line_color;
 
-	public function __construct(array $labels, $type) {
-		$this->css_class = [
-			GRAPH_YAXIS_SIDE_RIGHT => CSvgTag::ZBX_STYLE_GRAPH_AXIS.' '.CSvgTag::ZBX_STYLE_GRAPH_AXIS_RIGHT,
-			GRAPH_YAXIS_SIDE_LEFT => CSvgTag::ZBX_STYLE_GRAPH_AXIS.' '.CSvgTag::ZBX_STYLE_GRAPH_AXIS_LEFT,
-			GRAPH_YAXIS_SIDE_BOTTOM => CSvgTag::ZBX_STYLE_GRAPH_AXIS.' '.CSvgTag::ZBX_STYLE_GRAPH_AXIS_BOTTOM
-		];
+	public function __construct(array $labels, int $type) {
+		parent::__construct();
 
 		$this->labels = $labels;
 		$this->type = $type;
+	}
+
+	public function setTextColor(string $color): self {
+		$this->text_color = $color;
+
+		return $this;
+	}
+
+	public function setLineColor(string $color): self {
+		$this->line_color = $color;
+
+		return $this;
 	}
 
 	/**
@@ -83,62 +86,39 @@ class CSvgGraphAxis extends CSvgTag {
 	 *
 	 * @return array
 	 */
-	public function makeStyles() {
+	public function makeStyles(): array {
+		$this
+			->addClass(self::ZBX_STYLE_CLASS)
+			->addClass([
+				GRAPH_YAXIS_SIDE_RIGHT => self::ZBX_STYLE_GRAPH_AXIS_RIGHT,
+				GRAPH_YAXIS_SIDE_LEFT => self::ZBX_STYLE_GRAPH_AXIS_LEFT,
+				GRAPH_YAXIS_SIDE_BOTTOM => self::ZBX_STYLE_GRAPH_AXIS_BOTTOM
+			][$this->type]);
+
 		return [
-			'.'.CSvgTag::ZBX_STYLE_GRAPH_AXIS.' path' => [
+			'.'.self::ZBX_STYLE_CLASS.' path' => [
 				'stroke' => $this->line_color,
 				'fill' => 'transparent'
 			],
-			'.'.CSvgTag::ZBX_STYLE_GRAPH_AXIS.' text' => [
+			'.'.self::ZBX_STYLE_CLASS.' text' => [
 				'fill' => $this->text_color,
 				'font-size' => '11px',
 				'alignment-baseline' => 'middle',
 				'dominant-baseline' => 'middle'
 			],
-			'.'.CSvgTag::ZBX_STYLE_GRAPH_AXIS_RIGHT.' text' => [
+			'.'.self::ZBX_STYLE_GRAPH_AXIS_RIGHT.' text' => [
 				'text-anchor' => 'start'
 			],
-			'.'.CSvgTag::ZBX_STYLE_GRAPH_AXIS_LEFT.' text' => [
+			'.'.self::ZBX_STYLE_GRAPH_AXIS_LEFT.' text' => [
 				'text-anchor' => 'end'
 			],
-			'.'.CSvgTag::ZBX_STYLE_GRAPH_AXIS_BOTTOM.' text' => [
+			'.'.self::ZBX_STYLE_GRAPH_AXIS_BOTTOM.' text' => [
 				'text-anchor' => 'middle'
 			]
 		];
 	}
 
-	/**
-	 * Set text color.
-	 *
-	 * @param string $color  Color value.
-	 *
-	 * @return CSvgGraphAxis
-	 */
-	public function setTextColor($color) {
-		$this->text_color = $color;
-
-		return $this;
-	}
-
-	/**
-	 * Set line color.
-	 *
-	 * @param string $color  Color value.
-	 *
-	 * @return CSvgGraphAxis
-	 */
-	public function setLineColor($color) {
-		$this->line_color = $color;
-
-		return $this;
-	}
-
-	/**
-	 * Get axis line with arrow.
-	 *
-	 * @return CSvgPath
-	 */
-	private function getAxis() {
+	private function getAxis(): array {
 		$offset = ceil(self::ZBX_ARROW_SIZE / 2);
 
 		if ($this->type == GRAPH_YAXIS_SIDE_BOTTOM) {
@@ -159,24 +139,23 @@ class CSvgGraphAxis extends CSvgTag {
 					->closePath()
 			];
 		}
-		else {
-			$x = ($this->type == GRAPH_YAXIS_SIDE_RIGHT) ? $this->x : $this->x + $this->width;
-			$y = $this->y - self::ZBX_ARROW_OFFSET;
 
-			return [
-				// Draw axis line.
-				(new CSvgPath())
-					->setAttribute('shape-rendering', 'crispEdges')
-					->moveTo($x, $y)
-					->lineTo($x, $this->height + $y + self::ZBX_ARROW_OFFSET),
-				// Draw arrow.
-				(new CSvgPath())
-					->moveTo($x, $y - self::ZBX_ARROW_SIZE)
-					->lineTo($x - $offset, $y)
-					->lineTo($x + $offset, $y)
-					->closePath()
-			];
-		}
+		$x = ($this->type == GRAPH_YAXIS_SIDE_RIGHT) ? $this->x : $this->x + $this->width;
+		$y = $this->y - self::ZBX_ARROW_OFFSET;
+
+		return [
+			// Draw axis line.
+			(new CSvgPath())
+				->setAttribute('shape-rendering', 'crispEdges')
+				->moveTo($x, $y)
+				->lineTo($x, $this->height + $y + self::ZBX_ARROW_OFFSET),
+			// Draw arrow.
+			(new CSvgPath())
+				->moveTo($x, $y - self::ZBX_ARROW_SIZE)
+				->lineTo($x - $offset, $y)
+				->lineTo($x + $offset, $y)
+				->closePath()
+		];
 	}
 
 	/**
@@ -184,7 +163,7 @@ class CSvgGraphAxis extends CSvgTag {
 	 *
 	 * @return array
 	 */
-	private function getLabels() {
+	private function getLabels(): array {
 		$x = 0;
 		$y = 0;
 		$labels = [];
@@ -196,8 +175,8 @@ class CSvgGraphAxis extends CSvgTag {
 		else {
 			$axis = 'y';
 			$x = ($this->type == GRAPH_YAXIS_SIDE_RIGHT)
-				? CSvgGraph::SVG_GRAPH_Y_AXIS_RIGHT_LABEL_MARGIN
-				: $this->width - CSvgGraph::SVG_GRAPH_Y_AXIS_LEFT_LABEL_MARGIN;
+				? CSvgGraph::SVG_GRAPH_Y_AXIS_LABEL_MARGIN_INNER
+				: $this->width - CSvgGraph::SVG_GRAPH_Y_AXIS_LABEL_MARGIN_INNER;
 		}
 
 		foreach ($this->labels as $pos => $label) {
@@ -223,19 +202,17 @@ class CSvgGraphAxis extends CSvgTag {
 				$text_tag_x = $this->x + $x;
 			}
 
-			$labels[] = new CSvgText($text_tag_x, $this->y + $y, $label);
+			$labels[] = new CSvgText($label, $text_tag_x, $this->y + $y);
 		}
 
 		return $labels;
 	}
 
-	public function toString($destroy = true) {
-		return (new CSvgGroup())
-			->additem([
-				$this->getAxis(),
-				$this->getLabels()
-			])
-			->addClass($this->css_class[$this->type])
-			->toString($destroy);
+	public function toString($destroy = true): string {
+		$this
+			->additem($this->getAxis())
+			->additem($this->getLabels());
+
+		return parent::toString($destroy);
 	}
 }

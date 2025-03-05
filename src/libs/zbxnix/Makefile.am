@@ -3,6 +3,8 @@
 noinst_LIBRARIES = libzbxnix.a
 
 libzbxnix_a_SOURCES = \
+	nix_internal.c \
+	nix_internal.h \
 	control.c \
 	control.h \
 	coredump.c \
@@ -15,3 +17,6 @@ libzbxnix_a_SOURCES = \
 	pid.h \
 	sigcommon.h \
 	sighandler.c
+
+libzbxnix_a_CFLAGS = \
+	$(TLS_CFLAGS)

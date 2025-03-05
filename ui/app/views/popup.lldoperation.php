@@ -1,26 +1,22 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
 /**
  * @var CView $this
+ * @var array $data
  */
 
 $output = [
@@ -31,12 +27,13 @@ $options = $data['options'];
 $field_values = $data['field_values'];
 
 $operations_popup_form = (new CForm())
-	->cleanItems()
 	->setId('lldoperation_form')
 	->addVar('no', $options['no'])
 	->addItem((new CVar('templated', $options['templated']))->removeId())
-	->addVar('action', 'popup.lldoperation')
-	->addItem((new CInput('submit', 'submit'))->addStyle('display: none;'));
+	->addVar('action', 'popup.lldoperation');
+
+// Enable form submitting on Enter.
+$operations_popup_form->addItem((new CSubmitButton())->addClass(ZBX_STYLE_FORM_SUBMIT_HIDDEN));
 
 $operations_popup_form_list = (new CFormList())
 	->addRow(
@@ -97,21 +94,13 @@ $operations_popup_form_list = (new CFormList())
 		'opdiscover_row'
 	);
 
-$update_interval = (new CTable())
-	->setId('update_interval')
-	->addRow([_('Delay'),
-		(new CDiv((new CTextBox('opperiod[delay]', $field_values['opperiod']['delay'], $options['templated']))
-			->setWidth(ZBX_TEXTAREA_SMALL_WIDTH)
-		))
-	]);
-
 $custom_intervals = (new CTable())
 	->setId('lld_overrides_custom_intervals')
 	->setHeader([
 		new CColHeader(_('Type')),
 		new CColHeader(_('Interval')),
 		new CColHeader(_('Period')),
-		(new CColHeader(_('Action')))->setWidth(50)
+		''
 	])
 	->addClass(ZBX_STYLE_TABLE_FORMS_SEPARATOR)
 	->setAttribute('style', 'min-width: '.ZBX_TEXTAREA_STANDARD_WIDTH.'px;');
@@ -161,31 +150,30 @@ $custom_intervals->addRow([(new CButton('interval_add', _('Add')))
 	->removeId()
 ]);
 
-$update_interval->addRow(
-	(new CRow([
-		(new CCol(_('Custom intervals')))->setAttribute('style', 'vertical-align: top;'),
-		new CCol($custom_intervals)
-	]))
-);
-
 $operations_popup_form_list
 	->addRow(
-		(new CVisibilityBox('visible[opperiod]', 'opperiod_div', _('Original')))
+		(new CVisibilityBox('visible[opperiod]', 'opperiod', _('Original')))
 			->setLabel(_('Update interval'))
 			->setChecked(array_key_exists('opperiod', $options))
 			->setReadonly($options['templated']),
-		(new CDiv($update_interval))->setId('opperiod_div'),
+		(new CFormList('opperiod'))
+			->addClass(ZBX_STYLE_TABLE_SUBFORMS)
+			->addRow(_('Delay'),
+				(new CTextBox('opperiod[delay]', $field_values['opperiod']['delay'], $options['templated']))
+					->setWidth(ZBX_TEXTAREA_SMALL_WIDTH)
+			)
+			->addRow(_('Custom intervals'), $custom_intervals),
 		'opperiod_row'
 	)
 	->addRow(
-		(new CVisibilityBox('visible[ophistory]', 'ophistory_div', _('Original')))
-			->setLabel(_('History storage period'))
+		(new CVisibilityBox('visible[ophistory]', 'ophistory-field', _('Original')))
+			->setLabel(_('History'))
 			->setChecked(array_key_exists('ophistory', $options))
 			->setReadonly($options['templated']),
 		(new CDiv([
 			(new CRadioButtonList('ophistory[history_mode]', (int) $field_values['ophistory']['history_mode']))
-				->addValue(_('Do not keep history'), ITEM_STORAGE_OFF)
-				->addValue(_('Storage period'), ITEM_STORAGE_CUSTOM)
+				->addValue(_('Do not store'), ITEM_STORAGE_OFF)
+				->addValue(_('Store up to'), ITEM_STORAGE_CUSTOM)
 				->setModern(true)
 				->setReadonly($options['templated']),
 			(new CDiv())->addClass(ZBX_STYLE_FORM_INPUT_MARGIN),
@@ -195,18 +183,18 @@ $operations_popup_form_list
 				->setAriaRequired()
 		]))
 			->addClass('wrap-multiple-controls')
-			->setId('ophistory_div'),
+			->setId('ophistory-field'),
 		'ophistory_row'
 	)
 	->addRow(
-		(new CVisibilityBox('visible[optrends]', 'optrends_div', _('Original')))
-			->setLabel(_('Trend storage period'))
+		(new CVisibilityBox('visible[optrends]', 'optrends-field', _('Original')))
+			->setLabel(_('Trends'))
 			->setChecked(array_key_exists('optrends', $options))
 			->setReadonly($options['templated']),
 		(new CDiv([
 			(new CRadioButtonList('optrends[trends_mode]', (int) $field_values['optrends']['trends_mode']))
-				->addValue(_('Do not keep trends'), ITEM_STORAGE_OFF)
-				->addValue(_('Storage period'), ITEM_STORAGE_CUSTOM)
+				->addValue(_('Do not store'), ITEM_STORAGE_OFF)
+				->addValue(_('Store up to'), ITEM_STORAGE_CUSTOM)
 				->setModern(true)
 				->setReadonly($options['templated']),
 			(new CDiv())->addClass(ZBX_STYLE_FORM_INPUT_MARGIN),
@@ -216,56 +204,56 @@ $operations_popup_form_list
 				->setAriaRequired()
 		]))
 			->addClass('wrap-multiple-controls')
-			->setId('optrends_div'),
+			->setId('optrends-field'),
 		'optrends_row'
 	)
 	->addRow(
-		(new CVisibilityBox('visible[opseverity]', 'opseverity_div', _('Original')))
+		(new CVisibilityBox('visible[opseverity]', 'opseverity_severity', _('Original')))
 			->setLabel(_('Severity'))
 			->setChecked(array_key_exists('opseverity', $options))
 			->setReadonly($options['templated']),
-		(new CDiv(
-			(new CSeverity('opseverity[severity]', (int) $field_values['opseverity']['severity']))
-				->setReadonly($options['templated'])
-		))->setId('opseverity_div'),
+		(new CSeverity('opseverity[severity]', (int) $field_values['opseverity']['severity']))
+			->setReadonly($options['templated'])
+			->setId('opseverity_severity'),
 		'opseverity_row'
 	)
 	->addRow(
-		(new CVisibilityBox('visible[optemplate]', 'optemplate_div', _('Original')))
+		(new CVisibilityBox('visible[optemplate]', 'optemplate-field', _('Original')))
 			->setLabel(_('Link templates'))
 			->setChecked(array_key_exists('optemplate', $options))
 			->setReadonly($options['templated']),
-		(new CDiv([
-			(new CMultiSelect([
-				'name' => 'optemplate[]',
-				'object_name' => 'templates',
-				'data' => $field_values['optemplate'],
-				'disabled' => (bool) $options['templated'],
-				'popup' => [
-					'parameters' => [
-						'srctbl' => 'templates',
-						'srcfld1' => 'hostid',
-						'srcfld2' => 'host',
-						'dstfrm' => 'lldoperation_form',
-						'dstfld1' => 'optemplate_'
-					]
+		(new CMultiSelect([
+			'name' => 'optemplate[]',
+			'object_name' => 'templates',
+			'multiselect_id' => 'optemplate-field',
+			'data' => $field_values['optemplate'],
+			'readonly' => (bool) $options['templated'],
+			'popup' => [
+				'parameters' => [
+					'srctbl' => 'templates',
+					'srcfld1' => 'hostid',
+					'srcfld2' => 'host',
+					'dstfrm' => 'lldoperation_form',
+					'dstfld1' => 'optemplate_'
 				]
-			]))->setWidth(ZBX_TEXTAREA_STANDARD_WIDTH)
-		]))->setId('optemplate_div'),
+			]
+		]))->setWidth(ZBX_TEXTAREA_STANDARD_WIDTH),
 		'optemplate_row'
 	)
 	->addRow(
-		(new CVisibilityBox('visible[optag]', 'optag_div', _('Original')))
+		(new CVisibilityBox('visible[optag]', 'optag-field', _('Original')))
 			->setLabel(_('Tags'))
 			->setChecked(array_key_exists('optag', $options))
 			->setReadonly($options['templated']),
-		(new CDiv(
-			renderTagTable($field_values['optag'], $options['templated'],
-					['field_name' => 'optag', 'add_post_js' => false])
-				->setHeader([_('Name'), _('Value'), _('Action')])
-				->addClass(ZBX_STYLE_TABLE_FORMS_SEPARATOR)
-				->setId('tags-table')
-		))->setId('optag_div'),
+		renderTagTable($field_values['optag'], $options['templated'], ['field_name' => 'optag', 'add_post_js' => false])
+			->setHeader([
+				(new CColHeader(_('Name')))->setWidth('50%'),
+				(new CColHeader(_('Value')))->setWidth('50%'),
+				''
+			])
+			->setId('optag-field')
+			->addClass(ZBX_STYLE_TABLE_FORMS_SEPARATOR)
+			->addClass('tags-table'),
 		'optag_row'
 	)
 	->addRow(

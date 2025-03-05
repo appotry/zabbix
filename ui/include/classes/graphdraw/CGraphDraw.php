@@ -1,25 +1,44 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
 abstract class CGraphDraw {
+
+	protected $stime;
+	protected $fullSizeX;
+	protected $fullSizeY;
+	protected $m_minY;
+	protected $m_maxY;
+	protected $data;
+	protected $items;
+	private $header;
+	protected $from_time;
+	protected $to_time;
+	private $colors;
+	protected $colorsrgb;
+	protected $im;
+	protected $period;
+	protected $sizeX;
+	protected $sizeY;
+	protected $shiftXleft;
+	protected $shiftXright;
+	protected $num;
+	protected $type;
+	protected $drawLegend;
+	protected $graphtheme;
+	protected $shiftY;
 
 	/**
 	 * Default top padding including header label height and vertical padding.
@@ -51,11 +70,6 @@ abstract class CGraphDraw {
 		$this->m_maxY = null;
 		$this->data = [];
 		$this->items = [];
-		$this->min = null;
-		$this->max = null;
-		$this->avg = null;
-		$this->clock = null;
-		$this->count = null;
 		$this->header = null;
 		$this->from_time = null;
 		$this->to_time = null;
@@ -67,7 +81,6 @@ abstract class CGraphDraw {
 		$this->sizeY = 200; // default graph size Y
 		$this->shiftXleft = 100;
 		$this->shiftXright = 50;
-		$this->shiftXCaption = 0;
 		$this->num = 0;
 		$this->type = $type; // graph type
 		$this->drawLegend = 1;
@@ -124,13 +137,9 @@ abstract class CGraphDraw {
 
 		// i should rename no alpha to alpha at some point to get rid of some confusion
 		foreach ($this->colorsrgb as $name => $RGBA) {
-			if (isset($RGBA[3]) && function_exists('imagecolorexactalpha')
-					&& function_exists('imagecreatetruecolor') && @imagecreatetruecolor(1, 1)) {
-				$this->colors[$name] = imagecolorexactalpha($this->im, $RGBA[0], $RGBA[1], $RGBA[2], $RGBA[3]);
-			}
-			else {
-				$this->colors[$name] = imagecolorallocate($this->im, $RGBA[0], $RGBA[1], $RGBA[2]);
-			}
+			$this->colors[$name] = array_key_exists(3, $RGBA)
+				? imagecolorexactalpha($this->im, $RGBA[0], $RGBA[1], $RGBA[2], $RGBA[3])
+				: imagecolorallocate($this->im, $RGBA[0], $RGBA[1], $RGBA[2]);
 		}
 	}
 
@@ -178,29 +187,6 @@ abstract class CGraphDraw {
 
 	public function getHeight() {
 		return $this->sizeY;
-	}
-
-	public function getLastValue($num) {
-		$data = &$this->data[$this->items[$num]['itemid']];
-
-		if (isset($data)) {
-			for ($i = $this->sizeX - 1; $i >= 0; $i--) {
-				if (!empty($data['count'][$i])) {
-					switch ($this->items[$num]['calc_fnc']) {
-						case CALC_FNC_MIN:
-							return $data['min'][$i];
-						case CALC_FNC_MAX:
-							return $data['max'][$i];
-						case CALC_FNC_ALL:
-						case CALC_FNC_AVG:
-						default:
-							return $data['avg'][$i];
-					}
-				}
-			}
-		}
-
-		return 0;
 	}
 
 	public function drawRectangle() {
@@ -257,31 +243,5 @@ abstract class CGraphDraw {
 		}
 
 		return get_color($this->im, $color, $alfa);
-	}
-
-	public function getShadow($color, $alfa = 0) {
-		if (isset($this->colorsrgb[$color])) {
-			$red = $this->colorsrgb[$color][0];
-			$green = $this->colorsrgb[$color][1];
-			$blue = $this->colorsrgb[$color][2];
-		}
-		else {
-			list($red, $green, $blue) = hex2rgb($color);
-		}
-
-		if ($this->sum > 0) {
-			$red = (int)($red * 0.6);
-			$green = (int)($green * 0.6);
-			$blue = (int)($blue * 0.6);
-		}
-
-		$RGB = [$red, $green, $blue];
-
-		if (isset($alfa) && function_exists('imagecolorexactalpha') && function_exists('imagecreatetruecolor')
-				&& @imagecreatetruecolor(1, 1)) {
-			return imagecolorexactalpha($this->im, $RGB[0], $RGB[1], $RGB[2], $alfa);
-		}
-
-		return imagecolorallocate($this->im, $RGB[0], $RGB[1], $RGB[2]);
 	}
 }

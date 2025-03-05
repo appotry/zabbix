@@ -1,37 +1,35 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-#include "sysinfo.h"
-#include "log.h"
-#include "perfmon.h"
-#include "cfg.h"
+#include "zbxsysinfo.h"
+#include "../sysinfo.h"
+
+#include "zbxcfg.h"
+#include "zbxtime.h"
+
+#include "zbxwin32.h"
 
 #pragma comment(lib, "user32.lib")
 
 /******************************************************************************
  *                                                                            *
- * Purpose: read value from Windows registry                                  *
+ * Purpose: reads value from Windows registry                                 *
  *                                                                            *
  ******************************************************************************/
 static wchar_t	*read_registry_value(HKEY hKey, LPCTSTR name)
 {
-	DWORD	szData;
+	DWORD	szData = 0;
 	wchar_t	*value = NULL;
 
 	if (ERROR_SUCCESS == RegQueryValueEx(hKey, name, NULL, NULL, NULL, &szData))
@@ -46,18 +44,17 @@ static wchar_t	*read_registry_value(HKEY hKey, LPCTSTR name)
 
 /******************************************************************************
  *                                                                            *
- * Purpose: get Windows version information                                   *
+ * Purpose: gets Windows version information                                  *
  *                                                                            *
  ******************************************************************************/
 const OSVERSIONINFOEX		*zbx_win_getversion(void)
 {
-#	define ZBX_REGKEY_VERSION		"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
-#	define ZBX_REGVALUE_CURRENTVERSION	"CurrentVersion"
-#	define ZBX_REGVALUE_CURRENTBUILDNUMBER	"CurrentBuildNumber"
-#	define ZBX_REGVALUE_CSDVERSION		"CSDVersion"
-
-#	define ZBX_REGKEY_PRODUCT		"System\\CurrentControlSet\\Control\\ProductOptions"
-#	define ZBX_REGVALUE_PRODUCTTYPE		"ProductType"
+#define ZBX_REGKEY_VERSION		"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
+#define ZBX_REGVALUE_CURRENTVERSION	"CurrentVersion"
+#define ZBX_REGVALUE_CURRENTBUILDNUMBER	"CurrentBuildNumber"
+#define ZBX_REGVALUE_CSDVERSION		"CSDVersion"
+#define ZBX_REGKEY_PRODUCT		"System\\CurrentControlSet\\Control\\ProductOptions"
+#define ZBX_REGVALUE_PRODUCTTYPE		"ProductType"
 
 	static OSVERSIONINFOEX	vi = {sizeof(OSVERSIONINFOEX)};
 
@@ -147,12 +144,19 @@ out:
 		RegCloseKey(h_key_registry);
 
 	return pvi;
+#undef ZBX_REGKEY_VERSION
+#undef ZBX_REGVALUE_CURRENTVERSION
+#undef ZBX_REGVALUE_CURRENTBUILDNUMBER
+#undef ZBX_REGVALUE_CSDVERSION
+#undef ZBX_REGKEY_PRODUCT
+#undef ZBX_REGVALUE_PRODUCTTYPE
 }
 
 static void	get_wmi_check_timeout(const char *wmi_namespace, const char *query, char **var,
 		double time_first_query_started, double *time_previous_query_finished)
 {
-	double	time_left = CONFIG_TIMEOUT - (*time_previous_query_finished - time_first_query_started);
+	double	time_left = sysinfo_get_config_timeout() - (*time_previous_query_finished -
+			time_first_query_started);
 
 	if (0 >= time_left)
 		return;
@@ -161,19 +165,13 @@ static void	get_wmi_check_timeout(const char *wmi_namespace, const char *query, 
 	*time_previous_query_finished = zbx_time();
 }
 
-int	SYSTEM_UNAME(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	system_uname(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	char	*os = NULL;
 	size_t	os_alloc = 0, os_offset = 0;
-	char	*sysname = "Windows";
-	char	*os_csname = NULL;
-	char	*os_version = NULL;
-	char	*os_caption = NULL;
-	char	*os_csdversion = NULL;
-	char	*proc_architecture = NULL;
-	char	*proc_addresswidth = NULL;
-	char	*wmi_namespace = "root\\cimv2";
-	char	*arch = "<unknown architecture>";
+	char	*sysname = "Windows", *os_csname = NULL, *os_version = NULL, *os_caption = NULL, *os_csdversion = NULL,
+		*proc_architecture = NULL, *proc_addresswidth = NULL, *wmi_namespace = "root\\cimv2",
+		*arch = "<unknown architecture>";
 	int	ret = SYSINFO_RET_FAIL;
 	double	start_time = zbx_time();
 	double	time_previous_query_finished = start_time;
@@ -196,7 +194,7 @@ int	SYSTEM_UNAME(AGENT_REQUEST *request, AGENT_RESULT *result)
 	get_wmi_check_timeout(wmi_namespace, "select AddressWidth from Win32_Processor", &proc_addresswidth, start_time,
 			&time_previous_query_finished);
 
-	if (0 >= CONFIG_TIMEOUT - (time_previous_query_finished - start_time))
+	if (0 >= sysinfo_get_config_timeout() - (time_previous_query_finished - start_time))
 	{
 		SET_MSG_RESULT(result, zbx_strdup(NULL, "WMI aggregate query timeout"));
 	}

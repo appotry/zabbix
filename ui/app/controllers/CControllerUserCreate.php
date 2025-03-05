@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -33,7 +28,7 @@ class CControllerUserCreate extends CControllerUserUpdateGeneral {
 			'surname' =>		'db users.surname',
 			'password1' =>		'required|string',
 			'password2' =>		'required|string',
-			'user_groups' =>	'required|array_id|not_empty',
+			'user_groups' =>	'array_id',
 			'medias' =>			'array',
 			'lang' =>			'db users.lang|in '.implode(',', $locales),
 			'timezone' =>		'db users.timezone|in '.implode(',', $this->timezones),
@@ -43,7 +38,7 @@ class CControllerUserCreate extends CControllerUserUpdateGeneral {
 			'url' =>			'db users.url',
 			'refresh' =>		'required|db users.refresh|not_empty',
 			'rows_per_page' =>	'required|db users.rows_per_page',
-			'roleid' =>			'required|db users.roleid',
+			'roleid' =>			'required|id',
 			'form_refresh' =>	'int32'
 		];
 
@@ -58,7 +53,9 @@ class CControllerUserCreate extends CControllerUserUpdateGeneral {
 		if (!$ret) {
 			switch ($error) {
 				case self::VALIDATION_ERROR:
-					$response = new CControllerResponseRedirect('zabbix.php?action=user.edit');
+					$response = new CControllerResponseRedirect(
+						(new CUrl('zabbix.php'))->setArgument('action', 'user.edit')
+					);
 					$response->setFormData($this->getInputAll());
 					CMessageHelper::setErrorTitle(_('Cannot add user'));
 					$this->setResponse($response);
@@ -83,7 +80,7 @@ class CControllerUserCreate extends CControllerUserUpdateGeneral {
 		$this->getInputs($user, ['username', 'name', 'surname', 'url', 'autologin', 'autologout', 'theme', 'refresh',
 			'rows_per_page', 'lang', 'timezone', 'roleid'
 		]);
-		$user['usrgrps'] = zbx_toObject($this->getInput('user_groups'), 'usrgrpid');
+		$user['usrgrps'] = zbx_toObject($this->getInput('user_groups', []), 'usrgrpid');
 
 		if ($this->getInput('password1', '') !== '' || !$this->allow_empty_password) {
 			$user['passwd'] = $this->getInput('password1');
@@ -104,16 +101,17 @@ class CControllerUserCreate extends CControllerUserUpdateGeneral {
 		$result = (bool) API::User()->create($user);
 
 		if ($result) {
-			$response = new CControllerResponseRedirect((new CUrl('zabbix.php'))
-				->setArgument('action', 'user.list')
-				->setArgument('page', CPagerHelper::loadPage('user.list', null))
+			$response = new CControllerResponseRedirect(
+				(new CUrl('zabbix.php'))
+					->setArgument('action', 'user.list')
+					->setArgument('page', CPagerHelper::loadPage('user.list', null))
 			);
 			$response->setFormData(['uncheck' => '1']);
 			CMessageHelper::setSuccessTitle(_('User added'));
 		}
 		else {
-			$response = new CControllerResponseRedirect((new CUrl('zabbix.php'))
-				->setArgument('action', 'user.edit')
+			$response = new CControllerResponseRedirect(
+				(new CUrl('zabbix.php'))->setArgument('action', 'user.edit')
 			);
 			$response->setFormData($this->getInputAll());
 			CMessageHelper::setErrorTitle(_('Cannot add user'));

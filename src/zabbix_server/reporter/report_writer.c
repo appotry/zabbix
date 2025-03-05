@@ -1,39 +1,36 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-#include "report_writer.h"
-
-#include "zbxnix.h"
-#include "zbxself.h"
-#include "log.h"
-#include "zbxjson.h"
-#include "zbxalert.h"
+#include "reporter.h"
 #include "report_protocol.h"
 
-extern ZBX_THREAD_LOCAL unsigned char	process_type;
-extern unsigned char			program_type;
-extern ZBX_THREAD_LOCAL int		server_num, process_num;
+#include "zbxtimekeeper.h"
+#include "zbxthreads.h"
+#include "zbxalerter.h"
+#include "zbxalgo.h"
+#include "zbxnix.h"
+#include "zbxself.h"
+#include "zbxlog.h"
+#include "zbxjson.h"
+#include "zbxtime.h"
+#include "zbxdbhigh.h"
+#include "zbxipcservice.h"
+#include "zbxstr.h"
 
-extern char	*CONFIG_WEBSERVICE_URL;
-extern char	*CONFIG_TLS_CA_FILE;
-extern char	*CONFIG_TLS_CERT_FILE;
-extern char	*CONFIG_TLS_KEY_FILE;
+#if defined(HAVE_LIBCURL)
+#	include "zbxcurl.h"
+#endif
 
 typedef struct
 {
@@ -65,50 +62,52 @@ static size_t	curl_write_cb(void *ptr, size_t size, size_t nmemb, void *userdata
 
 	return r_size;
 }
-
-static char	*rw_curl_error(CURLcode err)
-{
-	char	*error;
-
-	error = zbx_strdup(NULL,  curl_easy_strerror(err));
-	*error = tolower((unsigned char)*error);
-
-	return error;
-}
 #endif
 
 /******************************************************************************
  *                                                                            *
  * Purpose: get report from web service                                       *
  *                                                                            *
- * Parameters: url         - [IN] the report url                              *
- *             cookie      - [IN] the authentication cookie                   *
- *             width       - [IN] the report width                            *
- *             height      - [IN] the report height                           *
- *             report      - [OUT] the downloaded report                      *
- *             report_size - [OUT] the report size                            *
+ * Parameters: url                   - [IN] report url                        *
+ *             cookie                - [IN] authentication cookie             *
+ *             report                - [OUT] downloaded report                *
+ *             report_size           - [OUT]                                  *
+ *             config_tls_ca_file    - [IN]                                   *
+ *             config_tls_cert_file  - [IN]                                   *
+ *             config_tls_key_file   - [IN]                                   *
+ *             config_source_ip      - [IN]                                   *
+ *             config_webservice_url - [IN]                                   *
+ *             error                 - [OUT] error message                    *
  *                                                                            *
- * Return value: SUCCEED - the report was downloaded successfully             *
+ * Return value: SUCCEED - report was downloaded successfully                 *
  *               FAIL    - otherwise                                          *
  *                                                                            *
  ******************************************************************************/
-static int	rw_get_report(const char *url, const char *cookie, int width, int height, char **report,
-		size_t *report_size, char **error)
+static int	rw_get_report(const char *url, const char *cookie, char **report,
+		size_t *report_size, const char *config_tls_ca_file, const char *config_tls_cert_file,
+		const char *config_tls_key_file, const char *config_source_ip, const char *config_webservice_url,
+		char **error)
 {
+#define ZBX_REPORT_DEFAULT_WIDTH	1920
+#define ZBX_REPORT_DEFAULT_HEIGHT	1080
+
 #if !defined(HAVE_LIBCURL)
 	ZBX_UNUSED(url);
 	ZBX_UNUSED(cookie);
-	ZBX_UNUSED(width);
-	ZBX_UNUSED(height);
 	ZBX_UNUSED(report);
 	ZBX_UNUSED(report_size);
+	ZBX_UNUSED(config_tls_ca_file);
+	ZBX_UNUSED(config_tls_cert_file);
+	ZBX_UNUSED(config_tls_key_file);
+	ZBX_UNUSED(config_source_ip);
+	ZBX_UNUSED(config_webservice_url);
 
 	*error = zbx_strdup(NULL, "application compiled without cURL library");
-	return FAIL;
 
+	return FAIL;
 #else
 	struct zbx_json		j;
-	char			*cookie_value, buffer[MAX_ID_LEN + 1], *curl_error = NULL;
+	char			*cookie_value, buffer[MAX_ID_LEN + 1];
 	int			ret = FAIL;
 	long			httpret;
 	zbx_buffer_t		response = {NULL, 0, 0};
@@ -117,7 +116,7 @@ static int	rw_get_report(const char *url, const char *cookie, int width, int hei
 	CURLoption		opt;
 	struct curl_slist	*headers = NULL;
 
-	zabbix_log(LOG_LEVEL_DEBUG, "In %s() url:%s width:%d height:%d", __func__, url, width, height);
+	zabbix_log(LOG_LEVEL_DEBUG, "In %s() url:%s", __func__, url);
 
 	cookie_value = zbx_dsprintf(NULL, "zbx_session=%s", cookie);
 
@@ -129,9 +128,9 @@ static int	rw_get_report(const char *url, const char *cookie, int width, int hei
 	zbx_json_close(&j);
 
 	zbx_json_addobject(&j, ZBX_PROTO_TAG_PARAMETERS);
-	zbx_snprintf(buffer, sizeof(buffer), "%d", width);
+	zbx_snprintf(buffer, sizeof(buffer), "%d", ZBX_REPORT_DEFAULT_WIDTH);
 	zbx_json_addstring(&j, "width", buffer, ZBX_JSON_TYPE_STRING);
-	zbx_snprintf(buffer, sizeof(buffer), "%d", height);
+	zbx_snprintf(buffer, sizeof(buffer), "%d", ZBX_REPORT_DEFAULT_HEIGHT);
 	zbx_json_addstring(&j, "height", buffer, ZBX_JSON_TYPE_STRING);
 	zbx_json_close(&j);
 
@@ -149,38 +148,45 @@ static int	rw_get_report(const char *url, const char *cookie, int width, int hei
 			CURLE_OK != (err = curl_easy_setopt(curl, opt = CURLOPT_WRITEDATA, &response)) ||
 			CURLE_OK != (err = curl_easy_setopt(curl, opt = CURLOPT_TIMEOUT, 60)) ||
 			CURLE_OK != (err = curl_easy_setopt(curl, opt = CURLOPT_POST, 1L)) ||
-			CURLE_OK != (err = curl_easy_setopt(curl, opt = CURLOPT_URL, CONFIG_WEBSERVICE_URL)) ||
+			CURLE_OK != (err = curl_easy_setopt(curl, opt = CURLOPT_URL, config_webservice_url)) ||
 			CURLE_OK != (err = curl_easy_setopt(curl, opt = CURLOPT_HTTPHEADER, headers)) ||
 			CURLE_OK != (err = curl_easy_setopt(curl, opt = CURLOPT_POSTFIELDS, j.buffer)) ||
-			CURLE_OK != (err = curl_easy_setopt(curl, opt = ZBX_CURLOPT_ACCEPT_ENCODING, "")))
+			CURLE_OK != (err = curl_easy_setopt(curl, opt = CURLOPT_ACCEPT_ENCODING, "")) ||
+			(NULL != config_source_ip &&
+					CURLE_OK != (err = curl_easy_setopt(curl, opt = CURLOPT_INTERFACE,
+					config_source_ip))))
 	{
-		*error = zbx_dsprintf(*error, "Cannot set cURL option %d: %s.", (int)opt,
-				(curl_error = rw_curl_error(err)));
+		*error = zbx_dsprintf(*error, "Cannot set cURL option %d: %s.", (int)opt, curl_easy_strerror(err));
 		goto out;
 	}
 
-	if (NULL != CONFIG_TLS_CA_FILE && '\0' != *CONFIG_TLS_CA_FILE)
+	if (SUCCEED != zbx_curl_setopt_https(curl, error))
+		goto out;
+
+	if (SUCCEED != zbx_curl_setopt_ssl_version(curl, error))
+		goto out;
+
+	if (NULL != config_tls_ca_file && '\0' != *config_tls_ca_file)
 	{
-		if (CURLE_OK != (err = curl_easy_setopt(curl, opt = CURLOPT_CAINFO, CONFIG_TLS_CA_FILE)) ||
-			CURLE_OK != (err = curl_easy_setopt(curl, opt = CURLOPT_SSLCERT, CONFIG_TLS_CERT_FILE)) ||
-			CURLE_OK != (err = curl_easy_setopt(curl, opt = CURLOPT_SSLKEY, CONFIG_TLS_KEY_FILE)))
+		if (CURLE_OK != (err = curl_easy_setopt(curl, opt = CURLOPT_CAINFO, config_tls_ca_file)) ||
+			CURLE_OK != (err = curl_easy_setopt(curl, opt = CURLOPT_SSLCERT, config_tls_cert_file)) ||
+			CURLE_OK != (err = curl_easy_setopt(curl, opt = CURLOPT_SSLKEY, config_tls_key_file)))
 		{
 			*error = zbx_dsprintf(*error, "Cannot set cURL option %d: %s.", (int)opt,
-					(curl_error = rw_curl_error(err)));
+					curl_easy_strerror(err));
 			goto out;
 		}
 	}
 
 	if (CURLE_OK != (err = curl_easy_perform(curl)))
 	{
-		*error = zbx_dsprintf(*error, "Cannot connect to web service: %s", (curl_error = rw_curl_error(err)));
+		*error = zbx_dsprintf(*error, "Cannot connect to web service: %s", curl_easy_strerror(err));
 		goto out;
 	}
 
 	if (CURLE_OK != (err = curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpret)))
 	{
-		*error = zbx_dsprintf(*error, "Cannot obtain web service response code: %s",
-				(curl_error = rw_curl_error(err)));
+		*error = zbx_dsprintf(*error, "Cannot obtain web service response code: %s", curl_easy_strerror(err));
 		goto out;
 	}
 
@@ -222,7 +228,6 @@ static int	rw_get_report(const char *url, const char *cookie, int width, int hei
 
 	ret = SUCCEED;
 out:
-	zbx_free(curl_error);
 	zbx_free(response.data);
 
 	curl_slist_free_all(headers);
@@ -235,34 +240,45 @@ out:
 
 	return ret;
 #endif
+
+#undef ZBX_REPORT_DEFAULT_WIDTH
+#undef ZBX_REPORT_DEFAULT_HEIGHT
 }
 
 /******************************************************************************
  *                                                                            *
  * Purpose: to begin report dispatch                                          *
  *                                                                            *
- * Parameters: msg      - [IN] the request message                            *
- *             dispatch - [IN] the alerter dispatch                           *
- *             error    - [OUT] the error message                             *
+ * Parameters: msg                   - [IN] request message                   *
+ *             dispatch              - [IN] alerter dispatch                  *
+ *             config_tls_ca_file    - [IN]                                   *
+ *             config_tls_cert_file  - [IN]                                   *
+ *             config_tls_key_file   - [IN]                                   *
+ *             config_source_ip      - [IN]                                   *
+ *             config_webservice_url - [IN]                                   *
+ *             error                 - [OUT] error message                    *
  *                                                                            *
- * Return value: SUCCEED - the report was started successfully                *
+ * Return value: SUCCEED - report was started successfully                    *
  *               FAIL    - otherwise                                          *
  *                                                                            *
  ******************************************************************************/
-static int	rw_begin_report(zbx_ipc_message_t *msg, zbx_alerter_dispatch_t *dispatch, char **error)
+static int	rw_begin_report(zbx_ipc_message_t *msg, zbx_alerter_dispatch_t *dispatch,
+		const char *config_tls_ca_file, const char *config_tls_cert_file, const char *config_tls_key_file,
+		const char *config_source_ip, const char *config_webservice_url, char **error)
 {
 	zbx_vector_ptr_pair_t	params;
-	int			i, ret, width, height;
-	char			*url, *cookie, *subject = "", *message = "", *report = NULL, *name;
+	int			ret;
+	const char		*subject = "", *message = "";
+	char			*url, *cookie, *report = NULL, *name;
 	size_t			report_size = 0;
 
 	zabbix_log(LOG_LEVEL_DEBUG, "In %s()", __func__);
 
 	zbx_vector_ptr_pair_create(&params);
 
-	report_deserialize_begin_report(msg->data, &name, &url, &cookie, &width, &height, &params);
+	report_deserialize_begin_report(msg->data, &name, &url, &cookie, &params);
 
-	for (i = 0; i < params.values_num; i++)
+	for (int i = 0; i < params.values_num; i++)
 	{
 		if (0 == strcmp(params.values[i].first, ZBX_REPORT_PARAM_SUBJECT))
 		{
@@ -279,7 +295,8 @@ static int	rw_begin_report(zbx_ipc_message_t *msg, zbx_alerter_dispatch_t *dispa
 		}
 	}
 
-	if (SUCCEED == (ret = rw_get_report(url, cookie, width, height, &report, &report_size, error)))
+	if (SUCCEED == (ret = rw_get_report(url, cookie, &report, &report_size, config_tls_ca_file,
+			config_tls_cert_file, config_tls_key_file, config_source_ip, config_webservice_url, error)))
 	{
 		ret = zbx_alerter_begin_dispatch(dispatch, subject, message, name, "application/pdf", report,
 				report_size, error);
@@ -314,7 +331,7 @@ static int	rw_send_report(zbx_ipc_message_t *msg, zbx_alerter_dispatch_t *dispat
 {
 	int			ret = FAIL;
 	zbx_vector_str_t	recipients;
-	ZBX_DB_MEDIATYPE		mt;
+	zbx_db_mediatype		mt;
 
 	zabbix_log(LOG_LEVEL_DEBUG, "In %s()", __func__);
 
@@ -389,18 +406,19 @@ ZBX_THREAD_ENTRY(report_writer_thread, args)
 {
 #define	ZBX_STAT_INTERVAL	5	/* if a process is busy and does not sleep then update status not faster than */
 					/* once in STAT_INTERVAL seconds */
-
-	pid_t			ppid;
-	char			*error = NULL;
-	zbx_ipc_socket_t	socket;
-	zbx_ipc_message_t	message;
-	zbx_alerter_dispatch_t	dispatch = {0};
-	int			report_status = FAIL, started_num = 0, sent_num = 0, finished_num = 0;
-	double			time_now, time_stat, time_wake, time_idle = 0;
-
-	process_type = ((zbx_thread_args_t *)args)->process_type;
-	server_num = ((zbx_thread_args_t *)args)->server_num;
-	process_num = ((zbx_thread_args_t *)args)->process_num;
+	zbx_thread_report_writer_args	*poller_args_in = (zbx_thread_report_writer_args *)
+							(((zbx_thread_args_t *)args)->args);
+	pid_t				ppid;
+	char				*error = NULL;
+	zbx_ipc_socket_t		socket;
+	zbx_ipc_message_t		message;
+	zbx_alerter_dispatch_t		dispatch = {0};
+	int				report_status = FAIL, started_num = 0, sent_num = 0, finished_num = 0;
+	double				time_now, time_stat, time_wake, time_idle = 0;
+	const zbx_thread_info_t		*info = &((zbx_thread_args_t *)args)->info;
+	int				server_num = ((zbx_thread_args_t *)args)->info.server_num;
+	int				process_num = ((zbx_thread_args_t *)args)->info.process_num;
+	unsigned char			process_type = ((zbx_thread_args_t *)args)->info.process_type;
 
 	zbx_setproctitle("%s #%d starting", get_process_type_string(process_type), process_num);
 
@@ -416,10 +434,10 @@ ZBX_THREAD_ENTRY(report_writer_thread, args)
 	ppid = getppid();
 	zbx_ipc_socket_write(&socket, ZBX_IPC_REPORTER_REGISTER, (unsigned char *)&ppid, sizeof(ppid));
 
-	zabbix_log(LOG_LEVEL_INFORMATION, "%s #%d started [%s #%d]", get_program_type_string(program_type),
+	zabbix_log(LOG_LEVEL_INFORMATION, "%s #%d started [%s #%d]", get_program_type_string(info->program_type),
 			server_num, get_process_type_string(process_type), process_num);
 
-	update_selfmon_counter(ZBX_PROCESS_STATE_BUSY);
+	zbx_update_selfmon_counter(info, ZBX_PROCESS_STATE_BUSY);
 
 	zbx_setproctitle("%s #%d started", get_process_type_string(process_type), process_num);
 
@@ -443,7 +461,7 @@ ZBX_THREAD_ENTRY(report_writer_thread, args)
 			finished_num = 0;
 		}
 
-		update_selfmon_counter(ZBX_PROCESS_STATE_IDLE);
+		zbx_update_selfmon_counter(info, ZBX_PROCESS_STATE_IDLE);
 
 		if (SUCCEED != zbx_ipc_socket_read(&socket, &message))
 		{
@@ -451,19 +469,28 @@ ZBX_THREAD_ENTRY(report_writer_thread, args)
 			exit(EXIT_FAILURE);
 		}
 
-		update_selfmon_counter(ZBX_PROCESS_STATE_BUSY);
+		zbx_update_selfmon_counter(info, ZBX_PROCESS_STATE_BUSY);
 
 		time_wake = zbx_time();
-		zbx_update_env(time_wake);
+		zbx_update_env(get_process_type_string(process_type), time_wake);
 		time_idle += time_wake - time_now;
 
 		switch (message.code)
 		{
 			case ZBX_IPC_REPORTER_BEGIN_REPORT:
-				if (SUCCEED != (report_status = rw_begin_report(&message, &dispatch, &error)))
+				if (SUCCEED != (report_status = rw_begin_report(&message, &dispatch,
+						poller_args_in->config_tls_ca_file,
+						poller_args_in->config_tls_cert_file,
+						poller_args_in->config_tls_key_file,
+						poller_args_in->config_source_ip, poller_args_in->config_webservice_url,
+						&error)))
+				{
 					zabbix_log(LOG_LEVEL_DEBUG, "failed to begin report dispatch: %s", error);
+				}
 				else
+				{
 					started_num++;
+				}
 				break;
 			case ZBX_IPC_REPORTER_SEND_REPORT:
 				if (SUCCEED == report_status)

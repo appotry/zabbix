@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -256,7 +251,7 @@ class C10ImportConverter extends CConverter {
 				}
 			}
 
-			// If a least one IPMI item exists on a host, create an IPMI interface.
+			// If at least one IPMI item exists on a host, create an IPMI interface.
 			if ($hasIpmiItem) {
 				if (array_key_exists('ipmi_ip', $host) && $host['ipmi_ip'] !== '') {
 					$ip_parser = new CIPParser(['v6' => ZBX_HAVE_IPV6]);
@@ -324,22 +319,21 @@ class C10ImportConverter extends CConverter {
 		// map items to new interfaces
 		if (isset($host['items']) && $host['items']) {
 			foreach ($host['items'] as &$item) {
-				if (!isset($item['type'])) {
+				if (!array_key_exists('type', $item)) {
 					continue;
 				}
 
 				// 1.8 till 4.4 uses the old item types.
-				if ($item['type'] == ITEM_TYPE_SNMPV1 || $item['type'] == ITEM_TYPE_SNMPV2C
-						|| $item['type'] == ITEM_TYPE_SNMPV3) {
-					$interfaceType = INTERFACE_TYPE_SNMP;
+				if (in_array($item['type'], [ITEM_TYPE_SNMPV1, ITEM_TYPE_SNMPV2C, ITEM_TYPE_SNMPV3])) {
+					$interface_type = INTERFACE_TYPE_SNMP;
 				}
 				else {
-					$interfaceType = itemTypeInterface($item['type']);
+					$interface_type = itemTypeInterface($item['type']);
 				}
 
-				switch ($interfaceType) {
+				switch ($interface_type) {
 					case INTERFACE_TYPE_AGENT:
-					case INTERFACE_TYPE_ANY:
+					case INTERFACE_TYPE_OPT:
 						$item['interface_ref'] = $agentInterface['interface_ref'];
 						break;
 

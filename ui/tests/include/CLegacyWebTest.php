@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 require_once 'vendor/autoload.php';
@@ -119,7 +114,7 @@ class CLegacyWebTest extends CWebTest {
 		}
 
 		foreach ($strings as $string) {
-			$this->assertTrue($this->query('xpath://*[contains(text(),"'.$string.'")]')->count() === 0, '"'.$string.'" must not exist.');
+			$this->assertTrue($this->query('xpath://*[not(self::script)][contains(text(),"'.$string.'")]')->count() === 0, '"'.$string.'" must not exist.');
 		}
 	}
 
@@ -247,7 +242,7 @@ class CLegacyWebTest extends CWebTest {
 	 */
 	public function zbxTestClickButtonMultiselect($id) {
 		$this->zbxTestClickXpathWait(
-			"//div[contains(@class, 'multiselect') and @id='$id']/../div[@class='multiselect-button']/button"
+			"//div[contains(@class, 'multiselect') and @id='$id']/..//button[contains(@class, 'multiselect-button')]"
 		);
 	}
 
@@ -279,7 +274,7 @@ class CLegacyWebTest extends CWebTest {
 		$this->zbxTestClickXpathWait(
 			"//div[contains(@class, 'multiselect') and @id='$id']/div[@class='selected']".
 			"/ul[@class='multiselect-list']/li/span[@class='subfilter-enabled']/span[text()='$string']/..".
-			"/span[@class='subfilter-disable-btn']"
+			"/span[@class='btn-icon zi-remove-smaller']"
 		);
 		$this->zbxTestWaitUntilElementNotVisible(WebDriverBy::xpath(
 			"//div[contains(@class, 'multiselect') and @id='$id']/div[@class='selected']".
@@ -295,7 +290,7 @@ class CLegacyWebTest extends CWebTest {
 	public function zbxTestMultiselectClear($id) {
 		$xpath = '//div[contains(@class, "multiselect") and @id="'.$id.'"]'.
 				'/div[@class="selected"]/ul[@class="multiselect-list"]/li'.
-				'//span[@class="subfilter-disable-btn"]';
+				'//span[@class="btn-icon zi-remove-smaller"]';
 		$locator = WebDriverBy::xpath($xpath);
 		$elements = $this->webDriver->findElements($locator);
 
@@ -487,7 +482,7 @@ class CLegacyWebTest extends CWebTest {
 
 	public function zbxTestLaunchOverlayDialog($header) {
 		$this->zbxTestWaitUntilElementPresent(WebDriverBy::xpath("//div[contains(@class, 'overlay-dialogue modal')]".
-				"/div[@class='dashboard-widget-head']/h4[text()='$header']"));
+				"/div[@class='overlay-dialogue-header']/h4[text()='$header']"));
 	}
 
 	public function zbxTestClickAndAcceptAlert($id) {

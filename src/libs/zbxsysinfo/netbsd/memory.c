@@ -1,25 +1,19 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-#include "common.h"
-#include "sysinfo.h"
-#include "log.h"
+#include "zbxsysinfo.h"
+#include "../sysinfo.h"
 
 #include <uvm/uvm_extern.h>
 
@@ -37,7 +31,7 @@ static struct uvmexp_sysctl	uvm;
 		return SYSINFO_RET_FAIL;								\
 	}
 
-static int	VM_MEMORY_TOTAL(AGENT_RESULT *result)
+static int	vm_memory_total(AGENT_RESULT *result)
 {
 	ZBX_SYSCTL(uvm);
 
@@ -46,7 +40,7 @@ static int	VM_MEMORY_TOTAL(AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-static int	VM_MEMORY_ACTIVE(AGENT_RESULT *result)
+static int	vm_memory_active(AGENT_RESULT *result)
 {
 	ZBX_SYSCTL(uvm);
 
@@ -55,7 +49,7 @@ static int	VM_MEMORY_ACTIVE(AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-static int	VM_MEMORY_INACTIVE(AGENT_RESULT *result)
+static int	vm_memory_inactive(AGENT_RESULT *result)
 {
 	ZBX_SYSCTL(uvm);
 
@@ -64,7 +58,7 @@ static int	VM_MEMORY_INACTIVE(AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-static int	VM_MEMORY_WIRED(AGENT_RESULT *result)
+static int	vm_memory_wired(AGENT_RESULT *result)
 {
 	ZBX_SYSCTL(uvm);
 
@@ -100,7 +94,7 @@ static int	VM_MEMORY_FILE(AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-static int	VM_MEMORY_FREE(AGENT_RESULT *result)
+static int	vm_memory_free(AGENT_RESULT *result)
 {
 	ZBX_SYSCTL(uvm);
 
@@ -109,7 +103,7 @@ static int	VM_MEMORY_FREE(AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-static int	VM_MEMORY_USED(AGENT_RESULT *result)
+static int	vm_memory_used(AGENT_RESULT *result)
 {
 	ZBX_SYSCTL(uvm);
 
@@ -118,7 +112,7 @@ static int	VM_MEMORY_USED(AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-static int	VM_MEMORY_PUSED(AGENT_RESULT *result)
+static int	vm_memory_pused(AGENT_RESULT *result)
 {
 	ZBX_SYSCTL(uvm);
 
@@ -133,7 +127,7 @@ static int	VM_MEMORY_PUSED(AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-static int	VM_MEMORY_AVAILABLE(AGENT_RESULT *result)
+static int	vm_memory_available(AGENT_RESULT *result)
 {
 	zbx_uint64_t	available;
 
@@ -146,7 +140,7 @@ static int	VM_MEMORY_AVAILABLE(AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-static int	VM_MEMORY_PAVAILABLE(AGENT_RESULT *result)
+static int	vm_memory_pavailable(AGENT_RESULT *result)
 {
 	zbx_uint64_t	available;
 
@@ -165,7 +159,7 @@ static int	VM_MEMORY_PAVAILABLE(AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-static int	VM_MEMORY_BUFFERS(AGENT_RESULT *result)
+static int	vm_memory_buffers(AGENT_RESULT *result)
 {
 	int	mib[] = {CTL_VM, VM_NKMEMPAGES}, pages;
 
@@ -176,7 +170,7 @@ static int	VM_MEMORY_BUFFERS(AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-static int	VM_MEMORY_CACHED(AGENT_RESULT *result)
+static int	vm_memory_cached(AGENT_RESULT *result)
 {
 	ZBX_SYSCTL(uvm);
 
@@ -185,7 +179,7 @@ static int	VM_MEMORY_CACHED(AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-static int	VM_MEMORY_SHARED(AGENT_RESULT *result)
+static int	vm_memory_shared(AGENT_RESULT *result)
 {
 	int		mib[] = {CTL_VM, VM_METER};
 	struct vmtotal	vm;
@@ -197,7 +191,7 @@ static int	VM_MEMORY_SHARED(AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-int     VM_MEMORY_SIZE(AGENT_REQUEST *request, AGENT_RESULT *result)
+int     vm_memory_size(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	char	*mode;
 	int	ret = SYSINFO_RET_FAIL;
@@ -211,13 +205,13 @@ int     VM_MEMORY_SIZE(AGENT_REQUEST *request, AGENT_RESULT *result)
 	mode = get_rparam(request, 0);
 
 	if (NULL == mode || '\0' == *mode || 0 == strcmp(mode, "total"))
-		ret = VM_MEMORY_TOTAL(result);
+		ret = vm_memory_total(result);
 	else if (0 == strcmp(mode, "active"))
-		ret = VM_MEMORY_ACTIVE(result);
+		ret = vm_memory_active(result);
 	else if (0 == strcmp(mode, "inactive"))
-		ret = VM_MEMORY_INACTIVE(result);
+		ret = vm_memory_inactive(result);
 	else if (0 == strcmp(mode, "wired"))
-		ret = VM_MEMORY_WIRED(result);
+		ret = vm_memory_wired(result);
 	else if (0 == strcmp(mode, "anon"))
 		ret = VM_MEMORY_ANON(result);
 	else if (0 == strcmp(mode, "exec"))
@@ -225,21 +219,21 @@ int     VM_MEMORY_SIZE(AGENT_REQUEST *request, AGENT_RESULT *result)
 	else if (0 == strcmp(mode, "file"))
 		ret = VM_MEMORY_FILE(result);
 	else if (0 == strcmp(mode, "free"))
-		ret = VM_MEMORY_FREE(result);
+		ret = vm_memory_free(result);
 	else if (0 == strcmp(mode, "used"))
-		ret = VM_MEMORY_USED(result);
+		ret = vm_memory_used(result);
 	else if (0 == strcmp(mode, "pused"))
-		ret = VM_MEMORY_PUSED(result);
+		ret = vm_memory_pused(result);
 	else if (0 == strcmp(mode, "available"))
-		ret = VM_MEMORY_AVAILABLE(result);
+		ret = vm_memory_available(result);
 	else if (0 == strcmp(mode, "pavailable"))
-		ret = VM_MEMORY_PAVAILABLE(result);
+		ret = vm_memory_pavailable(result);
 	else if (0 == strcmp(mode, "buffers"))
-		ret = VM_MEMORY_BUFFERS(result);
+		ret = vm_memory_buffers(result);
 	else if (0 == strcmp(mode, "cached"))
-		ret = VM_MEMORY_CACHED(result);
+		ret = vm_memory_cached(result);
 	else if (0 == strcmp(mode, "shared"))
-		ret = VM_MEMORY_SHARED(result);
+		ret = vm_memory_shared(result);
 	else
 	{
 		SET_MSG_RESULT(result, zbx_strdup(NULL, "Invalid first parameter."));

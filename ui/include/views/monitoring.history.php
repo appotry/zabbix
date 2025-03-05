@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -26,12 +21,11 @@ $this->includeJsFile('monitoring.history.js.php');
 
 $web_layout_mode = CViewHelper::loadLayoutMode();
 
-$historyWidget = (new CWidget())->setWebLayoutMode($web_layout_mode);
+$html_page = (new CHtmlPage())->setWebLayoutMode($web_layout_mode);
 
 $header = [
 	'left' => _n('%1$s item', '%1$s items', count($data['items'])),
 	'right' => (new CForm('get'))
-		->cleanItems()
 		->setName('filter_view_as')
 		->addVar('itemids', $data['itemids'])
 ];
@@ -52,12 +46,8 @@ if ($data['items']) {
 }
 
 if ((count($data['items']) == 1 || $same_host) && $data['itemids']) {
-	$header['left'] = [
-		$host_name,
-		NAME_DELIMITER,
-		count($data['items']) == 1 ? $item['name'] : $header['left']
-	];
-	$header_row[] = implode('', $header['left']);
+	$header['left'] = $host_name.NAME_DELIMITER.(count($data['items']) == 1 ? $item['name'] : $header['left']);
+	$header_row[] = $header['left'];
 }
 else {
 	$header_row[] = $header['left'];
@@ -103,7 +93,7 @@ if ($data['action'] !== HISTORY_GRAPH && $data['action'] !== HISTORY_BATCH_GRAPH
 }
 
 if ($data['action'] == HISTORY_GRAPH && count($data['items']) == 1) {
-	$action_list->addItem(get_icon('favourite', [
+	$action_list->addItem(get_icon('favorite', [
 		'fav' => 'web.favorite.graphids',
 		'elid' => $item['itemid'],
 		'elname' => 'itemid'
@@ -153,6 +143,7 @@ if ($data['action'] == HISTORY_LATEST || $data['action'] == HISTORY_VALUES) {
 								'srcfld1' => 'itemid',
 								'dstfld1' => 'itemids_',
 								'real_hosts' => true,
+								'resolve_macros' => true,
 								'value_types' => [ITEM_VALUE_TYPE_LOG, ITEM_VALUE_TYPE_TEXT]
 							]
 						]
@@ -222,7 +213,7 @@ if ($data['itemids']) {
 // append plaintext to widget
 if ($data['plaintext']) {
 	foreach ($header_row as $text) {
-		$historyWidget->addItem([new CSpan($text), BR()]);
+		$html_page->addItem([new CSpan($text), BR()]);
 	}
 
 	if ($data['itemids']) {
@@ -231,21 +222,23 @@ if ($data['plaintext']) {
 		foreach ($screen as $text) {
 			$pre->addItem([$text, BR()]);
 		}
-		$historyWidget->addItem($pre);
+
+		$html_page->addItem($pre->addClass(ZBX_STYLE_NOWRAP));
 	}
 }
 else {
-	$historyWidget
+	$html_page
 		->setTitle($header['left'])
 		->setDocUrl(CDocHelper::getUrl(CDocHelper::MONITORING_HISTORY))
 		->setControls((new CTag('nav', true, $header['right']))->setAttribute('aria-label', _('Content controls')));
 
 	if ($data['itemids'] && $data['action'] !== HISTORY_LATEST) {
 		$filter_form->addTimeSelector($screen->timeline['from'], $screen->timeline['to'],
-			$web_layout_mode != ZBX_LAYOUT_KIOSKMODE);
+			$web_layout_mode != ZBX_LAYOUT_KIOSKMODE
+		);
 	}
 
-	if ($data['action'] == HISTORY_BATCH_GRAPH) {
+	if (($data['action'] == HISTORY_BATCH_GRAPH || $data['action'] == HISTORY_GRAPH) && count($data['itemids']) > 1) {
 		$filter_form
 			->hideFilterButtons()
 			->addVar('action', $data['action'])
@@ -272,10 +265,10 @@ else {
 
 	if ($data['itemids']) {
 		if ($data['action'] !== HISTORY_LATEST) {
-			$historyWidget->addItem($filter_form);
+			$html_page->addItem($filter_form);
 		}
 
-		$historyWidget->addItem($screen->get());
+		$html_page->addItem($screen->get());
 
 		if ($data['action'] !== HISTORY_LATEST) {
 			CScreenBuilder::insertScreenStandardJs($screen->timeline);
@@ -283,19 +276,18 @@ else {
 	}
 	else {
 		if ($filter_tab) {
-			$historyWidget->addItem($filter_form);
+			$html_page->addItem($filter_form);
 		}
 
-		$historyWidget->addItem(
+		$html_page->addItem(
 			(new CTableInfo())
 				->setHeader([
 					(new CColHeader(_('Timestamp')))->addClass(ZBX_STYLE_CELL_WIDTH),
 					(new CColHeader(_('Local time')))->addClass(ZBX_STYLE_CELL_WIDTH),
 					_('Value')
 				])
-				->setNoDataMessage(_('Specify some filter condition to see the values.'))
 		);
 	}
 }
 
-$historyWidget->show();
+$html_page->show();

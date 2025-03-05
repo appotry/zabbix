@@ -1,26 +1,21 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
 /**
- * Base controller for the "Monitoring->Problems" page.
+ * Base controller for the "Monitoring->Problems" page and the "Problems" asynchronous requests.
  */
 abstract class CControllerProblem extends CController {
 
@@ -41,10 +36,12 @@ abstract class CControllerProblem extends CController {
 		'evaltype' => TAG_EVAL_TYPE_AND_OR,
 		'tags' => [],
 		'show_tags' => SHOW_TAGS_3,
+		'show_symptoms' => 0,
 		'show_suppressed' => 0,
-		'unacknowledged' => 0,
+		'acknowledgement_status' => ZBX_ACK_STATUS_ALL,
+		'acknowledged_by_me' => 0,
 		'compact_view' => 0,
-		'show_timeline' => 1,
+		'show_timeline' => ZBX_TIMELINE_ON,
 		'details' => 0,
 		'highlight_row' => 0,
 		'show_opdata' => OPERATIONAL_DATA_SHOW_NONE,
@@ -71,21 +68,9 @@ abstract class CControllerProblem extends CController {
 		$range_time_parser->parse($filter['to']);
 		$filter['to'] = $range_time_parser->getDateTime(false)->getTimestamp();
 
-		$data = CScreenProblem::getData($filter);
+		$data = CScreenProblem::getData($filter, CSettingsHelper::get(CSettingsHelper::SEARCH_LIMIT));
 
 		return count($data['problems']);
-	}
-
-	/**
-	 * Get resulting rows for specified filter.
-	 *
-	 * @param array $filter  Filter fields values.
-	 *
-	 * @return array
-	 */
-	protected function getData(array $filter): array {
-		// getData is handled by jsrpc.php 'screen.get' action.
-		return [];
 	}
 
 	/**
@@ -130,6 +115,7 @@ abstract class CControllerProblem extends CController {
 				$trigger['prefix'] = $trigger['hosts'][0]['name'].NAME_DELIMITER;
 				unset($trigger['hosts']);
 			}
+			unset($trigger);
 
 			$data['triggers'] = $triggers;
 		}
@@ -146,17 +132,13 @@ abstract class CControllerProblem extends CController {
 	}
 
 	/**
-	 * Clean passed filter fields in input from default values required for HTML presentation. Convert field
+	 * Clean and convert passed filter input fields from default values required for HTML presentation.
 	 *
 	 * @param array $input  Filter fields values.
 	 *
 	 * @return array
 	 */
 	protected function cleanInput(array $input): array {
-		if (array_key_exists('filter_reset', $input) && $input['filter_reset']) {
-			return array_intersect_key(['filter_name' => ''], $input);
-		}
-
 		if (array_key_exists('tags', $input) && $input['tags']) {
 			$input['tags'] = array_filter($input['tags'], function($tag) {
 				return !($tag['tag'] === '' && $tag['value'] === '');
@@ -172,5 +154,105 @@ abstract class CControllerProblem extends CController {
 		}
 
 		return $input;
+	}
+
+	/**
+	 * Validate input of filter inventory fields.
+	 *
+	 * @return bool
+	 */
+	protected function validateInventory(): bool {
+		if (!$this->hasInput('inventory')) {
+			return true;
+		}
+
+		$ret = true;
+		foreach ($this->getInput('inventory') as $filter_inventory) {
+			if (count($filter_inventory) != 2
+					|| !array_key_exists('field', $filter_inventory) || !is_string($filter_inventory['field'])
+					|| !array_key_exists('value', $filter_inventory) || !is_string($filter_inventory['value'])) {
+				$ret = false;
+				break;
+			}
+		}
+
+		return $ret;
+	}
+
+	/**
+	 * Validate values of filter tags input fields.
+	 *
+	 * @return bool
+	 */
+	protected function validateTags(): bool {
+		if (!$this->hasInput('tags')) {
+			return true;
+		}
+
+		$ret = true;
+		foreach ($this->getInput('tags') as $filter_tag) {
+			if (count($filter_tag) != 3
+					|| !array_key_exists('tag', $filter_tag) || !is_string($filter_tag['tag'])
+					|| !array_key_exists('value', $filter_tag) || !is_string($filter_tag['value'])
+					|| !array_key_exists('operator', $filter_tag) || !is_string($filter_tag['operator'])) {
+				$ret = false;
+				break;
+			}
+		}
+
+		return $ret;
+	}
+
+	/**
+	 * Clean the filter from non-existing host, host group and trigger IDs.
+	 *
+	 * @param array $filter
+	 *
+	 * $filter = [
+	 *     'groupids' =>   (array)  Group IDs from filter to check.
+	 *     'hostids' =>    (array)  Host IDs from filter to check.
+	 *     'triggerids' => (array)  Trigger IDs from filter to check.
+	 * ]
+	 *
+	 * @return array
+	 */
+	protected static function sanitizeFilter(array &$filter): array {
+		if ($filter['hostids']) {
+			$hosts = API::Host()->get([
+				'output' => [],
+				'hostids' => $filter['hostids'],
+				'preservekeys' => true
+			]);
+
+			$filter['hostids'] = array_filter($filter['hostids'], static fn($hostid) =>
+				array_key_exists($hostid, $hosts)
+			);
+		}
+
+		if ($filter['triggerids']) {
+			$triggers = API::Trigger()->get([
+				'output' => [],
+				'triggerids' => $filter['triggerids'],
+				'preservekeys' => true
+			]);
+
+			$filter['triggerids'] = array_filter($filter['triggerids'], static fn($triggerid) =>
+				array_key_exists($triggerid, $triggers)
+			);
+		}
+
+		if ($filter['groupids']) {
+			$groups = API::HostGroup()->get([
+				'output' => [],
+				'groupids' => $filter['groupids'],
+				'preservekeys' => true
+			]);
+
+			$filter['groupids'] = array_filter($filter['groupids'], static fn($groupid) =>
+				array_key_exists($groupid, $groups)
+			);
+		}
+
+		return $filter;
 	}
 }

@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 class EntitiesTags {
@@ -26,25 +21,25 @@ class EntitiesTags {
 	 * @return array
 	 */
 	public static function load() {
-		CDataHelper::reset();
-
-		CDataHelper::setSessionId(null);
-
 		// Create host groups.
 		CDataHelper::call('hostgroup.create', [
 			['name' => 'HostTags'],
-			['name' => 'TemplateTags'],
 			['name' => 'HostPrototypeTags']
 		]);
+		$host_groupids = CDataHelper::getIds('name');
 
-		$groupids = CDataHelper::getIds('name');
+		// Create template group.
+		CDataHelper::call('templategroup.create', [
+			['name' => 'TemplateTags']
+		]);
+		$template_groupids = CDataHelper::getIds('name');
 
 		// Create templates.
 		$templates = CDataHelper::createTemplates([
 			[
 				'host' => 'Template for tags testing',
 				'groups' => [
-					'groupid' => $groupids['TemplateTags']
+					'groupid' => $template_groupids['TemplateTags']
 				],
 				'tags' => [
 					[
@@ -71,7 +66,7 @@ class EntitiesTags {
 						'value_type' => ITEM_VALUE_TYPE_UINT64
 					],
 					[
-						'name' => 'Template item with tags for full cloning',
+						'name' => 'Template item with tags for cloning',
 						'key_' => 'template.tags.clone',
 						'type' => ITEM_TYPE_TRAPPER,
 						'value_type' => ITEM_VALUE_TYPE_UINT64,
@@ -82,7 +77,7 @@ class EntitiesTags {
 							],
 							[
 								'tag' => 'action',
-								'value' => 'fullclone'
+								'value' => 'clone'
 							],
 							[
 								'tag' => 'itemTag without value'
@@ -105,7 +100,7 @@ class EntitiesTags {
 			[
 				'host' => '1 template with tags for cloning',
 				'groups' => [
-					'groupid' => $groupids['TemplateTags']
+					'groupid' => $template_groupids['TemplateTags']
 				],
 				'tags' => [
 					[
@@ -124,7 +119,7 @@ class EntitiesTags {
 			[
 				'host' => '2 template with tags for updating',
 				'groups' => [
-					'groupid' => $groupids['TemplateTags']
+					'groupid' => $template_groupids['TemplateTags']
 				],
 				'tags' => [
 					[
@@ -143,7 +138,7 @@ class EntitiesTags {
 			[
 				'host' => '1 template for removing tags',
 				'groups' => [
-					'groupid' => $groupids['TemplateTags']
+					'groupid' => $template_groupids['TemplateTags']
 				],
 				'tags' => [
 					[
@@ -167,7 +162,7 @@ class EntitiesTags {
 				'host' => 'Host for tags testing',
 				'interfaces' => [],
 				'groups' => [
-					'groupid' => $groupids['HostTags']
+					'groupid' => $host_groupids['HostTags']
 				],
 				'status' => HOST_STATUS_MONITORED,
 				'tags' => [
@@ -253,7 +248,7 @@ class EntitiesTags {
 				'host' => 'Host with tags for cloning',
 				'interfaces' => [],
 				'groups' => [
-					'groupid' => $groupids['HostTags']
+					'groupid' => $host_groupids['HostTags']
 				],
 				'status' => HOST_STATUS_MONITORED,
 				'tags' => [
@@ -314,7 +309,7 @@ class EntitiesTags {
 				'host' => 'Host with tags for updating',
 				'interfaces' => [],
 				'groups' => [
-					'groupid' => $groupids['HostTags']
+					'groupid' => $host_groupids['HostTags']
 				],
 				'status' => HOST_STATUS_MONITORED,
 				'tags' => [
@@ -335,7 +330,7 @@ class EntitiesTags {
 				'host' => 'Host for removing tags',
 				'interfaces' => [],
 				'groups' => [
-					'groupid' => $groupids['HostTags']
+					'groupid' => $host_groupids['HostTags']
 				],
 				'status' => HOST_STATUS_MONITORED,
 				'tags' => [
@@ -412,7 +407,7 @@ class EntitiesTags {
 				]
 			],
 			[
-				'description' => 'Template trigger with tags for full cloning',
+				'description' => 'Template trigger with tags for cloning',
 				'expression' => 'last(/Template for tags testing/trap.template)=0',
 				'tags' => [
 					[
@@ -421,7 +416,7 @@ class EntitiesTags {
 					],
 					[
 						'tag' => 'action',
-						'value' => 'fullclone'
+						'value' => 'clone'
 					],
 					[
 						'tag' => 'triggerTag without value'
@@ -468,8 +463,8 @@ class EntitiesTags {
 			[
 				'hostid' => $hosts['hostids']['Host for tags testing'],
 				'ruleid' => $hosts['discoveryruleids']['Host for tags testing:trap_discovery'],
-				'name' => 'Item prototype for removig tags: {#KEY}',
-				'key_' => 'remving.tags_trap[{#KEY}]',
+				'name' => 'Item prototype for removing tags: {#KEY}',
+				'key_' => 'removing.tags_trap[{#KEY}]',
 				'type' => ITEM_TYPE_TRAPPER,
 				'value_type' => ITEM_VALUE_TYPE_TEXT,
 				'tags' => [
@@ -522,7 +517,7 @@ class EntitiesTags {
 			[
 				'hostid' => $templates['templateids']['Template for tags testing'],
 				'ruleid' => $templates['discoveryruleids']['Template for tags testing:template_trap_discovery'],
-				'name' => 'Template item prototype with tags for full cloning: {#KEY}',
+				'name' => 'Template item prototype with tags for cloning: {#KEY}',
 				'key_' => 'template.cloning_trap[{#KEY}]',
 				'type' => ITEM_TYPE_TRAPPER,
 				'value_type' => ITEM_VALUE_TYPE_TEXT,
@@ -533,7 +528,7 @@ class EntitiesTags {
 					],
 					[
 						'tag' => 'action',
-						'value' => 'fullclone'
+						'value' => 'clone'
 					],
 					[
 						'tag' => 'action'
@@ -604,7 +599,7 @@ class EntitiesTags {
 				]
 			],
 			[
-				'description' => 'Template trigger prototype with tags for full cloning',
+				'description' => 'Template trigger prototype with tags for cloning',
 				'expression' => 'last(/Template for tags testing/template.itemprototype_trap[{#KEY}])=0',
 				'tags' => [
 					[
@@ -613,7 +608,7 @@ class EntitiesTags {
 					],
 					[
 						'tag' => 'action',
-						'value' => 'fullclone'
+						'value' => 'clone'
 					],
 					[
 						'tag' => 'triggerTag without value'
@@ -632,7 +627,7 @@ class EntitiesTags {
 				'ruleid' => $hosts['discoveryruleids']['Host with tags for cloning:trap_discovery'],
 				'host' => '{#HOST} prototype with tags for cloning',
 				'groupLinks' => [
-					['groupid' => $groupids['HostPrototypeTags']]
+					['groupid' => $host_groupids['HostPrototypeTags']]
 				],
 				'tags' => [
 					[
@@ -660,7 +655,7 @@ class EntitiesTags {
 				'ruleid' => $hosts['discoveryruleids']['Host for tags testing:trap_discovery'],
 				'host' => '{#HOST} prototype with tags for updating',
 				'groupLinks' => [
-					['groupid' => $groupids['HostPrototypeTags']]
+					['groupid' => $host_groupids['HostPrototypeTags']]
 				],
 				'tags' => [
 					[
@@ -680,7 +675,7 @@ class EntitiesTags {
 				'ruleid' => $hosts['discoveryruleids']['Host for tags testing:trap_discovery'],
 				'host' => '{#HOST} prototype with for removing tags',
 				'groupLinks' => [
-					['groupid' => $groupids['HostPrototypeTags']]
+					['groupid' => $host_groupids['HostPrototypeTags']]
 				],
 				'tags' => [
 					[
@@ -698,9 +693,9 @@ class EntitiesTags {
 			],
 			[
 				'ruleid' => $templates['discoveryruleids']['Template for tags testing:template_trap_discovery'],
-				'host' => '{#TEMPLATE} prototype with tags for full cloning',
+				'host' => '{#TEMPLATE} prototype with tags for cloning',
 				'groupLinks' => [
-					['groupid' => $groupids['HostPrototypeTags']]
+					['groupid' => $host_groupids['HostPrototypeTags']]
 				],
 				'tags' => [
 					[
@@ -709,7 +704,7 @@ class EntitiesTags {
 					],
 					[
 						'tag' => 'action',
-						'value' => 'fullclone'
+						'value' => 'clone'
 					],
 					[
 						'tag' => 'action'
@@ -801,7 +796,7 @@ class EntitiesTags {
 				]
 			],
 			[
-				'name' => 'Template web scenario with tags for full cloning',
+				'name' => 'Template web scenario with tags for cloning',
 				'hostid' => $templates['templateids']['Template for tags testing'],
 				'steps' => [
 					[
@@ -817,7 +812,7 @@ class EntitiesTags {
 					],
 					[
 						'tag' => 'action',
-						'value' => 'fullclone'
+						'value' => 'clone'
 					],
 					[
 						'tag' => 'webTag without value'
@@ -830,7 +825,7 @@ class EntitiesTags {
 			]
 		]);
 
-		// Create servises.
+		// Create services.
 		CDataHelper::call('service.create', [
 			[
 				'name' => 'Service with tags for updating',
@@ -938,6 +933,74 @@ class EntitiesTags {
 					],
 					[
 						'tag' => 'problem tag',
+						'operator' => 2
+					]
+				]
+			]
+		]);
+
+		// Create connectors.
+		CDataHelper::call('connector.create', [
+			[
+				'name' => 'Connector with tags for updating',
+				'url' => '{$URL}',
+				'tags' => [
+					[
+						'tag' => 'connector action',
+						'operator' => 2,
+						'value' => 'connector update'
+					],
+					[
+						'tag' => 'connector tag without value'
+					],
+					[
+						'tag' => 'connector test',
+						'operator' => 0,
+						'value' => 'connector update'
+					]
+				]
+			],
+			[
+				'name' => 'Connector with tags for cloning',
+				'url' => '{$URL}',
+				'tags' => [
+					[
+						'tag' => 'connector a',
+						'operator' => 2,
+						'value' => ':connector a'
+					],
+					[
+						'tag' => 'connector action',
+						'operator' => 0,
+						'value' => 'connector clone'
+					],
+					[
+						'tag' => 'connector tag without value',
+						'operator' => 2
+					],
+					[
+						'tag' => 'connector common tag on host and element',
+						'operator' => 0,
+						'value' => 'connector common value'
+					]
+				]
+			],
+			[
+				'name' => 'Connector for removing tags',
+				'url' => '{$URL}',
+				'tags' => [
+					[
+						'tag' => 'tag remove',
+						'operator' => 0,
+						'value' => 'tag remove'
+					],
+					[
+						'tag' => 'connector tag',
+						'operator' => 2,
+						'value' => 'tag remove'
+					],
+					[
+						'tag' => 'connector tag',
 						'operator' => 2
 					]
 				]

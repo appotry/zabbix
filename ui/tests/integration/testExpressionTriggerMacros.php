@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 require_once dirname(__FILE__).'/../include/CIntegrationTest.php';
@@ -24,7 +19,6 @@ require_once dirname(__FILE__).'/../include/CIntegrationTest.php';
  * Test suite for action notifications
  *
  * @required-components server
- * @configurationDataProvider serverConfigurationProvider
  * @backup items,actions,triggers,alerts,hosts,users,scripts,history_uint
  * @hosts test_actions
  */
@@ -32,16 +26,17 @@ class testExpressionTriggerMacros extends CIntegrationTest {
 
 	private static $hostid;
 	private static $triggerid;
-	private static $maint_start_tm;
 	private static $trigger_actionid;
 	private static $eventid;
 	private static $userid;
 	private static $scriptid;
 	private static $scriptid_recovery;
+	private static $macroid;
+	private static $interfaceid;
 
 	const ITEM_NAME_1 = 'trap1';
 	const ITEM_NAME_2 = 'trap2';
-	const HOST_NAME = 'test_actions';
+	const HOST_NAME = 'test_etmacros';
 
 	/**
 	 * @inheritdoc
@@ -71,16 +66,15 @@ class testExpressionTriggerMacros extends CIntegrationTest {
 		$this->assertArrayHasKey(0, $response['result']['hostids']);
 		self::$hostid = $response['result']['hostids'][0];
 
-		// Get host interface ids.
-		$response = $this->call('host.get', [
-			'output' => ['host'],
-			'hostids' => [self::$hostid],
-			'selectInterfaces' => ['interfaceid']
+		$response = $this->call('usermacro.createglobal', [
+			'macro' => '{$GLOBMACRO}',
+			'value' => 'abc'
 		]);
+		$this->assertArrayHasKey('result', $response);
+		$this->assertArrayHasKey('globalmacroids', $response['result']);
+		$this->assertArrayHasKey(0, $response['result']['globalmacroids']);
+		self::$macroid =  $response['result']['globalmacroids'][0];
 
-		$this->assertArrayHasKey(0, $response['result']);
-		$this->assertArrayHasKey('interfaces', $response['result'][0]);
-		$this->assertArrayHasKey(0, $response['result'][0]['interfaces']);
 
 		// Create trapper item
 		$response = $this->call('item.create', [
@@ -107,7 +101,7 @@ class testExpressionTriggerMacros extends CIntegrationTest {
 		$expr_last1 = 'last(/' . self::HOST_NAME . '/' . self::ITEM_NAME_1 . ')';
 		$expr_last2 = 'last(/' . self::HOST_NAME . '/' . self::ITEM_NAME_2 . ')';
 		$response = $this->call('trigger.create', [
-			'description' => 'Fired {TRIGGER.EXPRESSION.EXPLAIN} {FUNCTION.VALUE1} {FUNCTION.VALUE2}',
+			'description' => 'Fired {TRIGGER.EXPRESSION.EXPLAIN} {FUNCTION.VALUE1} {FUNCTION.VALUE2} {{TRIGGER.EXPRESSION.EXPLAIN}.regsub(max,\0)} {{$GLOBMACRO}.regsub(b,\0)}',
 			'expression' => '(' . $expr_last1 . '+' . $expr_last2 . ')>max(10,100)',
 			'recovery_mode' => 1,
 			'recovery_expression' => '(' . $expr_last1 . '+' . $expr_last2 . ')<10'
@@ -124,7 +118,7 @@ class testExpressionTriggerMacros extends CIntegrationTest {
 			'filter' => [
 				'conditions' => [
 					[
-						'conditiontype' => CONDITION_TYPE_TRIGGER,
+						'conditiontype' => ZBX_CONDITION_TYPE_TRIGGER,
 						'operator' => CONDITION_OPERATOR_EQUAL,
 						'value' => self::$triggerid
 					]
@@ -142,8 +136,8 @@ class testExpressionTriggerMacros extends CIntegrationTest {
 						'default_msg' => 0,
 						'mediatypeid' => 1,
 						'subject' => '{TRIGGER.EXPRESSION.EXPLAIN}',
-						'message' => '{FUNCTION.VALUE1} {FUNCTION.VALUE2}'
-					],
+						'message' => '{FUNCTION.VALUE1} {FUNCTION.VALUE2} {{TRIGGER.EXPRESSION.EXPLAIN}.regsub(max,\0)} {{$GLOBMACRO}.regsub(b,\0)}'
+						],
 					'opmessage_grp' => [
 						['usrgrpid' => 7]
 					]
@@ -157,7 +151,7 @@ class testExpressionTriggerMacros extends CIntegrationTest {
 						'default_msg' => 0,
 						'mediatypeid' => 0,
 						'subject' => 'Update {TRIGGER.EXPRESSION.EXPLAIN}',
-						'message' => 'Update {FUNCTION.VALUE1} {FUNCTION.VALUE2}'
+						'message' => 'Update {FUNCTION.VALUE1} {FUNCTION.VALUE2} {{TRIGGER.EXPRESSION.EXPLAIN}.regsub(max,\0)} {{$GLOBMACRO}.regsub(b,\0)}'
 					],
 					'opmessage_grp' => [
 						['usrgrpid' => 7]
@@ -171,7 +165,7 @@ class testExpressionTriggerMacros extends CIntegrationTest {
 						'default_msg' => 0,
 						'mediatypeid' => 0,
 						'subject' => '{TRIGGER.EXPRESSION.EXPLAIN}',
-						'message' => '{FUNCTION.VALUE1} {FUNCTION.VALUE2}'
+						'message' => '{FUNCTION.VALUE1} {FUNCTION.VALUE2} {{TRIGGER.EXPRESSION.EXPLAIN}.regsub(max,\0)} {{$GLOBMACRO}.regsub(b,\0)}'
 					],
 					'opmessage_grp' => [
 						['usrgrpid' => 7]
@@ -194,9 +188,13 @@ class testExpressionTriggerMacros extends CIntegrationTest {
 		$this->assertArrayHasKey('userids', $response['result']);
 		self::$userid = $response['result']['userids'][0];
 
+		return true;
+	}
+
+	private function createScripts() {
 		$response = $this->call('script.create', [
 			'name' => 'explain/function value test script',
-			'command' => 'echo -n "{TRIGGER.EXPRESSION.EXPLAIN} {FUNCTION.VALUE1} {FUNCTION.VALUE2}"',
+			'command' => 'echo -n "{TRIGGER.EXPRESSION.EXPLAIN} {FUNCTION.VALUE1} {FUNCTION.VALUE2} {{TRIGGER.EXPRESSION.EXPLAIN}.regsub(max,\0)} {{$GLOBMACRO}.regsub(b,\0)}"',
 			'execute_on' => 1,
 			'scope' => 4,
 			'type' => 0
@@ -206,7 +204,7 @@ class testExpressionTriggerMacros extends CIntegrationTest {
 
 		$response = $this->call('script.create', [
 			'name' => 'explain/function value test script (recovery)',
-			'command' => 'echo -n "{TRIGGER.EXPRESSION.EXPLAIN} {FUNCTION.VALUE1} {FUNCTION.VALUE2}"',
+			'command' => 'echo -n "{TRIGGER.EXPRESSION.EXPLAIN} {FUNCTION.VALUE1} {FUNCTION.VALUE2} {{TRIGGER.EXPRESSION.EXPLAIN}.regsub(max,\0)} {{$GLOBMACRO}.regsub(b,\0)}"',
 			'execute_on' => 1,
 			'scope' => 4,
 			'type' => 0
@@ -214,11 +212,10 @@ class testExpressionTriggerMacros extends CIntegrationTest {
 		$this->assertArrayHasKey('scriptids', $response['result']);
 		self::$scriptid_recovery = $response['result']['scriptids'][0];
 
-		return true;
 	}
 
 	/**
-	 * Component configuration provider for agent related tests.
+	 * Component configuration provider for server.
 	 *
 	 * @return array
 	 */
@@ -226,12 +223,17 @@ class testExpressionTriggerMacros extends CIntegrationTest {
 		return [
 			self::COMPONENT_SERVER => [
 				'DebugLevel' => 4,
-				'LogFileSize' => 20
+				'LogFileSize' => 20,
+				'EnableGlobalScripts' => 1
 			]
 		];
 	}
 
+	/**
+	 * @configurationDataProvider serverConfigurationProvider
+	 */
 	public function testExpressionTriggerMacros_testOperation() {
+		$this->createScripts();
 		$this->clearLog(self::COMPONENT_SERVER);
 		$this->reloadConfigurationCache();
 
@@ -248,26 +250,35 @@ class testExpressionTriggerMacros extends CIntegrationTest {
 		$this->assertArrayHasKey(0, $response['result']);
 		self::$eventid = $response['result'][0]['eventid'];
 		$this->assertEquals('(51+50)>max(10,100)', $response['result'][0]['subject']);
-		$this->assertEquals('51 50', $response['result'][0]['message']);
+		$this->assertEquals('51 50 max b', $response['result'][0]['message']);
 	}
 
+	/**
+	 * @configurationDataProvider serverConfigurationProvider
+	 */
 	public function testExpressionTriggerMacros_checkManualEventActionScript() {
 		$response = $this->callUntilDataIsPresent('script.execute', [
 			'scriptid' => self::$scriptid,
 			'eventid' => self::$eventid
 		], 5, 2);
 		$this->assertArrayHasKey('value', $response['result']);
-		$this->assertEquals('(51+50)>max(10,100) 51 50', $response['result']['value']);
+		$this->assertEquals('(51+50)>max(10,100) 51 50 max b', $response['result']['value']);
 	}
 
+	/**
+	 * @configurationDataProvider serverConfigurationProvider
+	 */
 	public function testExpressionTriggerMacros_checkEventName() {
 		$response = $this->call('event.get', [
 			'eventids' => [self::$eventid]
 		]);
 		$this->assertArrayHasKey(0, $response['result']);
-		$this->assertEquals('Fired (51+50)>max(10,100) 51 50', $response['result'][0]['name']);
+		$this->assertEquals('Fired (51+50)>max(10,100) 51 50 max b', $response['result'][0]['name']);
 	}
 
+	/**
+	 * @configurationDataProvider serverConfigurationProvider
+	 */
 	public function testExpressionTriggerMacros_testUpdateOperation() {
 		$this->clearLog(self::COMPONENT_SERVER);
 
@@ -287,9 +298,12 @@ class testExpressionTriggerMacros extends CIntegrationTest {
 		]);
 		$this->assertArrayHasKey(1, $response['result']);
 		$this->assertEquals('Update (51+50)>max(10,100)', $response['result'][1]['subject']);
-		$this->assertEquals('Update 51 50', $response['result'][1]['message']);
+		$this->assertEquals('Update 51 50 max b', $response['result'][1]['message']);
 	}
 
+	/**
+	 * @configurationDataProvider serverConfigurationProvider
+	 */
 	public function testExpressionTriggerMacros_testRecoveryOperation() {
 		$this->clearLog(self::COMPONENT_SERVER);
 		$this->sendSenderValue(self::HOST_NAME, self::ITEM_NAME_1, 1);
@@ -305,15 +319,20 @@ class testExpressionTriggerMacros extends CIntegrationTest {
 		$this->assertArrayHasKey(2, $response['result']);
 
 		$this->assertEquals('(1+2)>max(10,100)', $response['result'][4]['subject']);
-		$this->assertEquals('1 2', $response['result'][4]['message']);
+		$this->assertEquals('1 2 max b', $response['result'][4]['message']);
 	}
 
+	/**
+	 * @configurationDataProvider serverConfigurationProvider
+	 */
 	public function testExpressionTriggerMacros_checkManualEventActionScript_recovery() {
 		$response = $this->callUntilDataIsPresent('script.execute', [
 			'scriptid' => self::$scriptid_recovery,
 			'eventid' => self::$eventid
 		], 5, 2);
 		$this->assertArrayHasKey('value', $response['result']);
-		$this->assertEquals('(1+2)>max(10,100) 1 2', $response['result']['value']);
+		$this->assertEquals('(1+2)>max(10,100) 1 2 max b', $response['result']['value']);
+
+		$response = $this->call('usermacro.deleteglobal', (array)self::$macroid );
 	}
 }

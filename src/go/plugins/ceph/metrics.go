@@ -1,45 +1,25 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 package ceph
 
 import (
-	"git.zabbix.com/ap/plugin-support/metric"
-	"git.zabbix.com/ap/plugin-support/plugin"
-	"git.zabbix.com/ap/plugin-support/uri"
+	"golang.zabbix.com/sdk/errs"
+	"golang.zabbix.com/sdk/metric"
+	"golang.zabbix.com/sdk/plugin"
+	"golang.zabbix.com/sdk/uri"
 )
-
-type command string
-
-// handlerFunc defines an interface must be implemented by handlers.
-type handlerFunc func(data map[command][]byte) (res interface{}, err error)
-
-type metricMeta struct {
-	commands []command
-	args     map[string]string
-	handler  handlerFunc
-}
-
-// handle runs metric's handler.
-func (m *metricMeta) handle(data map[command][]byte) (res interface{}, err error) {
-	return m.handler(data)
-}
 
 const (
 	keyDf            = "ceph.df.details"
@@ -99,9 +79,7 @@ var metricsMeta = map[string]metricMeta{
 	},
 }
 
-var (
-	uriDefaults = &uri.Defaults{Scheme: "https", Port: "8003"}
-)
+var uriDefaults = &uri.Defaults{Scheme: "https", Port: "8003"}
 
 // Common params: [URI|Session][,User][,ApiKey]
 var (
@@ -135,6 +113,25 @@ var metrics = metric.MetricSet{
 		[]*metric.Param{paramURI, paramUsername, paramAPIKey}, false),
 }
 
+type command string
+
+// handlerFunc defines an interface must be implemented by handlers.
+type handlerFunc func(data map[command][]byte) (res interface{}, err error)
+
+type metricMeta struct {
+	commands []command
+	args     map[string]string
+	handler  handlerFunc
+}
+
 func init() {
-	plugin.RegisterMetrics(&impl, pluginName, metrics.List()...)
+	err := plugin.RegisterMetrics(&impl, pluginName, metrics.List()...)
+	if err != nil {
+		panic(errs.Wrap(err, "failed to register metrics"))
+	}
+}
+
+// handle runs metric's handler.
+func (m *metricMeta) handle(data map[command][]byte) (res interface{}, err error) {
+	return m.handler(data)
 }

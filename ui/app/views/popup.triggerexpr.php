@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -25,18 +20,17 @@
 
 // Create form.
 $expression_form = (new CForm())
-	->cleanItems()
 	->setName('expression')
 	->addVar('action', 'popup.triggerexpr')
 	->addVar('dstfrm', $data['dstfrm'])
 	->addVar('dstfld1', $data['dstfld1'])
+	->addVar('context', $data['context'])
 	->addItem((new CVar('hostid', $data['hostid']))->removeId())
 	->addVar('groupid', $data['groupid'])
-	->addVar('function', $data['function'])
-	->addItem((new CInput('submit', 'submit'))
-		->addStyle('display: none;')
-		->removeId()
-	);
+	->addVar('function', $data['function']);
+
+// Enable form submitting on Enter.
+$expression_form->addItem((new CSubmitButton())->addClass(ZBX_STYLE_FORM_SUBMIT_HIDDEN));
 
 if ($data['parent_discoveryid'] !== '') {
 	$expression_form->addVar('parent_discoveryid', $data['parent_discoveryid']);
@@ -47,22 +41,35 @@ $expression_form_list = new CFormList();
 
 // Append item to form list.
 $popup_options = [
-	'srctbl' => 'items',
+	'srctbl' => $data['context'] === 'host' ? 'items' : 'template_items',
 	'srcfld1' => 'itemid',
 	'srcfld2' => 'name',
 	'dstfrm' => $expression_form->getName(),
 	'dstfld1' => 'itemid',
 	'dstfld2' => 'item_description',
-	'with_webitems' => '1',
-	'writeonly' => '1'
+	'writeonly' => '1',
+	'value_types' => [
+		ITEM_VALUE_TYPE_FLOAT,
+		ITEM_VALUE_TYPE_STR,
+		ITEM_VALUE_TYPE_LOG,
+		ITEM_VALUE_TYPE_UINT64,
+		ITEM_VALUE_TYPE_TEXT
+	]
 ];
 
-if ($data['hostid']) {
-	$popup_options['hostid'] = $data['hostid'];
-}
+if ($data['context'] === 'host') {
+	if ($data['hostid']) {
+		$popup_options['hostid'] = $data['hostid'];
+	}
 
-if ($data['parent_discoveryid'] !== '') {
-	$popup_options['normal_only'] = '1';
+	$popup_options['real_hosts'] = '1';
+
+	if ($data['parent_discoveryid'] !== '') {
+		$popup_options['normal_only'] = '1';
+	}
+}
+elseif ($data['hostid']) {
+	$popup_options['templateid'] = $data['hostid'];
 }
 
 if ($data['item_required']) {
@@ -75,25 +82,34 @@ if ($data['item_required']) {
 		(new CDiv())->addClass(ZBX_STYLE_FORM_INPUT_MARGIN),
 		(new CButton('select', _('Select')))
 			->addClass(ZBX_STYLE_BTN_GREY)
-			->onClick('return PopUp("popup.generic", '.json_encode($popup_options).');')
+			->onClick(
+				'return PopUp("popup.generic", '.
+					json_encode($popup_options).
+					', {dialogue_class: "modal-popup-generic"}
+				);'
+			)
 	];
 
 	if ($data['parent_discoveryid'] !== '') {
 		$item[] = (new CDiv())->addClass(ZBX_STYLE_FORM_INPUT_MARGIN);
 		$item[] = (new CButton('select', _('Select prototype')))
 			->addClass(ZBX_STYLE_BTN_GREY)
-			->setAttribute('data-parent_discoveryid', $data['parent_discoveryid'])
-			->onClick('
-				PopUp("popup.generic", {
-					srctbl: "item_prototypes",
-					srcfld1: "itemid",
-					srcfld2: "name",
-					dstfrm: "'.$expression_form->getName().'",
-					dstfld1: "itemid",
-					dstfld2: "item_description",
-					parent_discoveryid: this.dataset.parent_discoveryid
-				}, {dialogue_class: "modal-popup-generic"});
-			')
+			->onClick('return PopUp("popup.generic", '.json_encode([
+				'srctbl' => 'item_prototypes',
+				'srcfld1' => 'itemid',
+				'srcfld2' => 'name',
+				'dstfrm' => $expression_form->getName(),
+				'dstfld1' => 'itemid',
+				'dstfld2' => 'item_description',
+				'parent_discoveryid' => $data['parent_discoveryid'],
+				'value_types' => [
+					ITEM_VALUE_TYPE_FLOAT,
+					ITEM_VALUE_TYPE_STR,
+					ITEM_VALUE_TYPE_LOG,
+					ITEM_VALUE_TYPE_UINT64,
+					ITEM_VALUE_TYPE_TEXT
+				]
+			]).');')
 			->removeId();
 	}
 
@@ -140,9 +156,9 @@ if (array_key_exists('params', $data['functions'][$data['selectedFunction']])) {
 	$count_functions = [
 		'acos', 'ascii', 'asin', 'atan', 'atan2', 'between', 'bitand', 'bitlength', 'bitlshift', 'bitnot', 'bitor',
 		'bitrshift', 'bitxor', 'bytelength', 'cbrt', 'ceil', 'char', 'concat', 'cos', 'cosh', 'cot', 'degrees', 'exp',
-		'expm1', 'floor', 'in', 'insert', 'last', 'left', 'length', 'log', 'log10', 'ltrim', 'mid', 'mod', 'power',
-		'radians', 'rate', 'repeat', 'replace', 'right', 'round', 'rtrim', 'signum', 'sin', 'sinh', 'sqrt', 'tan',
-		'trim', 'truncate'
+		'expm1', 'floor', 'in', 'insert', 'jsonpath', 'last', 'lastclock' ,'left', 'length', 'log', 'log10',
+		'logtimestamp', 'ltrim', 'mid', 'mod', 'power', 'radians', 'rate', 'repeat', 'replace', 'right', 'round',
+		'rtrim', 'signum', 'sin', 'sinh', 'sqrt', 'tan', 'trim', 'truncate', 'xmlxpath'
 	];
 
 	foreach ($data['functions'][$data['selectedFunction']]['params'] as $param_name => $param_function) {

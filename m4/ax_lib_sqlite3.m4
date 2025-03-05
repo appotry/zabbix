@@ -12,7 +12,7 @@
 #   SQLite 3 library. If required version is not passed, 3.0.0 is used
 #   in the test of existence of SQLite 3.
 #
-#   If no intallation prefix to the installed SQLite library is given
+#   If no installation prefix to the installed SQLite library is given
 #   the macro searches under /usr, /usr/local, and /opt.
 #
 #   This macro calls:
@@ -41,7 +41,7 @@
 AC_DEFUN([AX_LIB_SQLITE3],
 [
     AC_ARG_WITH([sqlite3],
-        AC_HELP_STRING(
+        AS_HELP_STRING(
             [--with-sqlite3@<:@=ARG@:>@],
             [use SQLite 3 library @<:@default=no@:>@, optionally specify the prefix for sqlite3 library]
         ),

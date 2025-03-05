@@ -1,21 +1,16 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -50,6 +45,7 @@ class CHistFunctionValidatorTest extends TestCase {
 			['avg(/host/key, {$PERIOD}:{$TIMESHIFT})', ['usermacros' => true], ['rc' => true, 'error' => null]],
 			['avg(/host/key, {$PERIOD}:now-5h)', ['usermacros' => true], ['rc' => true, 'error' => null]],
 			['avg(/host/key, {$PERIOD}:now/h-{$TIMESHIFT})', ['usermacros' => true], ['rc' => true, 'error' => null]],
+			['avg(/host/key, {{$PERIOD}.regsub("^([0-9]+)", \1)}:now/{{$OFFSET}.regsub("^([0-9]+)", \1)}-{{$TIMESHIFT}.regsub("^([0-9]+)", \1)})', ['usermacros' => true], ['rc' => true, 'error' => null]],
 			['avg(/host/key, "{$PERIOD}")', ['usermacros' => true], ['rc' => true, 'error' => null]],
 			['avg(/host/key, "{$PERIOD}d")', ['usermacros' => true], ['rc' => true, 'error' => null]],
 			['avg(/host/key, "{#PERIOD}")', ['usermacros' => true], ['rc' => false, 'error' => 'invalid second parameter in function "avg"']],
@@ -219,6 +215,24 @@ class CHistFunctionValidatorTest extends TestCase {
 			['first(/host/key, 2147483647)', [], ['rc' => true, 'error' => null]],
 			['first(/host/key, 1,)', [], ['rc' => false, 'error' => 'invalid number of parameters in function "first"']],
 
+			['firstclock(/host/key)', [], ['rc' => false, 'error' => 'mandatory parameter is missing in function "firstclock"']],
+			['firstclock(/host/key,)', [], ['rc' => false, 'error' => 'invalid second parameter in function "firstclock"']],
+			['firstclock(/host/key,0)', [], ['rc' => false, 'error' => 'invalid second parameter in function "firstclock"']],
+			['firstclock(/host/key,#0)', [], ['rc' => false, 'error' => 'invalid second parameter in function "firstclock"']],
+			['firstclock(/host/key,1)', [], ['rc' => true, 'error' => null]],
+			['firstclock(/host/key,#1)', [], ['rc' => false, 'error' => 'invalid second parameter in function "firstclock"']],
+			['firstclock(/host/key,1s)', [], ['rc' => true, 'error' => null]],
+			['firstclock(/host/key, 1m)', [], ['rc' => true, 'error' => null]],
+			['firstclock(/host/key, 1M)', [], ['rc' => false, 'error' => 'invalid second parameter in function "firstclock"']],
+			['firstclock(/host/key, 1m:now/h-1h)', [], ['rc' => true, 'error' => null]],
+			['firstclock(/host/key, #3:now/h-1h)', [], ['rc' => false, 'error' => 'invalid second parameter in function "firstclock"']],
+			['firstclock(/host/key, #5:now/M)', [], ['rc' => false, 'error' => 'invalid second parameter in function "firstclock"']],
+			['firstclock(/host/key, #2147483647)', [], ['rc' => false, 'error' => 'invalid second parameter in function "firstclock"']],
+			['firstclock(/host/key, 2147483647)', [], ['rc' => true, 'error' => null]],
+			['firstclock(/host/key, 1,)', [], ['rc' => false, 'error' => 'invalid number of parameters in function "firstclock"']],
+			['firstclock(/host/key)', [], ['rc' => false, 'error' => 'mandatory parameter is missing in function "firstclock"']],
+			['firstclock(/host/key, 1h, 1)', [], ['rc' => false, 'error' => 'invalid number of parameters in function "firstclock"']],
+
 			['forecast(/host/key)', [], ['rc' => false, 'error' => 'mandatory parameter is missing in function "forecast"']],
 			['forecast(/host/key,)', [], ['rc' => false, 'error' => 'invalid second parameter in function "forecast"']],
 			['forecast(/host/key,,10h)', [], ['rc' => false, 'error' => 'invalid second parameter in function "forecast"']],
@@ -308,6 +322,23 @@ class CHistFunctionValidatorTest extends TestCase {
 			['last(/host/key, 2147483647)', [], ['rc' => false, 'error' => 'invalid second parameter in function "last"']],
 			['last(/host/key, #256,)', [], ['rc' => false, 'error' => 'invalid number of parameters in function "last"']],
 
+			['lastclock(/host/key)', [], ['rc' => true, 'error' => null]],
+			['lastclock(/host/key,)', [], ['rc' => true, 'error' => null]],
+			['lastclock(/host/key,0)', [], ['rc' => false, 'error' => 'invalid second parameter in function "lastclock"']],
+			['lastclock(/host/key,#0)', [], ['rc' => false, 'error' => 'invalid second parameter in function "lastclock"']],
+			['lastclock(/host/key,1)', [], ['rc' => false, 'error' => 'invalid second parameter in function "lastclock"']],
+			['lastclock(/host/key,#1)', [], ['rc' => true, 'error' => null]],
+			['lastclock(/host/key,1s)', [], ['rc' => false, 'error' => 'invalid second parameter in function "lastclock"']],
+			['lastclock(/host/key, 1m)', [], ['rc' => false, 'error' => 'invalid second parameter in function "lastclock"']],
+			['lastclock(/host/key, 1M)', [], ['rc' => false, 'error' => 'invalid second parameter in function "lastclock"']],
+			['lastclock(/host/key, 1m:now/h-1h)', [], ['rc' => false, 'error' => 'invalid second parameter in function "lastclock"']],
+			['lastclock(/host/key, #3:now/h-1h)', [], ['rc' => true, 'error' => null]],
+			['lastclock(/host/key, #5:now/M)', [], ['rc' => true, 'error' => null]],
+			['lastclock(/host/key, #2147483647)', [], ['rc' => true, 'error' => null]],
+			['lastclock(/host/key, #2147483648)', [], ['rc' => false, 'error' => 'invalid second parameter in function "lastclock"']],
+			['lastclock(/host/key, 2147483647)', [], ['rc' => false, 'error' => 'invalid second parameter in function "lastclock"']],
+			['lastclock(/host/key, #256,)', [], ['rc' => false, 'error' => 'invalid number of parameters in function "lastclock"']],
+
 			['logeventid(/host/key)', [], ['rc' => true, 'error' => null]],
 			['logeventid(/host/key,)', [], ['rc' => true, 'error' => null]],
 			['logeventid(/host/key,0)', [], ['rc' => false, 'error' => 'invalid second parameter in function "logeventid"']],
@@ -370,6 +401,23 @@ class CHistFunctionValidatorTest extends TestCase {
 			['logsource(/host/key, #256, {$MACRO})', ['usermacros' => true], ['rc' => true, 'error' => null]],
 			['logsource(/host/key, #256, {#LLDMACRO})', ['lldmacros' => true], ['rc' => true, 'error' => null]],
 			['logsource(/host/key, #256, "str",)', [], ['rc' => false, 'error' => 'invalid number of parameters in function "logsource"']],
+
+			['logtimestamp(/host/key)', [], ['rc' => true, 'error' => null]],
+			['logtimestamp(/host/key,)', [], ['rc' => true, 'error' => null]],
+			['logtimestamp(/host/key,0)', [], ['rc' => false, 'error' => 'invalid second parameter in function "logtimestamp"']],
+			['logtimestamp(/host/key,#0)', [], ['rc' => false, 'error' => 'invalid second parameter in function "logtimestamp"']],
+			['logtimestamp(/host/key,1)', [], ['rc' => false, 'error' => 'invalid second parameter in function "logtimestamp"']],
+			['logtimestamp(/host/key,#1)', [], ['rc' => true, 'error' => null]],
+			['logtimestamp(/host/key,1s)', [], ['rc' => false, 'error' => 'invalid second parameter in function "logtimestamp"']],
+			['logtimestamp(/host/key, 1m)', [], ['rc' => false, 'error' => 'invalid second parameter in function "logtimestamp"']],
+			['logtimestamp(/host/key, 1M)', [], ['rc' => false, 'error' => 'invalid second parameter in function "logtimestamp"']],
+			['logtimestamp(/host/key, 1m:now/h-1h)', [], ['rc' => false, 'error' => 'invalid second parameter in function "logtimestamp"']],
+			['logtimestamp(/host/key, #3:now/h-1h)', [], ['rc' => true, 'error' => null]],
+			['logtimestamp(/host/key, #5:now/M)', [], ['rc' => true, 'error' => null]],
+			['logtimestamp(/host/key, #2147483647)', [], ['rc' => true, 'error' => null]],
+			['logtimestamp(/host/key, #2147483648)', [], ['rc' => false, 'error' => 'invalid second parameter in function "logtimestamp"']],
+			['logtimestamp(/host/key, 2147483647)', [], ['rc' => false, 'error' => 'invalid second parameter in function "logtimestamp"']],
+			['logtimestamp(/host/key, #256,)', [], ['rc' => false, 'error' => 'invalid number of parameters in function "logtimestamp"']],
 
 			['mad(/host/key)', [], ['rc' => false, 'error' => 'mandatory parameter is missing in function "mad"']],
 			['mad(/host/key,)', [], ['rc' => false, 'error' => 'invalid second parameter in function "mad"']],
@@ -479,7 +527,7 @@ class CHistFunctionValidatorTest extends TestCase {
 			['nodata(/host/key, 1h, {$MACRO})', ['usermacros' => true], ['rc' => true, 'error' => null]],
 			['nodata(/host/key, 1h, {#LLDMACRO})', ['lldmacros' => true], ['rc' => true, 'error' => null]],
 			['nodata(/host/key, 1h, "{$MACRO}{#LLDMACRO}")', ['usermacros' => true, 'lldmacros' => true], ['rc' => true, 'error' => null]],
-			['nodata(/host/key, 1h, "foor")', [], ['rc' => false, 'error' => 'invalid third parameter in function "nodata"']],
+			['nodata(/host/key, 1h, "food")', [], ['rc' => false, 'error' => 'invalid third parameter in function "nodata"']],
 			['nodata(/host/key, 1h, "strict",)', [], ['rc' => false, 'error' => 'invalid number of parameters in function "nodata"']],
 
 			['percentile(/host/key)', [], ['rc' => false, 'error' => 'mandatory parameter is missing in function "percentile"']],
@@ -799,6 +847,7 @@ class CHistFunctionValidatorTest extends TestCase {
 			['last_foreach(/host/key, {$PERIOD}:{$TIMESHIFT})', ['usermacros' => true, 'calculated' => true], ['rc' => false, 'error' => 'invalid second parameter in function "last_foreach"']],
 			['last_foreach(/host/key, {$PERIOD}:now-1d)', ['usermacros' => true, 'calculated' => true], ['rc' => false, 'error' => 'invalid second parameter in function "last_foreach"']],
 			['last_foreach(/host/key, {$PERIOD}:now-{$TIMESHIFT})', ['usermacros' => true, 'calculated' => true], ['rc' => false, 'error' => 'invalid second parameter in function "last_foreach"']],
+			['last_foreach(/host/key, {{$PERIOD}.regsub("^([0-9]+)", \1)}:now-{{$TIMESHIFT}.regsub("^([0-9]+)", \1)})', ['usermacros' => true, 'calculated' => true], ['rc' => false, 'error' => 'invalid second parameter in function "last_foreach"']],
 			['last_foreach(/host/key, {$MACRO})', ['usermacros' => true, 'calculated' => true], ['rc' => true, 'error' => null]],
 			['last_foreach(/host/key, {#LLDMACRO})', ['lldmacros' => true, 'calculated' => true], ['rc' => true, 'error' => null]],
 			['last_foreach(/host/key, 1d,)', ['calculated' => true], ['rc' => false, 'error' => 'invalid number of parameters in function "last_foreach"']],
@@ -913,6 +962,7 @@ class CHistFunctionValidatorTest extends TestCase {
 			['baselinewma(/host/key, 1M:now/y, "y", 1)', [], ['rc' => true, 'error' => null]],
 			['baselinewma(/host/key, {$PERIOD}:{$TIMESHIFT}, "y", 2)', ['usermacros' => true], ['rc' => true, 'error' => null]],
 			['baselinewma(/host/key, {$PERIOD}:now-{$TIMESHIFT}, "y", 2)', ['usermacros' => true], ['rc' => true, 'error' => null]],
+			['baselinewma(/host/key, {{$PERIOD}.func()}:now-{{$TIMESHIFT: context}.func()}, "y", 2)', ['usermacros' => true], ['rc' => true, 'error' => null]],
 			['baselinewma(/host/key, {$MACRO}, "y", 2)', ['usermacros' => true], ['rc' => true, 'error' => null]],
 			['baselinewma(/host/key, {$MACRO}, {$MACRO}, {$MACRO})', ['usermacros' => true], ['rc' => true, 'error' => null]],
 			['baselinewma(/host/key, {#LLDMACRO}, {#LLDMACRO}, {#LLDMACRO})', ['lldmacros' => true], ['rc' => true, 'error' => null]],

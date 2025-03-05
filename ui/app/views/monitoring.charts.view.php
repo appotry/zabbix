@@ -1,26 +1,22 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
 /**
  * @var CView $this
+ * @var array $data
  */
 
 if ($data['error']) {
@@ -28,7 +24,6 @@ if ($data['error']) {
 }
 
 $this->addJsFile('layout.mode.js');
-$this->addJsFile('class.calendar.js');
 $this->addJsFile('gtlc.js');
 
 $this->includeJsFile('monitoring.charts.view.js.php');
@@ -36,7 +31,7 @@ $this->includeJsFile('monitoring.charts.view.js.php');
 $this->enableLayoutModes();
 $web_layout_mode = $this->getLayoutMode();
 
-$widget = (new CWidget())
+$html_page = (new CHtmlPage())
 	->setTitle(_('Graphs'))
 	->setWebLayoutMode($web_layout_mode)
 	->setDocUrl(CDocHelper::getUrl(CDocHelper::MONITORING_CHARTS_VIEW))
@@ -50,9 +45,8 @@ $filter = (new CFilter())
 	->setResetUrl((new CUrl('zabbix.php'))->setArgument('action', 'charts.view'))
 	->setProfile($data['timeline']['profileIdx'], $data['timeline']['profileIdx2'])
 	->setActiveTab($data['active_tab'])
-	->addTimeSelector($data['timeline']['from'], $data['timeline']['to'],
-		$web_layout_mode != ZBX_LAYOUT_KIOSKMODE
-	)
+	->addTimeSelector($data['timeline']['from'], $data['timeline']['to'], $web_layout_mode != ZBX_LAYOUT_KIOSKMODE,
+		'web.charts.filter')
 	->addFormItem((new CVar('action', 'charts.view'))->removeId());
 
 if ($web_layout_mode == ZBX_LAYOUT_NORMAL) {
@@ -89,24 +83,24 @@ if ($web_layout_mode == ZBX_LAYOUT_NORMAL) {
 	new CPartial('monitoring.charts.subfilter', $data['subfilters']));
 }
 
-$widget->addItem($filter);
+$html_page->addItem($filter);
 
 if (!$data['filter_hostids']) {
-	$widget->addItem((new CTableInfo())->setNoDataMessage(_('Specify host to see the graphs.')));
+	$html_page->addItem((new CTableInfo())->setNoDataMessage(_('Specify host to see the graphs.')));
 }
 elseif ($data['charts']) {
-	$table = (new CTable())
-		->setAttribute('style', 'width: 100%;')
-		->setId('charts');
-	$widget
-		->addItem($table)
-		->addItem($data['paging']);
+	$html_page->addItem([
+		(new CTable())
+			->setAttribute('style', 'width: 100%;')
+			->setId('charts'),
+		$data['paging']
+	]);
 }
 else {
-	$widget->addItem(new CTableInfo());
+	$html_page->addItem(new CTableInfo());
 }
 
-$widget->show();
+$html_page->show();
 
 (new CScriptTag('
 	view.init('.json_encode([
@@ -123,6 +117,7 @@ $widget->show();
 				'subfilter_tags' => $data['subfilter_tags'],
 				'page' => $data['page']
 			]
-		]
+		],
+		'timeline' => json_encode($data['timeline'], JSON_THROW_ON_ERROR)
 	]).');
 '))->show();

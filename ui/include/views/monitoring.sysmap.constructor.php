@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -28,35 +23,35 @@ include dirname(__FILE__).'/js/monitoring.sysmaps.js.php';
 // create menu
 $menu = (new CList())
 	->addItem([
-		_('Map element').':&nbsp;',
+		_('Map element'), ':', NBSP(),
 		(new CButton('selementAdd', _('Add')))->addClass(ZBX_STYLE_BTN_LINK),
-		'&nbsp;/&nbsp;',
+		NBSP(), '/', NBSP(),
 		(new CButton('selementRemove', _('Remove')))->addClass(ZBX_STYLE_BTN_LINK)
 	])
 	->addItem([
-		_('Shape').':&nbsp;',
+		_('Shape'), ':', NBSP(),
 		(new CButton('shapeAdd', _('Add')))->addClass(ZBX_STYLE_BTN_LINK),
-		'&nbsp;/&nbsp;',
+		NBSP(), '/', NBSP(),
 		(new CButton('shapesRemove', _('Remove')))->addClass(ZBX_STYLE_BTN_LINK)
 	])
 	->addItem([
-		_('Link').':&nbsp;',
+		_('Link'), ':', NBSP(),
 		(new CButton('linkAdd', _('Add')))->addClass(ZBX_STYLE_BTN_LINK),
-		'&nbsp;/&nbsp;',
+		NBSP(), '/', NBSP(),
 		(new CButton('linkRemove', _('Remove')))->addClass(ZBX_STYLE_BTN_LINK)
 	])
 	->addItem([
-		_('Expand macros').':&nbsp;',
+		_('Expand macros'), ':', NBSP(),
 		(new CButton('expand_macros',
 			($this->data['sysmap']['expand_macros'] == SYSMAP_EXPAND_MACROS_ON) ? _('On') : _('Off')
 		))->addClass(ZBX_STYLE_BTN_LINK)
 	])
 	->addItem([
-		_('Grid').':&nbsp;',
+		_('Grid'), ':', NBSP(),
 		(new CButton('gridshow',
 			($data['sysmap']['grid_show'] == SYSMAP_GRID_SHOW_ON) ? _('Shown') : _('Hidden')
 		))->addClass(ZBX_STYLE_BTN_LINK),
-		'&nbsp;/&nbsp;',
+		NBSP(), '/', NBSP(),
 		(new CButton('gridautoalign',
 			($data['sysmap']['grid_align'] == SYSMAP_GRID_ALIGN_ON) ? _('On') : _('Off')
 		))->addClass(ZBX_STYLE_BTN_LINK)
@@ -84,10 +79,11 @@ zbx_add_post_js('ZABBIX.apps.map.run("'.ZBX_STYLE_MAP_AREA.'", '.json_encode([
 	'iconList' => $data['iconList'],
 	'defaultAutoIconId' => $data['defaultAutoIconId'],
 	'defaultIconId' => $data['defaultIconId'],
-	'defaultIconName' => $data['defaultIconName']
+	'defaultIconName' => $data['defaultIconName'],
+	'csrf_token' => CCsrfTokenHelper::get('sysmap.php')
 ], JSON_FORCE_OBJECT).');');
 
-(new CWidget())
+(new CHtmlPage())
 	->setTitle(_('Network maps'))
 	->setDocUrl(CDocHelper::getUrl(CDocHelper::MONITORING_SYSMAP_CONSTRUCTOR))
 	->setNavigation($menu)

@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2021 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -25,61 +20,83 @@
 ?>
 
 <script>
-	const view = {
-		editHost(e, hostid) {
-			e.preventDefault();
-			const host_data = {hostid};
 
-			this.openHostPopup(host_data);
-		},
+	const view = new class {
 
-		openHostPopup(host_data) {
-			const original_url = location.href;
-			const overlay = PopUp('popup.host.edit', host_data, {
-				dialogueid: 'host_edit',
-				dialogue_class: 'modal-popup-large',
-				prevent_navigation: true
-			});
+		init({checkbox_hash, checkbox_object, context, parent_discoveryid, form_name}) {
+			this.checkbox_hash = checkbox_hash;
+			this.checkbox_object = checkbox_object;
+			this.context = context;
+			this.is_discovery = parent_discoveryid !== null;
+			this.form = document.forms[form_name];
 
-			overlay.$dialogue[0].addEventListener('dialogue.create', this.events.hostSuccess, {once: true});
-			overlay.$dialogue[0].addEventListener('dialogue.update', this.events.hostSuccess, {once: true});
-			overlay.$dialogue[0].addEventListener('dialogue.delete', this.events.hostDelete, {once: true});
-			overlay.$dialogue[0].addEventListener('overlay.close', () => {
-				history.replaceState({}, '', original_url);
-			}, {once: true});
-		},
+			this.#initActions();
+			this.#initPopupListeners();
+		}
 
-		events: {
-			hostSuccess(e) {
-				const data = e.detail;
+		#initActions() {
+			const copy = document.querySelector('.js-copy');
 
-				if ('success' in data) {
-					postMessageOk(data.success.title);
+			if (copy !== null) {
+				copy.addEventListener('click', () => {
+					const overlay = this.#openCopyPopup();
+					const dialogue = overlay.$dialogue[0];
 
-					if ('messages' in data.success) {
-						postMessageDetails('success', data.success.messages);
-					}
-				}
+					dialogue.addEventListener('dialogue.submit', (e) => {
+						postMessageOk(e.detail.success.title);
 
-				location.href = location.href;
-			},
+						const uncheckids = Object.keys(chkbxRange.getSelectedIds());
+						uncheckTableRows('graphs_' + this.checkbox_hash, [], false);
+						chkbxRange.checkObjects(this.checkbox_object, uncheckids, false);
+						chkbxRange.update(this.checkbox_object);
 
-			hostDelete(e) {
-				const data = e.detail;
+						if ('messages' in e.detail.success) {
+							postMessageDetails('success', e.detail.success.messages);
+						}
 
-				if ('success' in data) {
-					postMessageOk(data.success.title);
-
-					if ('messages' in data.success) {
-						postMessageDetails('success', data.success.messages);
-					}
-				}
-
-				const curl = new Curl('zabbix.php', false);
-				curl.setArgument('action', 'host.list');
-
-				location.href = curl.getUrl();
+						location.href = location.href;
+					});
+				});
 			}
+		}
+
+		#openCopyPopup() {
+			const parameters = {
+				graphids: Object.keys(chkbxRange.getSelectedIds()),
+				source: 'graphs'
+			};
+
+			const filter_hostids = document.getElementsByName('filter_hostids[]');
+			const context = document.getElementById('context');
+
+			if (filter_hostids.length == 1) {
+				parameters.src_hostid = context === 'host' ? filter_hostids[0].value : 0;
+			}
+
+			return PopUp('copy.edit', parameters, {
+				dialogueid: 'copy',
+				dialogue_class: 'modal-popup-static'
+			});
+		}
+
+		#initPopupListeners() {
+			ZABBIX.EventHub.subscribe({
+				require: {
+					context: CPopupManager.EVENT_CONTEXT,
+					event: CPopupManagerEvent.EVENT_SUBMIT
+				},
+				callback: ({data, event}) => {
+					uncheckTableRows('graphs_' + this.checkbox_hash, [], false);
+
+					if (data.submit.success.action === 'delete') {
+						const url = new URL(this.is_discovery ? 'host_discovery.php' : 'graphs.php', location.href);
+
+						url.searchParams.set('context', this.context);
+
+						event.setRedirectUrl(url.href);
+					}
+				}
+			});
 		}
 	};
 </script>

@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -61,7 +56,6 @@ global $ZBX_SERVER_NAME;
 		(new CDiv([
 			(new CDiv(makeLogo(LOGO_TYPE_NORMAL)))->addClass(ZBX_STYLE_SIGNIN_LOGO),
 			(new CForm())
-				->cleanItems()
 				->setAttribute('aria-label', _('Sign in'))
 				->addItem(hasRequest('request') ? new CVar('request', getRequest('request')) : null)
 				->addItem(
@@ -71,7 +65,10 @@ global $ZBX_SERVER_NAME;
 							(new CTextBox('name'))->setAttribute('autofocus', 'autofocus'),
 							$error
 						])
-						->addItem([new CLabel(_('Password'), 'password'), new CPassBox('password')])
+						->addItem([
+							new CLabel(_('Password'), 'password'),
+							(new CPassBox('password'))->setAttribute('autocomplete', 'off')
+						])
 						->addItem(
 							(new CCheckBox('autologin'))
 								->setLabel(_('Remember me for 30 days'))
@@ -88,7 +85,7 @@ global $ZBX_SERVER_NAME;
 				->setTarget('_blank')
 				->addClass(ZBX_STYLE_GREY)
 				->addClass(ZBX_STYLE_LINK_ALT),
-			CBrandHelper::isRebranded() ? null : '&nbsp;&nbsp;•&nbsp;&nbsp;',
+			CBrandHelper::isRebranded() ? null : [NBSP(), NBSP(), BULLET(), NBSP(), NBSP()],
 			CBrandHelper::isRebranded()
 				? null
 				: (new CLink(_('Support'), getSupportUrl(CWebUser::getLang())))

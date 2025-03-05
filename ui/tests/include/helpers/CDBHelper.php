@@ -1,36 +1,33 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-require_once dirname(__FILE__).'/../../../include/gettextwrapper.inc.php';
-require_once dirname(__FILE__).'/../../../include/defines.inc.php';
-require_once dirname(__FILE__).'/../../../conf/zabbix.conf.php';
-require_once dirname(__FILE__).'/../../../include/func.inc.php';
-require_once dirname(__FILE__).'/../../../include/classes/api/CApiService.php';
-require_once dirname(__FILE__).'/../../../include/db.inc.php';
-require_once dirname(__FILE__).'/../../../include/classes/db/DB.php';
-require_once dirname(__FILE__).'/../../../include/classes/user/CWebUser.php';
-require_once dirname(__FILE__).'/../../../include/classes/debug/CProfiler.php';
-require_once dirname(__FILE__).'/../../../include/classes/db/DbBackend.php';
-require_once dirname(__FILE__).'/../../../include/classes/db/MysqlDbBackend.php';
-require_once dirname(__FILE__).'/../../../include/classes/db/PostgresqlDbBackend.php';
-require_once dirname(__FILE__).'/CTestArrayHelper.php';
+
+require_once __DIR__.'/../../../include/gettextwrapper.inc.php';
+require_once __DIR__.'/../../../include/defines.inc.php';
+require_once __DIR__.'/../../../conf/zabbix.conf.php';
+require_once __DIR__.'/../../../include/func.inc.php';
+require_once __DIR__.'/../../../include/classes/api/CApiService.php';
+require_once __DIR__.'/../../../include/db.inc.php';
+require_once __DIR__.'/../../../include/classes/db/DB.php';
+require_once __DIR__.'/../../../include/classes/db/DBException.php';
+require_once __DIR__.'/../../../include/classes/user/CWebUser.php';
+require_once __DIR__.'/../../../include/classes/debug/CProfiler.php';
+require_once __DIR__.'/../../../include/classes/db/DbBackend.php';
+require_once __DIR__.'/../../../include/classes/db/MysqlDbBackend.php';
+require_once __DIR__.'/../../../include/classes/db/PostgresqlDbBackend.php';
+require_once __DIR__.'/CTestArrayHelper.php';
 
 /**
  * Database helper.
@@ -43,6 +40,8 @@ class CDBHelper {
 	 * @var array
 	 */
 	static $backups = [];
+
+	static $db_extension;
 
 	/**
 	 * Perform select query and check the result.
@@ -260,23 +259,31 @@ class CDBHelper {
 		$suffix = '_tmp'.count(self::$backups);
 
 		if ($DB['TYPE'] === ZBX_DB_POSTGRESQL) {
-			$cmd = '';
+			if (self::$db_extension === null) {
+				self::$db_extension = self::getValue('SELECT value_str FROM settings WHERE name=\'db_extension\'');
+			}
 
 			if ($DB['PASSWORD'] !== '') {
 				putenv('PGPASSWORD='.$DB['PASSWORD']);
 			}
-			$server = ($DB['SERVER'] !== '') ? ' -h'.$DB['SERVER'] : '';
 
-			$cmd .= ' pg_dump'.$server;
+			$cmd = 'pg_dump';
 
-			if ($DB['PORT'] !== '' && $DB['PORT'] != 0) {
-				$cmd .= ' -p'.$DB['PORT'];
+			if ($DB['SERVER'] !== 'v') {
+				$cmd .= ' --host='.$DB['SERVER'];
 			}
 
-			$db_name = $DB['DATABASE'];
-			$file = PHPUNIT_COMPONENT_DIR.$DB['DATABASE'].$suffix.'.dump';
+			if ($DB['PORT'] !== '' && $DB['PORT'] != 0) {
+				$cmd .= ' --port='.$DB['PORT'];
+			}
 
-			$cmd .= ' -U'.$DB['USER'].' -Fd -j5 -t'.implode(' -t', $tables).' -d'.$db_name.' -f'.$file;
+			$file = PHPUNIT_COMPONENT_DIR.$DB['DATABASE'].$suffix.'.dump';
+			$cmd .= ' --username='.$DB['USER'].' --format=d --jobs=9 --dbname='.$DB['DATABASE'];
+			$cmd .= ' --table='.implode(' --table=', $tables).' --file='.$file;
+
+			if (self::$db_extension === ZBX_DB_EXTENSION_TIMESCALEDB) {
+				$cmd .= ' 2>/dev/null';
+			}
 
 			exec($cmd, $output, $result_code);
 
@@ -285,9 +292,28 @@ class CDBHelper {
 			}
 		}
 		else {
-			foreach ($tables as $table) {
-				DBexecute('DROP TABLE IF EXISTS '.$table.$suffix);
-				DBexecute('CREATE TABLE '.$table.$suffix.' AS SELECT * FROM '.$table);
+			if ($DB['PASSWORD'] !== '') {
+				putenv('MYSQL_PWD='.$DB['PASSWORD']);
+			}
+
+			$cmd = 'mysqldump';
+
+			if ($DB['SERVER'] !== 'v') {
+				$cmd .= ' --host='.$DB['SERVER'];
+			}
+
+			if ($DB['PORT'] !== '' && $DB['PORT'] != 0) {
+				$cmd .= ' --port='.$DB['PORT'];
+			}
+
+			$file = PHPUNIT_COMPONENT_DIR.$DB['DATABASE'].$suffix.'.dump.gz';
+			$cmd .= ' --user='.$DB['USER'].' --add-drop-table '.$DB['DATABASE'];
+			$cmd .= ' '.implode(' ', $tables).' | gzip -c > '.$file;
+
+			exec($cmd, $output, $result_code);
+
+			if ($result_code != 0) {
+				throw new Exception('Failed to backup "'.implode('", "', $top_tables).'".');
 			}
 		}
 	}
@@ -307,24 +333,36 @@ class CDBHelper {
 		$tables = array_pop(self::$backups);
 
 		if ($DB['TYPE'] === ZBX_DB_POSTGRESQL) {
-			$cmd = '';
-
 			if ($DB['PASSWORD'] !== '') {
 				putenv('PGPASSWORD='.$DB['PASSWORD']);
 			}
-			$server = ($DB['SERVER'] !== '') ? ' -h'.$DB['SERVER'] : '';
 
-			$cmd .= ' pg_restore'.$server;
+			$cmd = 'pg_restore';
 
-			if ($DB['PORT'] !== '' && $DB['PORT'] != 0) {
-				$cmd .= ' -p'.$DB['PORT'];
+			if ($DB['SERVER'] !== 'v') {
+				$server = ' --host='.$DB['SERVER'];
 			}
+			$cmd .= $server;
 
-			$db_name = $DB['DATABASE'];
+			$port = '';
+			if ($DB['PORT'] !== '' && $DB['PORT'] != 0) {
+				$port .= ' --port='.$DB['PORT'];
+			}
+			$cmd .= $port;
+
 			$file = PHPUNIT_COMPONENT_DIR.$DB['DATABASE'].$suffix.'.dump';
+			$cmd .= ' --username='.$DB['USER'].' --format=d --jobs=1 --clean --dbname='.$DB['DATABASE'];
+			$cmd .= ' '.$file;
 
-			$cmd .= ' -U'.$DB['USER'].' -Fd -j5 --clean -d'.$db_name.' '.$file;
-			exec($cmd, $output, $result_code);
+			if (self::$db_extension === ZBX_DB_EXTENSION_TIMESCALEDB) {
+				$cmd_tdb = 'psql --username='.$DB['USER'].$server.$port.' --dbname='.$DB['DATABASE'].' --command="SELECT timescaledb_pre_restore();"; ';
+				$cmd_tdb .= $cmd .' 2>/dev/null; ';
+				$cmd_tdb .= 'psql --username='.$DB['USER'].$server.$port.' --dbname='.$DB['DATABASE'].' --command="SELECT timescaledb_post_restore();" ';
+				exec($cmd_tdb, $output, $result_code);
+			}
+			else {
+				exec($cmd, $output, $result_code);
+			}
 
 			if ($result_code != 0) {
 				throw new Exception('Failed to restore "'.$file.'".');
@@ -335,7 +373,7 @@ class CDBHelper {
 				exec('rd '.$file.' /q /s');
 			}
 			else {
-				exec('rm -rf '.$file);
+				exec('rm -rf '.$file, $output, $result_code);
 			}
 
 			if ($result_code != 0) {
@@ -343,20 +381,41 @@ class CDBHelper {
 			}
 		}
 		else {
-			$result = DBselect('SELECT @@unique_checks,@@foreign_key_checks');
-			$row = DBfetch($result);
-			DBexecute('SET unique_checks=0,foreign_key_checks=0');
-
-			foreach (array_reverse($tables) as $table) {
-				DBexecute('DELETE FROM '.$table);
+			if ($DB['PASSWORD'] !== '') {
+				putenv('MYSQL_PWD='.$DB['PASSWORD']);
 			}
 
-			foreach ($tables as $table) {
-				DBexecute('INSERT INTO '.$table.' SELECT * FROM '.$table.$suffix);
-				DBexecute('DROP TABLE '.$table.$suffix);
+			$cmd = 'mysql';
+
+			if ($DB['SERVER'] !== 'v') {
+				$cmd .= ' --host='.$DB['SERVER'];
 			}
 
-			DBexecute('SET foreign_key_checks='.$row['@@foreign_key_checks'].',unique_checks='.$row['@@unique_checks']);
+			if ($DB['PORT'] !== '' && $DB['PORT'] != 0) {
+				$cmd .= ' --port='.$DB['PORT'];
+			}
+
+			$file = PHPUNIT_COMPONENT_DIR.$DB['DATABASE'].$suffix.'.dump.gz';
+			$cmd .= ' --user='.$DB['USER'].' '.$DB['DATABASE'];
+			$cmd = 'gzip -cd '.$file.' | '.$cmd;
+
+			exec($cmd, $output, $result_code);
+
+			if ($result_code != 0) {
+				throw new Exception('Failed to restore "'.$file.'".');
+			}
+
+			if (strstr(strtolower(PHP_OS), 'win') !== false) {
+				$file = str_replace('/', '\\', $file);
+				exec('del '.$file);
+			}
+			else {
+				exec('rm -rf '.$file, $output, $result_code);
+			}
+
+			if ($result_code != 0) {
+				throw new Exception('Failed to remove "'.$file.'".');
+			}
 		}
 	}
 
@@ -405,13 +464,13 @@ class CDBHelper {
 	 * Returns comma-delimited list of the fields.
 	 *
 	 * @param string $table_name
-	 * @param array  $exlude_fields
+	 * @param array  $exclude_fields
 	 */
-	public static function getTableFields($table_name, array $exlude_fields = []) {
+	public static function getTableFields($table_name, array $exclude_fields = []) {
 		$field_names = [];
 
 		foreach (DB::getSchema($table_name)['fields'] as $field_name => $field) {
-			if (!in_array($field_name, $exlude_fields, true)) {
+			if (!in_array($field_name, $exclude_fields, true)) {
 				$field_names[] = $field_name;
 			}
 		}
@@ -442,10 +501,10 @@ class CDBHelper {
 	/**
 	 * Add host groups to user group with these rights.
 	 *
-	 * @param string $usergroup_name
-	 * @param string $hostgroup_name
-	 * @param int $permission
-	 * @param bool $subgroups
+	 * @param string  $usergroup_name    user group name
+	 * @param string  $hostgroup_name    host group name
+	 * @param integer $permission        PERM_READ_WRITE / PERM_READ / PERM_DENY / PERM_NONE
+	 * @param boolean $subgroups         include host subgroups (true) or not (false)
 	 */
 	public static function setHostGroupPermissions($usergroup_name, $hostgroup_name, $permission, $subgroups = false) {
 		$usergroup = DB::find('usrgrp', ['name' => $usergroup_name]);
@@ -480,98 +539,110 @@ class CDBHelper {
 	/**
 	 * Create problem or resolved events of trigger.
 	 *
-	 * @param string $trigger_name
-	 * @param int $value TRIGGER_VALUE_FALSE
-	 * @param array $event_fields
+	 * @param array|string  $trigger_name    trigger name
+	 * @param integer       $value           TRIGGER_VALUE_FALSE for RESOLVED problem / TRIGGER_VALUE_TRUE for PROBLEM
+	 * @param array         $event_fields    values for events table
 	 */
-	public static function setTriggerProblem($trigger_name, $value = TRIGGER_VALUE_TRUE, $event_fields = []) {
-		$trigger = DB::find('triggers', ['description' => $trigger_name]);
+	public static function setTriggerProblem($triggers_names, $value = TRIGGER_VALUE_TRUE, $event_fields = []) {
+		if (!is_array($triggers_names)) {
+			$triggers_names = [$triggers_names];
+		}
 
-		if ($trigger) {
-			$trigger = $trigger[0];
+		$eventids = [];
+		foreach ($triggers_names as $trigger_name) {
+			$trigger = DB::find('triggers', ['description' => $trigger_name]);
 
-			$tags = DB::select('trigger_tag', [
-				'output' => ['tag', 'value'],
-				'filter' => ['triggerid' => $trigger['triggerid']],
-				'preservekeys' => true
-			]);
+			if ($trigger) {
+				$trigger = $trigger[0];
 
-			$fields = [
-				'source' => EVENT_SOURCE_TRIGGERS,
-				'object' => EVENT_OBJECT_TRIGGER,
-				'objectid' => $trigger['triggerid'],
-				'value' => $value,
-				'name' => $trigger['description'],
-				'severity' => $trigger['priority'],
-				'clock' => CTestArrayHelper::get($event_fields, 'clock', time()),
-				'ns' => CTestArrayHelper::get($event_fields, 'ns', 0),
-				'acknowledged' => CTestArrayHelper::get($event_fields, 'acknowledged', EVENT_NOT_ACKNOWLEDGED)
-			];
+				$tags = DB::select('trigger_tag', [
+					'output' => ['tag', 'value'],
+					'filter' => ['triggerid' => $trigger['triggerid']],
+					'preservekeys' => true
+				]);
 
-			$eventid = DB::insert('events', [$fields]);
+				$time = time();
 
-			if ($eventid) {
-				$fields['eventid'] = $eventid[0];
+				$fields = [
+					'source' => EVENT_SOURCE_TRIGGERS,
+					'object' => EVENT_OBJECT_TRIGGER,
+					'objectid' => $trigger['triggerid'],
+					'value' => $value,
+					'name' => $trigger['description'],
+					'severity' => $trigger['priority'],
+					'clock' => CTestArrayHelper::get($event_fields, 'clock', $time),
+					'ns' => CTestArrayHelper::get($event_fields, 'ns', 0),
+					'acknowledged' => CTestArrayHelper::get($event_fields, 'acknowledged', EVENT_NOT_ACKNOWLEDGED)
+				];
 
-				if ($value == TRIGGER_VALUE_TRUE) {
-					DB::insert('problem', [$fields], false);
-					DB::update('triggers', [
-						'values' => [
-							'value' => TRIGGER_VALUE_TRUE,
-							'lastchange' => CTestArrayHelper::get($event_fields, 'clock', time())
-						],
-						'where' => ['triggerid' => $trigger['triggerid']]
-					]);
-				}
-				else {
-					$problems = DBfetchArray(DBselect(
-						'SELECT *'.
-						' FROM problem'.
-						' WHERE objectid = '.$trigger['triggerid'].
-							' AND r_eventid IS NULL'
-					));
+				$eventid = DB::insert('events', [$fields]);
 
-					if ($problems) {
+				if ($eventid) {
+					$fields['eventid'] = $eventid[0];
+
+					if ($value == TRIGGER_VALUE_TRUE) {
+						DB::insert('problem', [$fields], false);
 						DB::update('triggers', [
 							'values' => [
-								'value' => TRIGGER_VALUE_FALSE,
-								'lastchange' => CTestArrayHelper::get($event_fields, 'clock', time())
+								'value' => TRIGGER_VALUE_TRUE,
+								'lastchange' => CTestArrayHelper::get($event_fields, 'clock', $time)
 							],
 							'where' => ['triggerid' => $trigger['triggerid']]
 						]);
-						DB::update('problem', [
-							'values' => [
-								'r_eventid' => $fields['eventid'],
-								'r_clock' => $fields['clock'],
-								'r_ns' => $fields['ns']
-							],
-							'where' => ['eventid' => array_column($problems, 'eventid')]
-						]);
+					} else {
+						$problems = DBfetchArray(DBselect(
+							'SELECT *' .
+							' FROM problem' .
+							' WHERE objectid = ' . $trigger['triggerid'] .
+							' AND r_eventid IS NULL'
+						));
 
-						$recovery = [];
-						foreach ($problems as $problem) {
-							$recovery[] = [
-								'eventid' => $problem['eventid'],
-								'r_eventid' => $fields['eventid']
-							];
+						if ($problems) {
+							DB::update('triggers', [
+								'values' => [
+									'value' => TRIGGER_VALUE_FALSE,
+									'lastchange' => CTestArrayHelper::get($event_fields, 'clock', $time)
+								],
+								'where' => ['triggerid' => $trigger['triggerid']]
+							]);
+							DB::update('problem', [
+								'values' => [
+									'r_eventid' => $fields['eventid'],
+									'r_clock' => $fields['clock'],
+									'r_ns' => $fields['ns']
+								],
+								'where' => ['eventid' => array_column($problems, 'eventid')]
+							]);
+
+							$recovery = [];
+							foreach ($problems as $problem) {
+								$recovery[] = [
+									'eventid' => $problem['eventid'],
+									'r_eventid' => $fields['eventid']
+								];
+							}
+							DB::insert('event_recovery', $recovery, false);
 						}
-						DB::insert('event_recovery', $recovery, false);
 					}
-				}
 
-				if ($tags) {
-					foreach ($tags as &$tag) {
-						$tag['eventid'] = $fields['eventid'];
+					if ($tags) {
+						foreach ($tags as &$tag) {
+							$tag['eventid'] = $fields['eventid'];
+						}
+						unset($tag);
+
+						DB::insertBatch('event_tag', $tags);
+
+						if ($value == TRIGGER_VALUE_TRUE) {
+							DB::insertBatch('problem_tag', $tags);
+						}
 					}
-					unset($tag);
 
-					DB::insertBatch('event_tag', $tags);
-
-					if ($value == TRIGGER_VALUE_TRUE) {
-						DB::insertBatch('problem_tag', $tags);
-					}
+					$eventids[] = $fields['eventid'];
 				}
 			}
 		}
+
+		return $eventids;
 	}
 }

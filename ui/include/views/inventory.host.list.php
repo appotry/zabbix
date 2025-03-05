@@ -1,29 +1,25 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
 /**
  * @var CView $this
+ * @var array $data
  */
 
-$widget = (new CWidget())
+$html_page = (new CHtmlPage())
 	->setTitle(_('Host inventory'))
 	->setDocUrl(CDocHelper::getUrl(CDocHelper::INVENTORY_HOST_LIST));
 
@@ -37,7 +33,7 @@ foreach ($data['host_inventories'] as $inventoryField) {
 }
 
 // filter
-$widget->addItem(
+$html_page->addItem(
 	(new CFilter())
 		->setResetUrl(new CUrl('hostinventories.php'))
 		->setProfile($data['profileIdx'])
@@ -56,7 +52,7 @@ $widget->addItem(
 								'srcfld1' => 'groupid',
 								'dstfrm' => 'zbx_filter',
 								'dstfld1' => 'filter_groups_',
-								'real_hosts' => 1,
+								'with_hosts' => true,
 								'enrich_parent_groups' => true
 							]
 						]
@@ -83,28 +79,25 @@ $url = (new CUrl('hostinventories.php'))->getUrl();
 
 $table = (new CTableInfo())
 	->setHeader([
-		make_sorting_header(_('Host'), 'name', $this->data['sort'], $this->data['sortorder'], $url),
+		make_sorting_header(_('Host'), 'name', $data['sort'], $data['sortorder'], $url),
 		_('Group'),
-		make_sorting_header(_('Name'), 'pr_name', $this->data['sort'], $this->data['sortorder'], $url),
-		make_sorting_header(_('Type'), 'pr_type', $this->data['sort'], $this->data['sortorder'], $url),
-		make_sorting_header(_('OS'), 'pr_os', $this->data['sort'], $this->data['sortorder'], $url),
-		make_sorting_header(_('Serial number A'), 'pr_serialno_a', $this->data['sort'], $this->data['sortorder'], $url),
-		make_sorting_header(_('Tag'), 'pr_tag', $this->data['sort'], $this->data['sortorder'], $url),
-		make_sorting_header(_('MAC address A'), 'pr_macaddress_a', $this->data['sort'], $this->data['sortorder'], $url)
-	]);
+		make_sorting_header(_('Name'), 'pr_name', $data['sort'], $data['sortorder'], $url),
+		make_sorting_header(_('Type'), 'pr_type', $data['sort'], $data['sortorder'], $url),
+		make_sorting_header(_('OS'), 'pr_os', $data['sort'], $data['sortorder'], $url),
+		make_sorting_header(_('Serial number A'), 'pr_serialno_a', $data['sort'], $data['sortorder'], $url),
+		make_sorting_header(_('Tag'), 'pr_tag', $data['sort'], $data['sortorder'], $url),
+		make_sorting_header(_('MAC address A'), 'pr_macaddress_a', $data['sort'], $data['sortorder'], $url)
+	])
+	->setPageNavigation($data['paging']);
 
-foreach ($this->data['hosts'] as $host) {
-	$hostGroups = [];
-	foreach ($host['groups'] as $group) {
-		$hostGroups[] = $group['name'];
-	}
-	natsort($hostGroups);
-	$hostGroups = implode(', ', $hostGroups);
+foreach ($data['hosts'] as $host) {
+	$hostgroups = array_column($host['hostgroups'], 'name');
+	natsort($hostgroups);
 
 	$row = [
 		(new CLink($host['name'], (new CUrl('hostinventories.php'))->setArgument('hostid', $host['hostid'])))
 			->addClass($host['status'] == HOST_STATUS_NOT_MONITORED ? ZBX_STYLE_RED : null),
-		$hostGroups,
+		implode(', ', $hostgroups),
 		zbx_str2links($host['inventory']['name']),
 		zbx_str2links($host['inventory']['type']),
 		zbx_str2links($host['inventory']['os']),
@@ -116,6 +109,6 @@ foreach ($this->data['hosts'] as $host) {
 	$table->addRow($row);
 }
 
-$widget->addItem([$table, $this->data['paging']]);
-
-$widget->show();
+$html_page
+	->addItem($table)
+	->show();

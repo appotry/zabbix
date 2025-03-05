@@ -1,22 +1,18 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
+
 
 require_once dirname(__FILE__).'/../../include/CLegacyWebTest.php';
 
@@ -27,6 +23,8 @@ use Facebook\WebDriver\WebDriverBy;
  */
 class testFormUserProfile extends CLegacyWebTest {
 
+	protected static $old_password = 'zabbix';
+
 	public function testFormUserProfile_SimpleUpdate() {
 		$sqlHashUsers = 'select userid,username,name,surname,passwd,url,autologin,lang,refresh,roleid,theme,attempt_failed,attempt_clock,rows_per_page'
 				. ' from users order by userid';
@@ -34,7 +32,7 @@ class testFormUserProfile extends CLegacyWebTest {
 
 		$this->zbxTestLogin('zabbix.php?action=userprofile.edit');
 
-		$this->zbxTestCheckTitle('User profile');
+		$this->zbxTestCheckTitle('Profile');
 
 		$this->zbxTestClickWait('update');
 		$this->zbxTestCheckHeader('Global view');
@@ -48,7 +46,7 @@ class testFormUserProfile extends CLegacyWebTest {
 		$oldHashUsers = CDBHelper::getHash($sqlHashUsers);
 
 		$this->zbxTestLogin('zabbix.php?action=userprofile.edit');
-		$this->zbxTestCheckHeader('User profile: Zabbix Administrator');
+		$this->zbxTestCheckHeader('Profile');
 		$this->zbxTestInputTypeOverwrite('refresh', '60');
 
 		$this->zbxTestClickWait('cancel');
@@ -78,6 +76,20 @@ class testFormUserProfile extends CLegacyWebTest {
 				'error_msg' => 'Both passwords must be equal.'
 			]],
 			[[
+				'expected' => TEST_BAD,
+				'old_password' => 'test_123',
+				'password1' => "test_123",
+				'password2' => "test_123",
+				'error_msg' => 'Incorrect current password.'
+			]],
+			[[
+				'expected' => TEST_BAD,
+				'old_password' => '',
+				'password1' => "'\'$\"\"!$@$#^%$+-=~`\`\\",
+				'password2' => "'\'$\"\"!$@$#^%$+-=~`\`\\",
+				'error_msg' => 'Incorrect value for field "Current password": cannot be empty.'
+			]],
+			[[
 				'expected' => TEST_GOOD,
 				'password1' => "'\'$\"\"!$@$#^%$+-=~`\`\\",
 				'password2' => "'\'$\"\"!$@$#^%$+-=~`\`\\"
@@ -99,20 +111,37 @@ class testFormUserProfile extends CLegacyWebTest {
 
 		$this->zbxTestLogin('zabbix.php?action=userprofile.edit');
 
-		$this->zbxTestClickXpathWait("//ul[@id='user_form_list']//button[contains(@onclick, 'change_password')]");
-		$this->zbxTestInputTypeWait('password1', $data['password1']);
-		$this->zbxTestInputType('password2', $data['password2']);
+		$form = $this->query('name:userprofile_form')->asForm()->waitUntilVisible()->one();
+		$form->query('button:Change password')->waitUntilClickable()->one()->click();
+		foreach (['current_password', 'password1', 'password2'] as $id) {
+			$form->query('id', $id)->waitUntilVisible()->one();
+		}
+		$form->fill([
+				'Current password' => (array_key_exists('old_password', $data)) ? $data['old_password'] : self::$old_password,
+				'Password' => $data['password1'],
+				'Password (once again)' => $data['password2']
+		]);
+		$form->submit();
 
-		$this->zbxTestClickWait('update');
+		if ($this->page->isAlertPresent()) {
+			$this->page->acceptAlert();
+		}
+
+		$this->page->waitUntilReady();
 
 		switch ($data['expected']) {
 			case TEST_GOOD:
-				$this->zbxTestCheckHeader('Global view');
-				$this->zbxTestWaitUntilMessageTextPresent('msg-good' , 'User updated');
+				$this->page->assertTitle('Zabbix');
+				$this->assertTrue($this->query('button:Sign in')->one()->isClickable());
+				$this->page->userLogin('Admin', $data['password1']);
+				$this->assertTrue($this->query('xpath://a[@title="Admin (Zabbix Administrator)" and text()='.
+						'"User settings"]')->exists()
+				);
+				self::$old_password = $data['password1'];
 				break;
 			case TEST_BAD:
 				$this->zbxTestWaitUntilMessageTextPresent('msg-bad' , $data['error_msg']);
-				$this->zbxTestCheckTitle('User profile');
+				$this->zbxTestCheckTitle('Profile');
 				$this->assertEquals($oldHashUsers, CDBHelper::getHash($sqlHashUsers));
 				break;
 		}
@@ -122,10 +151,12 @@ class testFormUserProfile extends CLegacyWebTest {
 		$sqlHashUsers = "select * from users where username<>'".PHPUNIT_LOGIN_NAME."' order by userid";
 		$oldHashUsers = CDBHelper::getHash($sqlHashUsers);
 
-		$this->zbxTestLogin('zabbix.php?action=userprofile.edit');
+		$this->page->login();
+		$this->page->open('zabbix.php?action=userprofile.edit')->waitUntilReady();
 
 		$this->zbxTestDropdownSelect('theme', 'Blue');
 		$this->zbxTestClickWait('update');
+		$this->page->waitUntilReady();
 		$this->zbxTestCheckHeader('Global view');
 
 		$row = DBfetch(DBselect("select theme from users where username='".PHPUNIT_LOGIN_NAME."'"));
@@ -331,12 +362,11 @@ class testFormUserProfile extends CLegacyWebTest {
 			case TEST_BAD:
 				$this->zbxTestWaitUntilMessageTextPresent('msg-bad' , 'Cannot update user');
 				$this->zbxTestTextPresent($data['error_msg']);
-				$this->zbxTestCheckTitle('User profile');
+				$this->zbxTestCheckTitle('Profile');
 				$this->assertEquals($oldHashUsers, CDBHelper::getHash($sqlHashUsers));
 				break;
 		}
 	}
-
 	public static function messaging() {
 		return [
 			[[
@@ -430,15 +460,15 @@ class testFormUserProfile extends CLegacyWebTest {
 	 * @dataProvider messaging
 	 */
 	public function testFormUserProfile_MessagesTimeout($data) {
-		$this->zbxTestLogin('zabbix.php?action=userprofile.edit');
-		$this->zbxTestCheckHeader('User profile: Zabbix Administrator');
-		$this->zbxTestTabSwitch('Messaging');
+		$this->zbxTestLogin('zabbix.php?action=userprofile.notification.edit');
+		$this->zbxTestCheckHeader('Notifications');
+		$this->zbxTestTabSwitch('Frontend notifications');
 
 		if (array_key_exists('messages_disabled', $data)) {
 			$this->zbxTestAssertElementPresentXpath("//input[@id='messages_timeout'][@disabled]");
-			$this->zbxTestAssertElementPresentXpath("//z-select[@id='messages_sounds.repeat'][@disabled]");
+			$this->zbxTestAssertElementPresentXpath("//z-select[@id='messages_sounds.repeat']/input[@type='hidden']");
 			$this->zbxTestAssertElementPresentXpath("//input[@id='messages_triggers.recovery'][@disabled]");
-			$this->zbxTestAssertElementPresentXpath("//z-select[@id='messages_sounds.recovery'][@disabled]");
+			$this->zbxTestAssertElementPresentXpath("//z-select[@id='messages_sounds.recovery']/input[@type='hidden']");
 			$this->zbxTestAssertElementPresentXpath("//button[@name='start'][@disabled]");
 			$this->zbxTestAssertElementPresentXpath("//button[@name='stop'][@disabled]");
 			$this->zbxTestAssertElementPresentXpath("//input[@id='messages_show_suppressed'][@disabled]");
@@ -457,9 +487,9 @@ class testFormUserProfile extends CLegacyWebTest {
 		else {
 			$this->zbxTestCheckboxSelect('messages_enabled', false);
 			$this->zbxTestAssertElementPresentXpath("//input[@id='messages_timeout'][@disabled]");
-			$this->zbxTestAssertElementPresentXpath("//z-select[@id='messages_sounds.repeat'][@disabled]");
+			$this->zbxTestAssertElementPresentXpath("//z-select[@id='messages_sounds.repeat']/input[@type='hidden']");
 			$this->zbxTestAssertElementPresentXpath("//input[@id='messages_triggers.recovery'][@disabled]");
-			$this->zbxTestAssertElementPresentXpath("//z-select[@id='messages_sounds.recovery'][@disabled]");
+			$this->zbxTestAssertElementPresentXpath("//z-select[@id='messages_sounds.recovery']/input[@type='hidden']");
 			$this->zbxTestAssertElementPresentXpath("//button[@name='start'][@disabled]");
 			$this->zbxTestAssertElementPresentXpath("//button[@name='stop'][@disabled]");
 			$this->zbxTestAssertElementPresentXpath("//input[@id='messages_show_suppressed'][@disabled]");
@@ -532,9 +562,8 @@ class testFormUserProfile extends CLegacyWebTest {
 	 * @dataProvider media
 	 */
 	public function testFormUserProfile_Media($data) {
-		$this->zbxTestLogin('zabbix.php?action=userprofile.edit');
-		$this->zbxTestCheckHeader('User profile: Zabbix Administrator');
-		$this->zbxTestTabSwitch('Media');
+		$this->zbxTestLogin('zabbix.php?action=userprofile.notification.edit');
+		$this->zbxTestCheckHeader('Notifications');
 		$this->zbxTestClickButtonText('Add');
 		$this->zbxTestLaunchOverlayDialog('Media');
 

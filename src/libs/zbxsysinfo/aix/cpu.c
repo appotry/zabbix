@@ -1,29 +1,27 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-#include <sys/dr.h>
-#include "common.h"
-#include "sysinfo.h"
-#include "stats.h"
-#include "log.h"
+#include "zbxsysinfo.h"
+#include "../sysinfo.h"
 
-int	SYSTEM_CPU_NUM(AGENT_REQUEST *request, AGENT_RESULT *result)
+#include "../common/stats.h"
+
+#include "zbxnum.h"
+
+#include <sys/dr.h>
+
+int	system_cpu_num(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 #ifdef HAVE_LIBPERFSTAT
 	char			*tmp;
@@ -55,11 +53,12 @@ int	SYSTEM_CPU_NUM(AGENT_REQUEST *request, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 #else
 	SET_MSG_RESULT(result, zbx_strdup(NULL, "Agent was compiled without support for Perfstat API."));
+
 	return SYSINFO_RET_FAIL;
 #endif
 }
 
-int	SYSTEM_CPU_UTIL(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	system_cpu_util(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	char	*tmp;
 	int	cpu_num, state, mode, res;
@@ -74,7 +73,7 @@ int	SYSTEM_CPU_UTIL(AGENT_REQUEST *request, AGENT_RESULT *result)
 
 	if (NULL == tmp || '\0' == *tmp || 0 == strcmp(tmp, "all"))
 		cpu_num = ZBX_CPUNUM_ALL;
-	else if (SUCCEED != is_uint31_1(tmp, &cpu_num))
+	else if (SUCCEED != zbx_is_uint31_1(tmp, &cpu_num))
 	{
 		SET_MSG_RESULT(result, zbx_strdup(NULL, "Invalid first parameter."));
 		return SYSINFO_RET_FAIL;
@@ -128,7 +127,7 @@ int	SYSTEM_CPU_UTIL(AGENT_REQUEST *request, AGENT_RESULT *result)
 
 	if (SYSINFO_RET_FAIL == res)
 	{
-		if (!ISSET_MSG(result))
+		if (!ZBX_ISSET_MSG(result))
 			SET_MSG_RESULT(result, zbx_strdup(NULL, "Cannot obtain CPU information."));
 
 		return SYSINFO_RET_FAIL;
@@ -137,7 +136,7 @@ int	SYSTEM_CPU_UTIL(AGENT_REQUEST *request, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-int	SYSTEM_CPU_LOAD(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	system_cpu_load(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 #ifdef HAVE_LIBPERFSTAT
 #if !defined(SBITS)
@@ -201,14 +200,17 @@ int	SYSTEM_CPU_LOAD(AGENT_REQUEST *request, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 #else
 	SET_MSG_RESULT(result, zbx_strdup(NULL, "Agent was compiled without support for Perfstat API."));
+
 	return SYSINFO_RET_FAIL;
 #endif
 }
 
-int     SYSTEM_CPU_SWITCHES(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	system_cpu_switches(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 #ifdef HAVE_LIBPERFSTAT
 	perfstat_cpu_total_t	ps_cpu_total;
+
+	ZBX_UNUSED(request);
 
 	if (-1 == perfstat_cpu_total(NULL, &ps_cpu_total, sizeof(ps_cpu_total), 1))
 	{
@@ -220,13 +222,17 @@ int     SYSTEM_CPU_SWITCHES(AGENT_REQUEST *request, AGENT_RESULT *result)
 
 	return SYSINFO_RET_OK;
 #else
+	ZBX_UNUSED(request);
+
 	SET_MSG_RESULT(result, zbx_strdup(NULL, "Agent was compiled without support for Perfstat API."));
+
 	return SYSINFO_RET_FAIL;
 #endif
 }
 
-int     SYSTEM_CPU_INTR(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	system_cpu_intr(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
+	ZBX_UNUSED(request);
 #ifdef HAVE_LIBPERFSTAT
 	perfstat_cpu_total_t	ps_cpu_total;
 
@@ -241,6 +247,7 @@ int     SYSTEM_CPU_INTR(AGENT_REQUEST *request, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 #else
 	SET_MSG_RESULT(result, zbx_strdup(NULL, "Agent was compiled without support for Perfstat API."));
+
 	return SYSINFO_RET_FAIL;
 #endif
 }

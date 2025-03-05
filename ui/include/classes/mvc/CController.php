@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -36,7 +31,7 @@ abstract class CController {
 	private $post_content_type = self::POST_CONTENT_TYPE_FORM;
 
 	/**
-	 * Action name, so that controller knows what action he is executing.
+	 * Action name, so that controller knows which action is being executed.
 	 *
 	 * @var string
 	 */
@@ -61,7 +56,7 @@ abstract class CController {
 	 *
 	 * @var array|null
 	 */
-	private static $raw_input;
+	private $raw_input;
 
 	/**
 	 * Validated input parameters.
@@ -71,14 +66,15 @@ abstract class CController {
 	protected $input = [];
 
 	/**
-	 * SID validation flag, if true SID must be validated.
+	 * Validate CSRF token flag, if true CSRF token must be validated.
 	 *
 	 * @var bool
 	 */
-	private $validate_sid = true;
+	private bool $validate_csrf_token = true;
 
 	public function __construct() {
 		$this->init();
+		$this->populateRawInput();
 	}
 
 	/**
@@ -171,46 +167,49 @@ abstract class CController {
 	}
 
 	/**
-	 * Return user SID, first 16 bytes of session ID.
-	 *
-	 * @return string
+	 * Disables CSRF token validation.
 	 */
-	protected function getUserSID() {
-		$sessionid = CSessionHelper::getId();
-
-		if ($sessionid === null || strlen($sessionid) < 16) {
-			return null;
-		}
-
-		return substr($sessionid, 16, 16);
+	protected function disableCsrfValidation(): void {
+		$this->validate_csrf_token = false;
 	}
 
 	/**
+	 * @throws Exception
+	 *
 	 * @return array
 	 */
-	private function getFormInput(): array {
-		$input = $_REQUEST;
+	private static function getFormInput(): array {
+		static $input;
 
-		if (hasRequest('formdata')) {
-			$data = base64_decode(getRequest('data'));
-			$sign = base64_decode(getRequest('sign'));
-			$request_sign = CEncryptHelper::sign($data);
+		if ($input === null) {
+			$input = $_REQUEST;
 
-			if (CEncryptHelper::checkSign($sign, $request_sign)) {
-				$data = json_decode($data, true);
-
-				if ($data['messages']) {
-					CMessageHelper::setScheduleMessages($data['messages']);
+			if (hasRequest('formdata')) {
+				if (!hasRequest('data') || !is_string(getRequest('data'))
+						|| !hasRequest('sign') || !is_string(getRequest('sign'))) {
+					throw new Exception(_('Operation cannot be performed due to unauthorized request.'));
 				}
 
-				$input = array_replace($input, $data['form']);
-			}
-			else {
-				info(_('Operation cannot be performed due to unauthorized request.'));
-			}
+				$data = base64_decode(getRequest('data'));
+				$sign = base64_decode(getRequest('sign'));
+				$request_sign = CEncryptHelper::sign($data);
 
-			// Replace window.history to avoid resubmission warning dialog.
-			zbx_add_post_js("history.replaceState({}, '');");
+				if (CEncryptHelper::checkSign($sign, $request_sign)) {
+					$data = json_decode($data, true);
+
+					if ($data['messages']) {
+						CMessageHelper::setScheduleMessages($data['messages']);
+					}
+
+					$input = array_replace($input, $data['form']);
+				}
+				else {
+					info(_('Operation cannot be performed due to unauthorized request.'));
+				}
+
+				// Replace window.history to avoid resubmission warning dialog.
+				zbx_add_post_js("history.replaceState({}, '');");
+			}
 		}
 
 		return $input;
@@ -219,16 +218,20 @@ abstract class CController {
 	/**
 	 * @return array
 	 */
-	private function getJsonInput(): array {
-		$input = $_REQUEST;
+	private static function getJsonInput(): array {
+		static $input;
 
-		$json_input = json_decode(file_get_contents('php://input'), true);
+		if ($input === null) {
+			$input = $_REQUEST;
 
-		if (is_array($json_input)) {
-			$input += $json_input;
-		}
-		else {
-			info(_('JSON array input is expected.'));
+			$json_input = json_decode(file_get_contents('php://input'), true);
+
+			if (is_array($json_input)) {
+				$input += $json_input;
+			}
+			else {
+				info(_('JSON array input is expected.'));
+			}
 		}
 
 		return $input;
@@ -242,13 +245,13 @@ abstract class CController {
 	 * @return bool
 	 */
 	protected function validateInput(array $validation_rules): bool {
-		if (self::$raw_input === null) {
+		if ($this->raw_input === null) {
 			$this->validation_result = self::VALIDATION_FATAL_ERROR;
 
 			return false;
 		}
 
-		$validator = new CNewValidator(self::$raw_input, $validation_rules);
+		$validator = new CNewValidator($this->raw_input, $validation_rules);
 
 		foreach ($validator->getAllErrors() as $error) {
 			info($error);
@@ -262,53 +265,51 @@ abstract class CController {
 			$this->validation_result = $validator->isError() ? self::VALIDATION_ERROR : self::VALIDATION_OK;
 		}
 
-		return ($this->validation_result == self::VALIDATION_OK);
+		return $this->validation_result == self::VALIDATION_OK;
 	}
 
 	/**
 	 * Validate "from" and "to" parameters for allowed period.
 	 *
+	 * @throws CAccessDeniedException
+	 *
 	 * @return bool
 	 */
-	protected function validateTimeSelectorPeriod() {
+	protected function validateTimeSelectorPeriod(): bool {
 		if (!$this->hasInput('from') || !$this->hasInput('to')) {
 			return true;
 		}
 
 		try {
-			$max_period = 'now-'.CSettingsHelper::get(CSettingsHelper::MAX_PERIOD);
+			$min_period = CTimePeriodHelper::getMinPeriod();
+			$max_period = CTimePeriodHelper::getMaxPeriod();
 		}
 		catch (Exception $x) {
-			access_deny(ACCESS_DENY_PAGE);
-
-			return false;
+			throw new CAccessDeniedException();
 		}
 
-		$ts = [];
-		$ts['now'] = time();
 		$range_time_parser = new CRangeTimeParser();
 
-		foreach (['from', 'to'] as $field) {
-			$range_time_parser->parse($this->getInput($field));
-			$ts[$field] = $range_time_parser
-				->getDateTime($field === 'from')
-				->getTimestamp();
+		$time_period = [
+			'from' => $this->getInput('from'),
+			'to' => $this->getInput('to')
+		];
+
+		foreach (['from' => 'from_ts', 'to' => 'to_ts'] as $field => $field_ts) {
+			$range_time_parser->parse($time_period[$field]);
+			$time_period[$field_ts] = $range_time_parser->getDateTime($field === 'from')->getTimestamp();
 		}
 
-		$period = $ts['to'] - $ts['from'] + 1;
-		$range_time_parser->parse($max_period);
-		$max_period = 1 + $ts['now'] - $range_time_parser
-			->getDateTime(true)
-			->getTimestamp();
+		$period = $time_period['to_ts'] - $time_period['from_ts'] + 1;
 
-		if ($period < ZBX_MIN_PERIOD) {
+		if ($period < $min_period) {
 			info(_n('Minimum time period to display is %1$s minute.',
-				'Minimum time period to display is %1$s minutes.', (int) (ZBX_MIN_PERIOD / SEC_PER_MIN)
+				'Minimum time period to display is %1$s minutes.', (int) ($min_period / SEC_PER_MIN)
 			));
 
 			return false;
 		}
-		elseif ($period > $max_period) {
+		elseif ($period > $max_period + 1) {
 			info(_n('Maximum time period to display is %1$s day.',
 				'Maximum time period to display is %1$s days.', (int) round($max_period / SEC_PER_DAY)
 			));
@@ -398,29 +399,34 @@ abstract class CController {
 	abstract protected function checkInput();
 
 	/**
-	 * Validate session ID (SID).
-	 */
-	protected function disableSIDvalidation() {
-		$this->validate_sid = false;
-	}
-
-	/**
-	 * Validate session ID (SID).
+	 * Checks if CSRF token in the request is valid.
 	 *
 	 * @return bool
 	 */
-	private function checkSID(): bool {
-		$sessionid = $this->getUserSID();
-
-		if ($sessionid === null) {
+	private function checkCsrfToken(): bool {
+		if (!isRequestMethod('post') || !is_array($this->raw_input)
+				|| !array_key_exists(CSRF_TOKEN_NAME, $this->raw_input)) {
 			return false;
 		}
 
-		if (!is_array(self::$raw_input) || !array_key_exists('sid', self::$raw_input)) {
+		$skip = ['popup', 'massupdate'];
+		$csrf_token_form = $this->raw_input[CSRF_TOKEN_NAME];
+
+		if (!is_string($csrf_token_form)) {
 			return false;
 		}
 
-		return (self::$raw_input['sid'] === $sessionid);
+		if (strpos(get_class($this), 'Modules\\') === 0) {
+			return CCsrfTokenHelper::check($csrf_token_form, $this->action);
+		}
+
+		foreach (explode('.', $this->action) as $segment) {
+			if (!in_array($segment, $skip, true)) {
+				return CCsrfTokenHelper::check($csrf_token_form, $segment);
+			}
+		}
+
+		return false;
 	}
 
 	/**
@@ -433,15 +439,15 @@ abstract class CController {
 	private function populateRawInput(): void {
 		switch ($this->getPostContentType()) {
 			case self::POST_CONTENT_TYPE_FORM:
-				self::$raw_input = $this->getFormInput();
+				$this->raw_input = self::getFormInput();
 				break;
 
 			case self::POST_CONTENT_TYPE_JSON:
-				self::$raw_input = $this->getJsonInput();
+				$this->raw_input = self::getJsonInput();
 				break;
 
 			default:
-				self::$raw_input = null;
+				$this->raw_input = null;
 		}
 	}
 
@@ -453,9 +459,7 @@ abstract class CController {
 	 * @return CControllerResponse|null
 	 */
 	final public function run(): ?CControllerResponse {
-		$this->populateRawInput();
-
-		if ($this->validate_sid && !$this->checkSID()) {
+		if ($this->validate_csrf_token && (!CWebUser::isLoggedIn() || !$this->checkCsrfToken())) {
 			throw new CAccessDeniedException();
 		}
 

@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 ?>
 
@@ -23,16 +18,27 @@
 <script type="text/javascript">
 	const view = new class {
 
-		init({connect_timeout, default_inventory_mode, iframe_sandboxing_enabled, iframe_sandboxing_exceptions,
-				item_test_timeout, login_attempts, login_block, media_type_test_timeout, report_test_timeout,
-				script_timeout, snmptrap_logging, socket_timeout, uri_valid_schemes, url, validate_uri_schemes,
-				vault_provider, x_frame_options}) {
+		init({default_inventory_mode, iframe_sandboxing_enabled, iframe_sandboxing_exceptions, login_attempts,
+				login_block, snmptrap_logging, uri_valid_schemes, url, validate_uri_schemes, vault_provider,
+				proxy_secrets_provider, x_frame_options}) {
+			const $form = jQuery('#miscconfig-form');
+
 			$('#validate_uri_schemes').change(function() {
 				$('#uri_valid_schemes').prop('disabled', !this.checked);
 			});
 
+			$('#x_frame_header_enabled').change(function() {
+				$('#x_frame_options').prop('disabled', !this.checked);
+			});
+
 			$('#iframe_sandboxing_enabled').change(function() {
 				$('#iframe_sandboxing_exceptions').prop('disabled', !this.checked);
+			});
+
+			$form.on('submit', () => {
+				$form.trimValues(['#url', '#login_block', '#uri_valid_schemes', '#x_frame_options',
+					'#iframe_sandboxing_exceptions'
+				]);
 			});
 
 			$("#resetDefaults").click(function() {
@@ -68,25 +74,22 @@
 
 								// Storage of secrets.
 								$(`#vault_provider input[value=${vault_provider}]`).prop('checked', true);
+								$(`#proxy_secrets_provider input[value=${proxy_secrets_provider}]`)
+									.prop('checked', true);
 
 								// Security.
 								$('#validate_uri_schemes')
 									.prop('checked', validate_uri_schemes == 0 ? 'false' : 'true')
 									.change();
 								$('#uri_valid_schemes').val(uri_valid_schemes);
+								$('#x_frame_header_enabled')
+									.prop('checked', x_frame_options !== 'null')
+									.change();
 								$('#x_frame_options').val(x_frame_options);
 								$('#iframe_sandboxing_enabled')
 									.prop('checked', iframe_sandboxing_enabled == 0 ? 'false' : 'true')
 									.change();
 								$('#iframe_sandboxing_exceptions').val(iframe_sandboxing_exceptions);
-
-								// Communication with Zabbix server.
-								$('#socket_timeout').val(socket_timeout);
-								$('#connect_timeout').val(connect_timeout);
-								$('#media_type_test_timeout').val(media_type_test_timeout);
-								$('#script_timeout').val(script_timeout);
-								$('#item_test_timeout').val(item_test_timeout);
-								$('#report_test_timeout').val(report_test_timeout);
 							}
 						}
 					]

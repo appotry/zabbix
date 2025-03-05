@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 require_once 'vendor/autoload.php';
@@ -82,9 +77,16 @@ class CMultiselectElement extends CElement {
 	 * @return $this
 	 */
 	public function clear() {
-		$query = $this->query('xpath:.//span[@class="subfilter-disable-btn"]');
-		$query->all()->click();
+		$id = $this->getID();
+		$query = $this->query('xpath:.//span['.CXPathHelper::fromClass('zi-remove-smaller').']');
+		$elements = $query->all();
+		$elements->click();
 		$query->waitUntilNotPresent();
+
+		// TODO: reload should be removed after fix DEV-1535
+		if ($elements->count() > 0 && $this->parents('class:overlay-dialogue-controls')->exists() && $id === $this->getID()) {
+			$this->waitUntilReloaded();
+		}
 
 		return $this;
 	}
@@ -111,7 +113,11 @@ class CMultiselectElement extends CElement {
 			throw new Exception('Select of multiple labels is not supported in single select mode.');
 		}
 
-		$this->edit($context)->query('link:'.$label)->one()->click()->waitUntilNotPresent();
+		if ($label === '') {
+			return $this->clear();
+		}
+
+		$this->edit($context)->query('link:'.$label)->waitUntilVisible(3)->one()->click()->waitUntilNotPresent();
 
 		return $this;
 	}
@@ -174,7 +180,7 @@ class CMultiselectElement extends CElement {
 	 */
 	public function remove($label) {
 		$query = $this->query('xpath:.//span[@class="subfilter-enabled"][string()='.CXPathHelper::escapeQuotes($label).
-				']/span[@class="subfilter-disable-btn"]'
+				']/span['.CXPathHelper::fromClass('zi-remove-smaller').']'
 		);
 
 		$query->one()->click();
@@ -192,7 +198,7 @@ class CMultiselectElement extends CElement {
 		$buttons = [];
 		$xpath = 'xpath:.//button';
 
-		foreach ($this->query($xpath)->waitUntilVisible()->all() as $button) {
+		foreach ($this->query($xpath)->all() as $button) {
 			$buttons[$button->getText()] = $button;
 		}
 
@@ -210,10 +216,11 @@ class CMultiselectElement extends CElement {
 		/* TODO: extend the function for composite elements with two buttons,
 		 * Example of such multiselect: [ Input field ] ( Select item ) ( Select prototype )
 		 */
+		$index = COverlayDialogElement::find()->count();
 		$this->getControls()->first()->click();
 
-		return COverlayDialogElement::find()->waitUntilPresent()
-				->all()->last()->waitUntilReady()->setDataContext($context, $this->mode);
+		return COverlayDialogElement::find($index)->waitUntilPresent()->one()
+				->waitUntilReady()->setDataContext($context, $this->mode);
 	}
 
 	/**
@@ -234,7 +241,7 @@ class CMultiselectElement extends CElement {
 			}
 
 			$content = CXPathHelper::escapeQuotes($value);
-			$prefix = '//div[@data-opener='.$id.']/ul[@class="multiselect-suggest"]/li';
+			$prefix = '//div[@data-opener='.$id.']/ul[contains(@class, "multiselect-suggest")]/li';
 			$query = $this->query('xpath', implode('|', [
 				$prefix.'[@data-label='.$content.']',
 				$prefix.'[contains(@data-label,'.$content.')]/span[contains(@class, "suggest-found") and text()='.$content.']',
@@ -338,7 +345,12 @@ class CMultiselectElement extends CElement {
 	 * @inheritdoc
 	 */
 	public function getValue() {
-		return $this->getSelected();
+		$selected = $this->getSelected();
+		if (is_array($selected) && count($selected) === 0) {
+			$selected = '';
+		}
+
+		return $selected;
 	}
 
 	/**
@@ -346,12 +358,20 @@ class CMultiselectElement extends CElement {
 	 */
 	public function isEnabled($enabled = true) {
 		$input = $this->query('xpath:.//input[not(@type="hidden")]|textarea')->one(false);
-		if (!$input->isEnabled($enabled)) {
-			return false;
+		if ($this->query('class:search-disabled')->one(false)->isValid()) {
+			if (($input->isValid() && $input->getAttribute('disabled') === null) !== $enabled) {
+				return false;
+			}
+		}
+		else {
+			if (!$input->isEnabled($enabled)) {
+				return false;
+			}
 		}
 
 		$multiselect = $this->query('class:multiselect')->one(false);
-		if ($multiselect->isValid() && ($multiselect->getAttribute('aria-disabled') === 'true') === $enabled) {
+		if ($multiselect->isValid() && ($multiselect->getAttribute('aria-disabled') === 'true'
+				|| $multiselect->getAttribute('aria-readonly') === 'true') === $enabled) {
 			return false;
 		}
 
@@ -362,5 +382,16 @@ class CMultiselectElement extends CElement {
 		}
 
 		return true;
+	}
+
+	/**
+	 * Get list of suggested values.
+	 *
+	 * @return array
+	 */
+	public function getSuggestionsText() {
+		$id = CXPathHelper::escapeQuotes($this->query('class:multiselect')->one()->getAttribute('id'));
+		return $this->query('xpath://div[@data-opener='.$id.']/ul[contains(@class, "multiselect-suggest")]')
+				->waitUntilVisible()->query('xpath:./li[not(@class="suggest-hover")]')->all()->asText();
 	}
 }

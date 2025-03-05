@@ -1,31 +1,34 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 require_once 'vendor/autoload.php';
 
 require_once __DIR__.'/CTest.php';
 require_once __DIR__.'/web/CPage.php';
+require_once __DIR__.'/helpers/CDataHelper.php';
 require_once __DIR__.'/helpers/CXPathHelper.php';
 require_once __DIR__.'/helpers/CImageHelper.php';
 require_once __DIR__.'/../../include/classes/helpers/CMessageHelper.php';
 require_once __DIR__.'/../../include/classes/routing/CUrl.php';
+
+require_once __DIR__.'/../selenium/behaviors/CMacrosBehavior.php';
+require_once __DIR__.'/../selenium/behaviors/CMessageBehavior.php';
+require_once __DIR__.'/../selenium/behaviors/CPreprocessingBehavior.php';
+require_once __DIR__.'/../selenium/behaviors/CTagBehavior.php';
+require_once __DIR__.'/../selenium/behaviors/CTableBehavior.php';
+require_once __DIR__.'/../selenium/behaviors/CWidgetBehavior.php';
 
 define('TEST_GOOD', 0);
 define('TEST_BAD', 1);
@@ -49,7 +52,7 @@ class CWebTest extends CTest {
 	// Screenshot taken on test failure.
 	private $screenshot = null;
 	// Errors captured during the test.
-	private $errors = [];
+	protected $errors = [];
 	// Failed test URL.
 	private $current_url = null;
 	// Browser errors captured during test.
@@ -58,9 +61,9 @@ class CWebTest extends CTest {
 	// Shared page instance.
 	private static $shared_page = null;
 	// Enable suppressing of browser errors on test case level.
-	private $supress_case_errors = false;
+	private $suppress_case_errors = false;
 	// Enable suppressing of browser errors on test suite level.
-	private static $supress_suite_errors = false;
+	private static $suppress_suite_errors = false;
 
 	// Instance of web page.
 	protected $page = null;
@@ -107,20 +110,20 @@ class CWebTest extends CTest {
 	/**
 	 * @inheritdoc
 	 */
-	protected function tearDown(): void {
+	protected function assertPostConditions() : void {
 		// Check for JS errors.
 		$errors = [];
 		if (self::$shared_page !== null) {
-				foreach (self::$shared_page->getBrowserLog() as $log) {
-					$errors[] = $log['message'];
-				}
+			foreach (self::$shared_page->getBrowserLog() as $log) {
+				$errors[] = $log['message'];
+			}
 		}
 
 		if ($errors) {
 			$errors = "Severe browser errors:\n".implode("\n", array_unique($errors));
 
 			if (!$this->hasFailed() && $this->getStatus() !== null) {
-				if (!$this->supress_case_errors) {
+				if (!$this->suppress_case_errors) {
 					$this->captureScreenshot();
 					$this->fail($errors);
 				}
@@ -135,8 +138,13 @@ class CWebTest extends CTest {
 				$this->fail('Test case errors.');
 			}
 		}
+	}
 
-		if ($this->hasFailed() || $this->getStatus() === null || $errors) {
+	/**
+	 * @inheritdoc
+	 */
+	protected function tearDown() : void {
+		if ($this->hasFailed() || $this->getStatus() === null) {
 			$this->captureScreenshot();
 		}
 	}
@@ -163,14 +171,14 @@ class CWebTest extends CTest {
 		parent::onBeforeTestSuite();
 
 		// Browser errors are not ignored by default.
-		self::$supress_suite_errors = false;
+		self::$suppress_suite_errors = false;
 
 		// Test suite level annotations.
 		$class_annotations = $this->getAnnotationsByType($this->annotations, 'class');
 
 		// Suppress browser error on a test case level.
-		$supress_suite_errors = $this->getAnnotationsByType($class_annotations, 'ignoreBrowserErrors');
-		self::$supress_suite_errors = ($supress_suite_errors !== null);
+		$suppress_suite_errors = $this->getAnnotationsByType($class_annotations, 'ignoreBrowserErrors');
+		self::$suppress_suite_errors = ($suppress_suite_errors !== null);
 
 		// Browsers supported by test suite.
 		$browsers = $this->getAnnotationTokensByName($class_annotations, 'browsers');
@@ -211,13 +219,13 @@ class CWebTest extends CTest {
 		$method_annotations = $this->getAnnotationsByType($this->annotations, 'method');
 		if ($method_annotations !== null) {
 			// Suppress browser error on a test case level.
-			$supress_case_errors = $this->getAnnotationsByType($method_annotations, 'ignoreBrowserErrors');
-			$this->supress_case_errors = ($supress_case_errors !== null);
+			$suppress_case_errors = $this->getAnnotationsByType($method_annotations, 'ignoreBrowserErrors');
+			$this->suppress_case_errors = ($suppress_case_errors !== null);
 		}
 
 		// Errors on a test case level should be suppressed if suite level error suppression is enabled.
-		if (self::$supress_suite_errors) {
-			$this->supress_case_errors = self::$supress_suite_errors;
+		if (self::$suppress_suite_errors) {
+			$this->suppress_case_errors = self::$suppress_suite_errors;
 		}
 
 		// Browsers supported by test case.
@@ -323,16 +331,7 @@ class CWebTest extends CTest {
 				$color = array_key_exists('color', $region) ? $region['color'] : null;
 
 				if (array_key_exists('element', $region)) {
-					if ($region['element'] instanceof CElement) {
-						$region = $region['element']->getRect();
-						$region['x'] -= $offset['x'];
-						$region['y'] -= $offset['y'];
-
-						if ($color !== null) {
-							$region['color'] = $color;
-						}
-					}
-					else {
+					if (!$region['element'] instanceof CElement) {
 						$this->fail('Except element is not an instance of CElement.');
 					}
 				}
@@ -346,7 +345,7 @@ class CWebTest extends CTest {
 					}
 
 					foreach ($query->all() as $item) {
-						$append[] = array_merge($item->getRect(), ($color !== null) ? ['color' => $color] : []);
+						$append[] = array_merge(['element' => $item], ($color !== null) ? ['color' => $color] : []);
 					}
 
 					unset($regions[$i]);
@@ -357,9 +356,7 @@ class CWebTest extends CTest {
 				}
 			}
 			elseif ($region instanceof CElement) {
-				$region = $region->getRect();
-				$region['x'] -= $offset['x'];
-				$region['y'] -= $offset['y'];
+				$region = ['element' => $region];
 			}
 			else {
 				$this->fail('Screenshot except configuration is invalid.');
@@ -368,6 +365,10 @@ class CWebTest extends CTest {
 		unset($region);
 
 		foreach ($append as &$region) {
+			if (array_key_exists('element', $region)) {
+				continue;
+			}
+
 			$region['x'] -= $offset['x'];
 			$region['y'] -= $offset['y'];
 		}
@@ -401,7 +402,7 @@ class CWebTest extends CTest {
 		}
 
 		$script = 'var tag = document.createElement("style");tag.setAttribute("id", "selenium-injected-style");'.
-				'tag.textContent = "* {text-rendering: geometricPrecision; image-rendering: pixelated}";'.
+				'tag.textContent = "* {text-rendering: geometricPrecision; image-rendering: pixelated} .selenium-hide {opacity: 0 !important}";'.
 				'(document.head||document.documentElement).appendChild(tag);';
 
 		try {
@@ -425,9 +426,22 @@ class CWebTest extends CTest {
 
 		try {
 			$name = md5($function.$id).'.png';
-			$screenshot = CImageHelper::getImageWithoutRegions($this->page->takeScreenshot($element),
-					$this->getNormalizedRegions($element, $regions)
-			);
+
+			$coordinates = [];
+			foreach ($this->getNormalizedRegions($element, $regions) as $region) {
+				if (array_key_exists('element', $region)) {
+					try {
+						$this->page->getDriver()->executeScript('arguments[0].classList.add(\'selenium-hide\');', [$region['element']]);
+					} catch (Exception $exception) {
+						// Code is not missing here.
+					}
+				}
+				else {
+					$coordinates[] = $region;
+				}
+			}
+
+			$screenshot = CImageHelper::getImageWithoutRegions($this->page->takeScreenshot($element), $coordinates);
 
 			if (($reference = @file_get_contents(PHPUNIT_REFERENCE_DIR.$class.'/'.$name)) === false) {
 				if (file_put_contents(PHPUNIT_SCREENSHOT_DIR.'ref_'.$name, $screenshot) !== false) {

@@ -1,20 +1,15 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 package trapper
@@ -22,16 +17,18 @@ package trapper
 import (
 	"fmt"
 	"io/ioutil"
-
 	"net"
 	"regexp"
 	"strconv"
 
-	"git.zabbix.com/ap/plugin-support/log"
-	"git.zabbix.com/ap/plugin-support/plugin"
-	"zabbix.com/pkg/itemutil"
-	"zabbix.com/pkg/watch"
+	"golang.zabbix.com/agent2/pkg/itemutil"
+	"golang.zabbix.com/agent2/pkg/watch"
+	"golang.zabbix.com/sdk/errs"
+	"golang.zabbix.com/sdk/log"
+	"golang.zabbix.com/sdk/plugin"
 )
+
+var impl Plugin
 
 // Plugin
 type Plugin struct {
@@ -40,11 +37,19 @@ type Plugin struct {
 	listeners map[int]*trapListener
 }
 
-var impl Plugin
+func init() {
+	impl.manager = watch.NewManager(&impl)
+	impl.listeners = make(map[int]*trapListener)
 
-func (p *Plugin) Watch(requests []*plugin.Request, ctx plugin.ContextProvider) {
+	err := plugin.RegisterMetrics(&impl, "DebugTrapper", "debug.trap", "Listen on port for incoming TCP data.")
+	if err != nil {
+		panic(errs.Wrap(err, "failed to register metrics"))
+	}
+}
+
+func (p *Plugin) Watch(items []*plugin.Item, ctx plugin.ContextProvider) {
 	p.manager.Lock()
-	p.manager.Update(ctx.ClientID(), ctx.Output(), requests)
+	p.manager.Update(ctx.ClientID(), ctx.Output(), items)
 	p.manager.Unlock()
 }
 
@@ -134,11 +139,4 @@ func (p *Plugin) EventSourceByKey(key string) (es watch.EventSource, err error) 
 		p.listeners[port] = listener
 	}
 	return listener, nil
-}
-
-func init() {
-	impl.manager = watch.NewManager(&impl)
-	impl.listeners = make(map[int]*trapListener)
-
-	plugin.RegisterMetrics(&impl, "DebugTrapper", "debug.trap", "Listen on port for incoming TCP data.")
 }

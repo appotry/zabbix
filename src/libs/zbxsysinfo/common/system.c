@@ -1,30 +1,26 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-#include "system.h"
-
-#include "common.h"
 #include "zbxsysinfo_common.h"
 
+#include "system.h"
+#include "zbxtime.h"
+
 #if defined(_WINDOWS) || defined(__MINGW32__)
-#	include "sysinfo.h"
-#	include "perfmon.h"
+#	include "zbxsysinfo.h"
+#	include "zbxwin32.h"
+#	include "../sysinfo.h"
 #	pragma comment(lib, "user32.lib")
 #endif
 
@@ -33,7 +29,7 @@
  * Comments: Thread-safe                                                      *
  *                                                                            *
  ******************************************************************************/
-int	SYSTEM_LOCALTIME(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	system_localtime(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	char		*type, buf[32];
 	long		milliseconds;
@@ -72,7 +68,7 @@ int	SYSTEM_LOCALTIME(AGENT_REQUEST *request, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-int	SYSTEM_USERS_NUM(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	system_users_num(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 #if defined(_WINDOWS) || defined(__MINGW32__)
 	char		counter_path[64];
@@ -82,14 +78,14 @@ int	SYSTEM_USERS_NUM(AGENT_REQUEST *request, AGENT_RESULT *result)
 	ZBX_UNUSED(request);
 
 	zbx_snprintf(counter_path, sizeof(counter_path), "\\%u\\%u",
-			(unsigned int)get_builtin_object_index(PCI_TOTAL_SESSIONS),
-			(unsigned int)get_builtin_counter_index(PCI_TOTAL_SESSIONS));
+			(unsigned int)zbx_get_builtin_object_index(PCI_TOTAL_SESSIONS),
+			(unsigned int)zbx_get_builtin_counter_index(PCI_TOTAL_SESSIONS));
 
 	request_tmp.nparam = 1;
 	request_tmp.params = zbx_malloc(NULL, request_tmp.nparam * sizeof(char *));
 	request_tmp.params[0] = counter_path;
 
-	ret = PERF_COUNTER(&request_tmp, result);
+	ret = perf_counter(&request_tmp, result);
 
 	zbx_free(request_tmp.params);
 
@@ -97,6 +93,6 @@ int	SYSTEM_USERS_NUM(AGENT_REQUEST *request, AGENT_RESULT *result)
 #else
 	ZBX_UNUSED(request);
 
-	return EXECUTE_INT("who | wc -l", result);
+	return execute_int("who | wc -l", result, request->timeout);
 #endif
 }

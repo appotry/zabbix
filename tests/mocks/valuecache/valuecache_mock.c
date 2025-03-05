@@ -1,39 +1,36 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
-
-#include "common.h"
-#include "log.h"
-#include "zbxmutexs.h"
-#include "zbxshmem.h"
-#include "zbxalgo.h"
-#include "zbxhistory.h"
-#include "history.h"
-#include "valuecache.h"
-#include "dbcache.h"
-
-#include <setjmp.h>
-#include <cmocka.h>
 
 #include "zbxmockassert.h"
 #include "zbxmockdata.h"
 #include "zbxmockutil.h"
 #include "valuecache_mock.h"
+
+#include "zbxcachevalue.h"
+#include "zbxnum.h"
+#include "zbxlog.h"
+#include "zbxmutexs.h"
+#include "zbxshmem.h"
+#include "zbxalgo.h"
+#include "zbxhistory.h"
+#include "history.h"
+#include "zbxcacheconfig.h"
+#include "zbx_dbversion_constants.h"
+
+#include <setjmp.h>
+#include <cmocka.h>
+
 
 /*
  * data source
@@ -53,8 +50,8 @@ void	__wrap_zbx_shmem_dump_stats(int level, zbx_shmem_info_t *info);
 int	__wrap_zbx_history_get_values(zbx_uint64_t itemid, int value_type, int start, int count, int end,
 		zbx_vector_history_record_t *values);
 int	__wrap_zbx_history_add_values(const zbx_vector_ptr_t *history);
-int	__wrap_zbx_history_sql_init(zbx_history_iface_t *hist, unsigned char value_type, char **error);
-int	__wrap_zbx_history_elastic_init(zbx_history_iface_t *hist, unsigned char value_type, char **error);
+void	__wrap_zbx_history_sql_init(zbx_history_iface_t *hist, unsigned char value_type);
+int	__wrap_zbx_history_elastic_init(zbx_history_iface_t *hist, unsigned char value_type, int config_log_slow_queries, char **error);
 void	__wrap_zbx_elastic_version_extract(void);
 int	__wrap_zbx_elastic_version_get(void);
 time_t	__wrap_time(time_t *ptr);
@@ -83,7 +80,7 @@ static int	history_compare(const void *d1, const void *d2)
  ******************************************************************************/
 
 static void	zbx_vcmock_read_history_value(zbx_mock_handle_t hvalue, unsigned char value_type,
-		history_value_t *value, zbx_timespec_t *ts)
+		zbx_history_value_t *value, zbx_timespec_t *ts)
 {
 	const char		*data;
 	zbx_mock_error_t	err;
@@ -102,11 +99,17 @@ static void	zbx_vcmock_read_history_value(zbx_mock_handle_t hvalue, unsigned cha
 				value->str = zbx_strdup(NULL, data);
 				break;
 			case ITEM_VALUE_TYPE_UINT64:
-				if (FAIL == is_uint64(data, &value->ui64))
+				if (FAIL == zbx_is_uint64(data, &value->ui64))
 					fail_msg("Invalid uint64 value \"%s\"", data);
 				break;
 			case ITEM_VALUE_TYPE_FLOAT:
 				value->dbl = atof(data);
+				break;
+			case ITEM_VALUE_TYPE_BIN:
+				break;
+			case ITEM_VALUE_TYPE_NONE:
+			default:
+				fail_msg("Unexpected value type: %c", value_type);
 		}
 	}
 	else
@@ -119,15 +122,15 @@ static void	zbx_vcmock_read_history_value(zbx_mock_handle_t hvalue, unsigned cha
 		log->source = zbx_strdup(NULL, zbx_mock_get_object_member_string(hvalue, "source"));
 
 		data = zbx_mock_get_object_member_string(hvalue, "logeventid");
-		if (FAIL == is_uint32(data, &log->logeventid))
+		if (FAIL == zbx_is_uint32(data, &log->logeventid))
 			fail_msg("Invalid log logeventid value \"%s\"", data);
 
 		data = zbx_mock_get_object_member_string(hvalue, "severity");
-		if (FAIL == is_uint32(data, &log->severity))
+		if (FAIL == zbx_is_uint32(data, &log->severity))
 			fail_msg("Invalid log severity value \"%s\"", data);
 
 		data = zbx_mock_get_object_member_string(hvalue, "timestamp");
-		if (FAIL == is_uint32(data, &log->timestamp))
+		if (FAIL == zbx_is_uint32(data, &log->timestamp))
 			fail_msg("Invalid log timestamp value \"%s\"", data);
 
 		value->log = log;
@@ -151,7 +154,7 @@ static void	zbx_vcmock_ds_read_item(zbx_mock_handle_t hitem, zbx_vcmock_ds_item_
 	const char	*itemid;
 
 	itemid = zbx_mock_get_object_member_string(hitem, "itemid");
-	if (SUCCEED != is_uint64(itemid, &item->itemid))
+	if (SUCCEED != zbx_is_uint64(itemid, &item->itemid))
 		fail_msg("Invalid itemid \"%s\"", itemid);
 
 	item->value_type = zbx_mock_str_to_value_type(zbx_mock_get_object_member_string(hitem, "value type"));
@@ -196,6 +199,10 @@ static void	zbx_vcmock_ds_clone_record(const zbx_history_record_t *src, unsigned
 			log->timestamp = src->value.log->timestamp;
 			dst->value.log = log;
 			break;
+		case ITEM_VALUE_TYPE_BIN:
+		case ITEM_VALUE_TYPE_NONE:
+		default:
+			fail_msg("Unexpected value type: %c", value_type);
 	}
 }
 
@@ -327,23 +334,6 @@ zbx_vcmock_ds_item_t	*zbx_vcmock_ds_first_item(void)
 
 /******************************************************************************
  *                                                                            *
- * Purpose: converts value cache mode from text format                        *
- *                                                                            *
- ******************************************************************************/
-int	zbx_vcmock_str_to_cache_mode(const char *mode)
-{
-	if (0 == strcmp(mode, "ZBX_VC_MODE_NORMAL"))
-		return ZBX_VC_MODE_NORMAL;
-
-	if (0 == strcmp(mode, "ZBX_VC_MODE_LOWMEM"))
-		return ZBX_VC_MODE_LOWMEM;
-
-	fail_msg("Unknown value cache mode \"%s\"", mode);
-	return FAIL;
-}
-
-/******************************************************************************
- *                                                                            *
  * Purpose: converts value cache item status from text format                 *
  *                                                                            *
  ******************************************************************************/
@@ -407,23 +397,27 @@ void	zbx_vcmock_check_records(const char *prefix, unsigned char value_type,
 			case ITEM_VALUE_TYPE_FLOAT:
 				zbx_mock_assert_double_eq(prefix, expected->value.dbl, returned->value.dbl);
 				break;
+			case ITEM_VALUE_TYPE_BIN:
+			case ITEM_VALUE_TYPE_NONE:
+			default:
+				fail_msg("Unexpected value type: %c", value_type);
 		}
 	}
 }
 
 /******************************************************************************
  *                                                                            *
- * Purpose: reads ZBX_DC_HISTORY vector from input data                       *
+ * Purpose: reads zbx_dc_history_t vector from input data                     *
  *                                                                            *
  * Parameters: handle  - [IN] the history data handle in input data           *
  *             history - [OUT] the history records                            *
  *                                                                            *
  ******************************************************************************/
-void	zbx_vcmock_get_dc_history(zbx_mock_handle_t handle, zbx_vector_ptr_t *history)
+void	zbx_vcmock_get_dc_history(zbx_mock_handle_t handle, zbx_vector_dc_history_ptr_t *history)
 {
 	zbx_mock_handle_t	hitem, hdata;
 	zbx_mock_error_t	err;
-	ZBX_DC_HISTORY		*data;
+	zbx_dc_history_t	*data;
 	const char		*itemid;
 
 	while (ZBX_MOCK_END_OF_VECTOR != (err = (zbx_mock_vector_element(handle, &hitem))))
@@ -434,30 +428,28 @@ void	zbx_vcmock_get_dc_history(zbx_mock_handle_t handle, zbx_vector_ptr_t *histo
 					zbx_mock_error_string(err));
 		}
 
-		data = (ZBX_DC_HISTORY *)zbx_malloc(NULL, sizeof(ZBX_DC_HISTORY));
-		memset(data, 0, sizeof(ZBX_DC_HISTORY));
+		data = (zbx_dc_history_t *)zbx_malloc(NULL, sizeof(zbx_dc_history_t));
+		memset(data, 0, sizeof(zbx_dc_history_t));
 
 		itemid = zbx_mock_get_object_member_string(hitem, "itemid");
-		if (SUCCEED != is_uint64(itemid, &data->itemid))
+		if (SUCCEED != zbx_is_uint64(itemid, &data->itemid))
 			fail_msg("Invalid itemid \"%s\"", itemid);
 
 		data->value_type = zbx_mock_str_to_value_type(zbx_mock_get_object_member_string(hitem, "value type"));
 		hdata = zbx_mock_get_object_member_handle(hitem, "data");
 		zbx_vcmock_read_history_value(hdata, data->value_type, &data->value, &data->ts);
 
-		zbx_vector_ptr_append(history, data);
+		zbx_vector_dc_history_ptr_append(history, data);
 	}
 }
 
 /******************************************************************************
  *                                                                            *
- * Purpose: frees ZBX_DC_HISTORY structure                                    *
+ * Purpose: frees zbx_dc_history_t structure                                  *
  *                                                                            *
  ******************************************************************************/
-void	zbx_vcmock_free_dc_history(void *ptr)
+void	zbx_vcmock_free_dc_history(zbx_dc_history_t *h)
 {
-	ZBX_DC_HISTORY	*h = (ZBX_DC_HISTORY *)ptr;
-
 	switch (h->value_type)
 	{
 		case ITEM_VALUE_TYPE_STR:
@@ -469,6 +461,13 @@ void	zbx_vcmock_free_dc_history(void *ptr)
 			zbx_free(h->value.log->value);
 			zbx_free(h->value.log);
 			break;
+		case ITEM_VALUE_TYPE_UINT64:
+		case ITEM_VALUE_TYPE_FLOAT:
+			break;
+		case ITEM_VALUE_TYPE_BIN:
+		case ITEM_VALUE_TYPE_NONE:
+		default:
+			fail_msg("Unexpected value type: %c", h->value_type);
 	}
 
 	zbx_free(h);
@@ -626,7 +625,7 @@ int	__wrap_zbx_history_add_values(const zbx_vector_ptr_t *history)
 
 	for (i = 0; i < history->values_num; i++)
 	{
-		const ZBX_DC_HISTORY	*h = (ZBX_DC_HISTORY *)history->values[i];
+		const zbx_dc_history_t	*h = (zbx_dc_history_t *)history->values[i];
 
 		if (NULL == (item = zbx_hashset_search(&vc_ds.items, &h->itemid)))
 		{
@@ -647,19 +646,18 @@ int	__wrap_zbx_history_add_values(const zbx_vector_ptr_t *history)
 	return SUCCEED;
 }
 
-int	__wrap_zbx_history_sql_init(zbx_history_iface_t *hist, unsigned char value_type, char **error)
+void	__wrap_zbx_history_sql_init(zbx_history_iface_t *hist, unsigned char value_type)
 {
 	ZBX_UNUSED(hist);
 	ZBX_UNUSED(value_type);
-	ZBX_UNUSED(error);
-
-	return SUCCEED;
 }
 
-int	__wrap_zbx_history_elastic_init(zbx_history_iface_t *hist, unsigned char value_type, char **error)
+int	__wrap_zbx_history_elastic_init(zbx_history_iface_t *hist, unsigned char value_type,
+		int config_log_slow_queries, char **error)
 {
 	ZBX_UNUSED(hist);
 	ZBX_UNUSED(value_type);
+	ZBX_UNUSED(config_log_slow_queries);
 	ZBX_UNUSED(error);
 
 	return SUCCEED;
@@ -712,7 +710,7 @@ void	zbx_vcmock_set_cache_size(zbx_mock_handle_t hitem, const char *key)
 
 	if (ZBX_MOCK_SUCCESS == zbx_mock_object_member(hitem, key, &hmem))
 	{
-		if (ZBX_MOCK_SUCCESS != zbx_mock_string(hmem, &data) || SUCCEED != is_uint64(data, &cache_size))
+		if (ZBX_MOCK_SUCCESS != zbx_mock_string(hmem, &data) || SUCCEED != zbx_is_uint64(data, &cache_size))
 			fail_msg("Cannot read \"%s\" parameter", key);
 		else
 			zbx_vcmock_set_available_mem(cache_size);
@@ -731,38 +729,13 @@ void	zbx_vcmock_set_cache_size(zbx_mock_handle_t hitem, const char *key)
 void	zbx_vcmock_get_request_params(zbx_mock_handle_t handle, zbx_uint64_t *itemid, unsigned char *value_type,
 		int *seconds, int *count, zbx_timespec_t *end)
 {
-	if (FAIL == is_uint64(zbx_mock_get_object_member_string(handle, "itemid"), itemid))
+	if (FAIL == zbx_is_uint64(zbx_mock_get_object_member_string(handle, "itemid"), itemid))
 		fail_msg("Invalid itemid value");
 
 	*value_type = zbx_mock_str_to_value_type(zbx_mock_get_object_member_string(handle, "value type"));
 	*seconds = atoi(zbx_mock_get_object_member_string(handle, "seconds"));
 	*count = atoi(zbx_mock_get_object_member_string(handle, "count"));
 	zbx_strtime_to_timespec(zbx_mock_get_object_member_string(handle, "end"), end);
-}
-
-/*
- * cache working mode handling
- */
-
-/******************************************************************************
- *                                                                            *
- * Purpose: sets value cache mode if the specified key is present in input    *
- *          data                                                              *
- *                                                                            *
- ******************************************************************************/
-void	zbx_vcmock_set_mode(zbx_mock_handle_t hitem, const char *key)
-{
-	const char		*data;
-	zbx_mock_handle_t	hmode;
-	zbx_mock_error_t	err;
-
-	if (ZBX_MOCK_SUCCESS == zbx_mock_object_member(hitem, key, &hmode))
-	{
-		if (ZBX_MOCK_SUCCESS != (err = zbx_mock_string(hmode, &data)))
-			fail_msg("Cannot read \"%s\" parameter: %s", key, zbx_mock_error_string(err));
-
-		zbx_vc_set_mode(zbx_vcmock_str_to_cache_mode(data));
-	}
 }
 
 /*

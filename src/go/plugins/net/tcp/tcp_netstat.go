@@ -2,22 +2,17 @@
 // +build linux windows,amd64
 
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 package tcpudp
@@ -25,9 +20,10 @@ package tcpudp
 import (
 	"errors"
 	"net"
+	"os"
 	"strconv"
 
-	"github.com/cakturk/go-netstat/netstat"
+	"github.com/sokurenko/go-netstat/netstat"
 )
 
 // exportNetTcpSocketCount - returns number of TCP sockets that match parameters.
@@ -121,8 +117,9 @@ func (p *Plugin) exportNetTcpSocketCount(params []string) (result int, err error
 // netStatTcpCount - returns number of TCP sockets that match parameters.
 func netStatTcpCount(laddres net.IP, lNet *net.IPNet, lport int, raddres net.IP, rNet *net.IPNet, rport int,
 	state netstat.SkState) (result int, err error) {
+	count := 0
 
-	tabs, err := netstat.TCPSocks(func(s *netstat.SockTabEntry) bool {
+	_, err = netstat.TCPSocks(func(s *netstat.SockTabEntry) bool {
 		if state != 0 && s.State != state {
 			return false
 		}
@@ -145,13 +142,14 @@ func netStatTcpCount(laddres net.IP, lNet *net.IPNet, lport int, raddres net.IP,
 			return false
 		}
 
-		return true
+		count++
+		return false
 	})
 	if err != nil {
 		return 0, err
 	}
 
-	tabs6, err := netstat.TCP6Socks(func(s *netstat.SockTabEntry) bool {
+	_, err = netstat.TCP6Socks(func(s *netstat.SockTabEntry) bool {
 		if state != 0 && s.State != state {
 			return false
 		}
@@ -173,12 +171,13 @@ func netStatTcpCount(laddres net.IP, lNet *net.IPNet, lport int, raddres net.IP,
 		if rNet != nil && !rNet.Contains(s.RemoteAddr.IP) {
 			return false
 		}
-
-		return true
+		count++
+		return false
 	})
-	if err != nil {
+
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return 0, err
 	}
 
-	return len(tabs) + len(tabs6), nil
+	return count, nil
 }

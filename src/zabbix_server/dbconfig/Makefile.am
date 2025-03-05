@@ -3,5 +3,11 @@
 noinst_LIBRARIES = libzbxdbconfig.a
 
 libzbxdbconfig_a_SOURCES = \
-	dbconfig.c \
-	dbconfig.h
+	dbconfig_server.c \
+	dbconfig_server.h
+
+libzbxdbconfig_a_CFLAGS = \
+	-I$(top_srcdir)/src/libs/zbxcacheconfig \
+	-I$(top_srcdir)/src/libs/zbxcachehistory \
+	-I$(top_srcdir)/src/libs/zbxcachevalue \
+	$(TLS_CFLAGS)

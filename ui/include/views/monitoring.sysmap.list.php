@@ -1,29 +1,25 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
 /**
  * @var CView $this
+ * @var array $data
  */
 
-$widget = (new CWidget())
+$html_page = (new CHtmlPage())
 	->setTitle(_('Maps'))
 	->setDocUrl(CDocHelper::getUrl(CDocHelper::MONITORING_SYSMAP_LIST))
 	->setControls(
@@ -31,7 +27,6 @@ $widget = (new CWidget())
 			(new CList())
 				->addItem(
 					(new CForm('get'))
-						->cleanItems()
 						->addItem(
 							(new CSubmit('form', _('Create map')))->setEnabled($data['allowed_edit'])
 						)
@@ -39,9 +34,14 @@ $widget = (new CWidget())
 				->addItem(
 					(new CButton('form', _('Import')))
 						->onClick(
-							'return PopUp("popup.import", {rules_preset: "map"},
-								{dialogue_class: "modal-popup-generic"}
-							);'
+							'return PopUp("popup.import", '.
+								json_encode([ 'rules_preset' => 'map',
+									CSRF_TOKEN_NAME => CCsrfTokenHelper::get('import')
+								]).
+						', {
+								dialogueid: "popup_import",
+								dialogue_class: "modal-popup-generic"
+							});'
 						)
 						->setEnabled($data['allowed_edit'])
 						->removeId()
@@ -73,42 +73,56 @@ $sysmapTable = (new CTableInfo())
 		(new CColHeader(
 			(new CCheckBox('all_maps'))->onClick("checkAll('".$sysmapForm->getName()."', 'all_maps', 'maps');")
 		))->addClass(ZBX_STYLE_CELL_WIDTH),
-		make_sorting_header(_('Name'), 'name', $this->data['sort'], $this->data['sortorder'], $url),
-		make_sorting_header(_('Width'), 'width', $this->data['sort'], $this->data['sortorder'], $url),
-		make_sorting_header(_('Height'), 'height', $this->data['sort'], $this->data['sortorder'], $url),
+		make_sorting_header(_('Name'), 'name', $data['sort'], $data['sortorder'], $url),
+		make_sorting_header(_('Width'), 'width', $data['sort'], $data['sortorder'], $url),
+		make_sorting_header(_('Height'), 'height', $data['sort'], $data['sortorder'], $url),
 		_('Actions')
-	]);
+	])
+	->setPageNavigation($data['paging']);
 
-foreach ($this->data['maps'] as $map) {
+foreach ($data['maps'] as $map) {
 	$user_type = CWebUser::getType();
+
 	if ($user_type == USER_TYPE_SUPER_ADMIN || $map['editable']) {
 		$checkbox = new CCheckBox('maps['.$map['sysmapid'].']', $map['sysmapid']);
-		$action = $data['allowed_edit']
-			? new CLink(_('Properties'), 'sysmaps.php?form=update&sysmapid='.$map['sysmapid'])
+		$properties_link = $data['allowed_edit']
+			? new CLink(_('Properties'),
+				(new CUrl('sysmaps.php'))
+					->setArgument('form', 'update')
+					->setArgument('sysmapid', $map['sysmapid'])
+			)
 			: _('Properties');
-		$constructor = $data['allowed_edit']
-			? new CLink(_('Constructor'), 'sysmap.php?sysmapid='.$map['sysmapid'])
-			: _('Constructor');
+		$edit_link = $data['allowed_edit']
+			? new CLink(_('Edit'),
+				(new CUrl('sysmap.php'))->setArgument('sysmapid', $map['sysmapid'])
+			)
+			: _('Edit');
 	}
 	else {
 		$checkbox = (new CCheckBox('maps['.$map['sysmapid'].']', $map['sysmapid']))
 			->setAttribute('disabled', 'disabled');
-		$action = '';
-		$constructor = '';
+		$properties_link = '';
+		$edit_link = '';
 	}
+
 	$sysmapTable->addRow([
 		$checkbox,
-		new CLink($map['name'], 'zabbix.php?action=map.view&sysmapid='.$map['sysmapid']),
+		(new CCol(
+			(new CLink($map['name'],
+			(new CUrl('zabbix.php'))
+				->setArgument('action', 'map.view')
+				->setArgument('sysmapid', $map['sysmapid'])
+			))
+		))->addClass(ZBX_STYLE_WORDBREAK),
 		$map['width'],
 		$map['height'],
-		new CHorList([$action, $constructor])
+		new CHorList([$properties_link, $edit_link])
 	]);
 }
 
 // append table to form
 $sysmapForm->addItem([
 	$sysmapTable,
-	$this->data['paging'],
 	new CActionButtonList('action', 'maps', [
 		'map.export' => [
 			'content' => new CButtonExport('export.sysmaps',
@@ -117,13 +131,16 @@ $sysmapForm->addItem([
 					->getUrl()
 			)
 		],
-		'map.massdelete' => ['name' => _('Delete'), 'confirm' => _('Delete selected maps?'),
-			'disabled' => $data['allowed_edit'] ? null : 'disabled'
+		'map.massdelete' => [
+			'name' => _('Delete'),
+			'confirm_singular' => _('Delete selected map?'),
+			'confirm_plural' => _('Delete selected maps?'),
+			'disabled' => $data['allowed_edit'] ? null : 'disabled',
+			'csrf_token' => CCsrfTokenHelper::get('sysmaps.php')
 		]
 	])
 ]);
 
-// append form to widget
-$widget->addItem($sysmapForm);
-
-$widget->show();
+$html_page
+	->addItem($sysmapForm)
+	->show();

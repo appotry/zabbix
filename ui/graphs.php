@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -34,11 +29,6 @@ require_once dirname(__FILE__).'/include/page_header.php';
 $fields = [
 	'parent_discoveryid' =>	[T_ZBX_INT, O_OPT, P_SYS,		DB_ID,			null],
 	'hostid' =>				[T_ZBX_INT, O_OPT, P_SYS,		DB_ID,			null],
-	'copy_type' =>			[T_ZBX_INT, O_OPT, P_SYS,
-								IN([COPY_TYPE_TO_HOST_GROUP, COPY_TYPE_TO_HOST, COPY_TYPE_TO_TEMPLATE]),
-								'isset({copy})'
-							],
-	'copy_mode' =>			[T_ZBX_INT, O_OPT, P_SYS,		IN('0'),		null],
 	'graphid' =>			[T_ZBX_INT, O_OPT, P_SYS,		DB_ID,			'isset({form}) && {form} == "update"'],
 	'name' =>				[T_ZBX_STR, O_OPT, null,		NOT_EMPTY,		'isset({add}) || isset({update})', _('Name')],
 	'width' =>				[T_ZBX_INT, O_OPT, null,		BETWEEN(20, 65535), 'isset({add}) || isset({update})', _('Width')],
@@ -54,34 +44,35 @@ $fields = [
 	'ymax_itemid' =>		[T_ZBX_INT, O_OPT, null,		DB_ID,			'(isset({add}) || isset({update})) && isset({ymax_type}) && {ymax_type} == '.GRAPH_YAXIS_TYPE_ITEM_VALUE],
 	'percent_left' =>		[T_ZBX_DBL, O_OPT, null,		BETWEEN_DBL(0, 100, 4), null, _('Percentile line (left)')],
 	'percent_right' =>		[T_ZBX_DBL, O_OPT, null,		BETWEEN_DBL(0, 100, 4), null, _('Percentile line (right)')],
-	'visible' =>			[T_ZBX_INT, O_OPT, null,		BETWEEN(0, 1),	null],
-	'items' =>				[T_ZBX_STR, O_OPT, null,		null,			null],
+	'visible' =>			[T_ZBX_INT, O_OPT, P_ONLY_ARRAY,	BETWEEN(0, 1),	null],
+	'items' =>				[T_ZBX_STR, O_OPT, P_ONLY_TD_ARRAY,	null,			null],
 	'discover' =>			[T_ZBX_INT, O_OPT, null,		IN([ZBX_PROTOTYPE_DISCOVER, ZBX_PROTOTYPE_NO_DISCOVER]), null],
 	'show_work_period' =>	[T_ZBX_INT, O_OPT, null,		IN('1'),		null],
 	'show_triggers' =>		[T_ZBX_INT, O_OPT, null,		IN('1'),		null],
-	'group_graphid' =>		[T_ZBX_INT, O_OPT, null,		DB_ID,			null],
-	'copy_targetids' =>		[T_ZBX_INT, O_OPT, null,		DB_ID,			null],
+	'group_graphid' =>		[T_ZBX_INT, O_OPT, P_ONLY_ARRAY,	DB_ID,		null],
 	'context' =>			[T_ZBX_STR, O_MAND, P_SYS,		IN('"host", "template"'),	null],
+	'readonly' =>			[T_ZBX_INT, O_OPT, null,		IN('1'),		null],
+	'checkbox_hash' =>		[T_ZBX_STR, O_OPT, null,		null,			null],
 	// actions
-	'action' =>				[T_ZBX_STR, O_OPT, P_SYS|P_ACT, IN('"graph.masscopyto","graph.massdelete","graph.updatediscover"'),	null],
+	'action' =>				[T_ZBX_STR, O_OPT, P_SYS|P_ACT, IN('"graph.massdelete","graph.updatediscover"'),	null],
 	'add' =>				[T_ZBX_STR, O_OPT, P_SYS|P_ACT, null,			null],
 	'update' =>				[T_ZBX_STR, O_OPT, P_SYS|P_ACT, null,			null],
 	'clone' =>				[T_ZBX_STR, O_OPT, P_SYS|P_ACT, null,			null],
-	'copy' =>				[T_ZBX_STR, O_OPT, P_SYS|P_ACT, null,			null],
 	'delete' =>				[T_ZBX_STR, O_OPT, P_SYS|P_ACT, null,			null],
 	'cancel' =>				[T_ZBX_STR, O_OPT, P_SYS,		null,			null],
 	'form' =>				[T_ZBX_STR, O_OPT, P_SYS,		null,			null],
-	'form_refresh' =>		[T_ZBX_INT, O_OPT, null,		null,			null],
+	'form_refresh' =>		[T_ZBX_INT, O_OPT, P_SYS,		null,			null],
+	'backurl' =>			[T_ZBX_STR, O_OPT, null,		null,			null],
 	// filter
-	'filter_set' =>			[T_ZBX_STR, O_OPT, P_SYS,		null,	null],
-	'filter_rst' =>			[T_ZBX_STR, O_OPT, P_SYS,		null,	null],
-	'filter_groupids' =>	[T_ZBX_INT, O_OPT, null,		DB_ID,	null],
-	'filter_hostids' =>		[T_ZBX_INT, O_OPT, null,		DB_ID,	null],
+	'filter_set' =>			[T_ZBX_STR, O_OPT, P_SYS,			null,	null],
+	'filter_rst' =>			[T_ZBX_STR, O_OPT, P_SYS,			null,	null],
+	'filter_groupids' =>	[T_ZBX_INT, O_OPT, P_ONLY_ARRAY,	DB_ID,	null],
+	'filter_hostids' =>		[T_ZBX_INT, O_OPT, P_ONLY_ARRAY,	DB_ID,	null],
 	// sort and sortorder
-	'sort' =>				[T_ZBX_STR, O_OPT, P_SYS, IN('"graphtype","name","discover"'),					null],
+	'sort' =>				[T_ZBX_STR, O_OPT, P_SYS, IN('"graphtype","name","discover"'),			null],
 	'sortorder' =>			[T_ZBX_STR, O_OPT, P_SYS, IN('"'.ZBX_SORT_DOWN.'","'.ZBX_SORT_UP.'"'),	null]
 ];
-$percentVisible = getRequest('visible');
+$percentVisible = getRequest('visible', []);
 if (!isset($percentVisible['percent_left'])) {
 	unset($_REQUEST['percent_left']);
 }
@@ -96,7 +87,14 @@ if (isset($_REQUEST['yaxismax']) && zbx_empty($_REQUEST['yaxismax'])) {
 }
 check_fields($fields);
 
-$gitems = getRequest('items', []);
+$gitems = [];
+foreach (getRequest('items', []) as $gitem) {
+	if ((array_key_exists('itemid', $gitem) && ctype_digit($gitem['itemid']))
+			&& (array_key_exists('type', $gitem) && ctype_digit($gitem['type']))
+			&& (array_key_exists('drawtype', $gitem) && ctype_digit($gitem['drawtype']))) {
+		$gitems[] = $gitem;
+	}
+}
 
 $_REQUEST['show_3d'] = getRequest('show_3d', 0);
 $_REQUEST['show_legend'] = getRequest('show_legend', 0);
@@ -144,6 +142,11 @@ elseif (hasRequest('graphid')) {
 	}
 }
 elseif ($hostid && !isWritableHostTemplates([$hostid])) {
+	access_deny();
+}
+
+// Validate backurl.
+if (hasRequest('backurl') && !CHtmlUrlValidator::validateSameSite(getRequest('backurl'))) {
 	access_deny();
 }
 
@@ -289,10 +292,21 @@ elseif (getRequest('graphid', '') && getRequest('action', '') === 'graph.updated
 		'discover' => getRequest('discover', DB::getDefault('graphs', 'discover'))
 	]);
 
-	show_messages($result, _('Graph updated'), _('Cannot update graph'));
+	if ($result) {
+		CMessageHelper::setSuccessTitle(_('Graph prototype updated'));
+	}
+	else {
+		CMessageHelper::setErrorTitle(_('Cannot update graph prototype'));
+	}
+
+	if (hasRequest('backurl')) {
+		$response = new CControllerResponseRedirect(new CUrl(getRequest('backurl')));
+		$response->redirect();
+	}
 }
 elseif (hasRequest('action') && getRequest('action') === 'graph.massdelete' && hasRequest('group_graphid')) {
 	$graphIds = getRequest('group_graphid');
+	$graphs_count = count($graphIds);
 
 	if (hasRequest('parent_discoveryid')) {
 		$result = API::GraphPrototype()->delete($graphIds);
@@ -309,7 +323,11 @@ elseif (hasRequest('action') && getRequest('action') === 'graph.massdelete' && h
 
 			uncheckTableRows(getRequest('parent_discoveryid'), zbx_objectValues($graphs, 'graphid'));
 		}
-		show_messages($result, _('Graph prototypes deleted'), _('Cannot delete graph prototypes'));
+
+		$messageSuccess = _n('Graph prototype deleted', 'Graph prototypes deleted', $graphs_count);
+		$messageFailed = _n('Cannot delete graph prototype', 'Cannot delete graph prototypes', $graphs_count);
+
+		show_messages($result, $messageSuccess, $messageFailed);
 	}
 	else {
 		$result = API::Graph()->delete($graphIds);
@@ -326,74 +344,12 @@ elseif (hasRequest('action') && getRequest('action') === 'graph.massdelete' && h
 
 			uncheckTableRows($hostid, zbx_objectValues($graphs, 'graphid'));
 		}
-		show_messages($result, _('Graphs deleted'), _('Cannot delete graphs'));
+
+		$messageSuccess = _n('Graph deleted', 'Graphs deleted', $graphs_count);
+		$messageFailed = _n('Cannot delete graph', 'Cannot delete graphs', $graphs_count);
+
+		show_messages($result, $messageSuccess, $messageFailed);
 	}
-}
-elseif (hasRequest('action') && getRequest('action') === 'graph.masscopyto' && hasRequest('copy')
-		&& hasRequest('group_graphid')) {
-	if (getRequest('copy_targetids', []) && hasRequest('copy_type')) {
-		$result = true;
-
-		$options = [
-			'output' => ['hostid'],
-			'editable' => true,
-			'templated_hosts' => true
-		];
-
-		// hosts or templates
-		if (getRequest('copy_type') == COPY_TYPE_TO_HOST || getRequest('copy_type') == COPY_TYPE_TO_TEMPLATE) {
-			$options['hostids'] = getRequest('copy_targetids');
-		}
-		// host groups
-		else {
-			$groupids = getRequest('copy_targetids');
-			zbx_value2array($groupids);
-
-			$dbGroups = API::HostGroup()->get([
-				'output' => ['groupid'],
-				'groupids' => $groupids,
-				'editable' => true
-			]);
-			$dbGroups = zbx_toHash($dbGroups, 'groupid');
-
-			foreach ($groupids as $groupid) {
-				if (!isset($dbGroups[$groupid])) {
-					access_deny();
-				}
-			}
-
-			$options['groupids'] = $groupids;
-		}
-
-		$dbHosts = API::Host()->get($options);
-
-		DBstart();
-		foreach (getRequest('group_graphid') as $graphid) {
-			foreach ($dbHosts as $host) {
-				if (!copyGraphToHost($graphid, $host['hostid'])) {
-					$result = false;
-				}
-			}
-		}
-		$result = DBend($result);
-
-		$graphs_count = count(getRequest('group_graphid'));
-
-		if ($result) {
-			uncheckTableRows(
-				(getRequest('parent_discoveryid') == 0) ? $hostid : getRequest('parent_discoveryid')
-			);
-			unset($_REQUEST['group_graphid']);
-		}
-		show_messages($result,
-			_n('Graph copied', 'Graphs copied', $graphs_count),
-			_n('Cannot copy graph', 'Cannot copy graphs', $graphs_count)
-		);
-	}
-	else {
-		error(_('No target selected.'));
-	}
-	show_messages();
 }
 
 $prefix = (getRequest('context') === 'host') ? 'web.hosts.' : 'web.templates.';
@@ -423,51 +379,32 @@ elseif (hasRequest('filter_rst')) {
 /*
  * Display
  */
-if (hasRequest('parent_discoveryid')) {
-	// Argument parent_discoveryid is considered as alternative filter.
-	$filter = [
-		'groups' => null,
-		'hosts' => null
-	];
-}
-else {
-	$filter = [
-		'groups' => CProfile::getArray($prefix.'graphs.filter_groupids', null),
-		'hosts' => CProfile::getArray($prefix.'graphs.filter_hostids', null)
-	];
-}
+$filter_groupids = hasRequest('parent_discoveryid') ? [] : CProfile::getArray($prefix.'graphs.filter_groupids', []);
+$filter_hostids = hasRequest('parent_discoveryid') ? [] : CProfile::getArray($prefix.'graphs.filter_hostids', []);
 
-// Get host groups.
-$filter['groups'] = $filter['groups']
-	? CArrayHelper::renameObjectsKeys(API::HostGroup()->get([
-		'output' => ['groupid', 'name'],
-		'groupids' => $filter['groups'],
-		'editable' => true,
-		'preservekeys' => true
-	]), ['groupid' => 'id'])
-	: [];
+$filter = [
+	'groups' => [],
+	'hosts' => []
+];
 
-$filter_groupids = $filter['groups'] ? array_keys($filter['groups']) : null;
-if ($filter_groupids) {
-	$filter_groupids = getSubGroups($filter_groupids);
-}
+$filter_groupids = getSubGroups($filter_groupids, $filter['groups'], getRequest('context'));
 
 // Get hosts.
 if (getRequest('context') === 'host') {
-	$filter['hosts'] = $filter['hosts']
+	$filter['hosts'] = $filter_hostids
 		? CArrayHelper::renameObjectsKeys(API::Host()->get([
 			'output' => ['hostid', 'name'],
-			'hostids' => $filter['hosts'],
+			'hostids' => $filter_hostids,
 			'editable' => true,
 			'preservekeys' => true
 		]), ['hostid' => 'id'])
 		: [];
 }
 else {
-	$filter['hosts'] = $filter['hosts']
+	$filter['hosts'] = $filter_hostids
 		? CArrayHelper::renameObjectsKeys(API::Template()->get([
 			'output' => ['templateid', 'name'],
-			'templateids' => $filter['hosts'],
+			'templateids' => $filter_hostids,
 			'editable' => true,
 			'preservekeys' => true
 		]), ['templateid' => 'id'])
@@ -479,14 +416,7 @@ if ($hostid == 0 && count($filter['hosts']) == 1) {
 	$hostid = reset($filter['hosts'])['id'];
 }
 
-if (hasRequest('action') && getRequest('action') === 'graph.masscopyto' && hasRequest('group_graphid')) {
-	$data = getCopyElementsFormData('group_graphid', _('Graphs'));
-	$data['action'] = 'graph.masscopyto';
-
-	// render view
-	echo (new CView('configuration.copy.elements', $data))->getOutput();
-}
-elseif (isset($_REQUEST['form'])) {
+if (isset($_REQUEST['form'])) {
 	$data = [
 		'form' => getRequest('form'),
 		'form_refresh' => getRequest('form_refresh', 0),
@@ -495,14 +425,15 @@ elseif (isset($_REQUEST['form'])) {
 		'group_gid' => getRequest('group_gid', []),
 		'hostid' => $hostid,
 		'normal_only' => getRequest('normal_only'),
-		'context' => getRequest('context')
+		'context' => getRequest('context'),
+		'readonly' => getRequest('readonly', 0)
 	];
 
-	if (!empty($data['graphid']) && !isset($_REQUEST['form_refresh'])) {
+	if ($data['graphid'] != 0 && ($data['readonly'] || !$data['form_refresh'])) {
 		$options = [
-			'graphids' => $data['graphid'],
 			'output' => API_OUTPUT_EXTEND,
-			'selectHosts' => ['hostid']
+			'selectHosts' => ['hostid'],
+			'graphids' => $data['graphid']
 		];
 
 		if ($data['parent_discoveryid'] === null) {
@@ -590,7 +521,7 @@ elseif (isset($_REQUEST['form'])) {
 		$data['show_triggers'] = getRequest('show_triggers', 0);
 		$data['show_legend'] = getRequest('show_legend', 0);
 		$data['show_3d'] = getRequest('show_3d', 0);
-		$data['visible'] = getRequest('visible');
+		$data['visible'] = getRequest('visible', []);
 		$data['percent_left'] = 0;
 		$data['percent_right'] = 0;
 		$data['items'] = $gitems;
@@ -605,10 +536,30 @@ elseif (isset($_REQUEST['form'])) {
 		}
 	}
 
-	if (empty($data['graphid']) && !isset($_REQUEST['form_refresh'])) {
+	if ($data['graphid'] == 0 && !$data['form_refresh']) {
 		$data['show_legend'] = $_REQUEST['show_legend'] = 1;
 		$data['show_work_period'] = $_REQUEST['show_work_period'] = 1;
 		$data['show_triggers'] = $_REQUEST['show_triggers'] = 1;
+	}
+
+	if ($data['ymax_itemid'] || $data['ymin_itemid']) {
+		$options = [
+			'output' => ['itemid', 'hostid', 'name', 'key_'],
+			'selectHosts' => ['name'],
+			'itemids' => [$data['ymax_itemid'], $data['ymin_itemid']],
+			'webitems' => true,
+			'preservekeys' => true
+		];
+
+		$items = API::Item()->get($options);
+
+		if ($data['parent_discoveryid'] !== null) {
+			$items = $items + API::ItemPrototype()->get($options);
+		}
+
+		$data['yaxis_items'] = $items;
+
+		unset($items);
 	}
 
 	// items
@@ -616,7 +567,7 @@ elseif (isset($_REQUEST['form'])) {
 		$items = API::Item()->get([
 			'output' => ['itemid', 'hostid', 'name', 'flags'],
 			'selectHosts' => ['hostid', 'name'],
-			'itemids' => zbx_objectValues($data['items'], 'itemid'),
+			'itemids' => array_column($data['items'], 'itemid'),
 			'filter' => [
 				'flags' => [ZBX_FLAG_DISCOVERY_NORMAL, ZBX_FLAG_DISCOVERY_PROTOTYPE, ZBX_FLAG_DISCOVERY_CREATED]
 			],
@@ -624,15 +575,17 @@ elseif (isset($_REQUEST['form'])) {
 			'preservekeys' => true
 		]);
 
-		foreach ($data['items'] as &$item) {
-			$host = reset($items[$item['itemid']]['hosts']);
+		if ($items) {
+			foreach ($data['items'] as &$item) {
+				$host = reset($items[$item['itemid']]['hosts']);
 
-			$item['host'] = $host['name'];
-			$item['hostid'] = $items[$item['itemid']]['hostid'];
-			$item['name'] = $items[$item['itemid']]['name'];
-			$item['flags'] = $items[$item['itemid']]['flags'];
+				$item['host'] = $host['name'];
+				$item['hostid'] = $items[$item['itemid']]['hostid'];
+				$item['name'] = $items[$item['itemid']]['name'];
+				$item['flags'] = $items[$item['itemid']]['flags'];
+			}
+			unset($item);
 		}
-		unset($item);
 	}
 
 	// Set ymin_item_name.
@@ -707,7 +660,7 @@ else {
 	$options = [
 		'output' => ['graphid', 'name', 'graphtype'],
 		'hostids' => $filter['hosts'] ? array_keys($filter['hosts']) : null,
-		'groupids' => $filter_groupids,
+		'groupids' => $filter_groupids ? $filter_groupids : null,
 		'discoveryids' => hasRequest('parent_discoveryid') ? $discoveryRule['itemid'] : null,
 		'templated' => ($data['context'] === 'template'),
 		'editable' => true,
@@ -717,6 +670,16 @@ else {
 	$data['graphs'] = hasRequest('parent_discoveryid')
 		? API::GraphPrototype()->get($options)
 		: API::Graph()->get($options);
+
+	if ($data['context'] === 'host') {
+		$editable_hosts = API::Host()->get([
+			'output' => ['hostids'],
+			'graphids' => array_column($data['graphs'], 'graphid'),
+			'editable' => true
+		]);
+
+		$data['editable_hosts'] = array_column($editable_hosts, 'hostid');
+	}
 
 	if ($sort_field === 'graphtype') {
 		foreach ($data['graphs'] as $gnum => $graph) {
@@ -752,7 +715,6 @@ else {
 		'output' => ['graphid', 'name', 'templateid', 'graphtype', 'width', 'height'],
 		'selectDiscoveryRule' => ['itemid', 'name'],
 		'selectHosts' => ($data['hostid'] == 0) ? ['name'] : null,
-		'selectTemplates' => ($data['hostid'] == 0) ? ['name'] : null,
 		'graphids' => zbx_objectValues($data['graphs'], 'graphid'),
 		'preservekeys' => true
 	];
@@ -762,44 +724,21 @@ else {
 		$data['graphs'] = API::GraphPrototype()->get($options);
 	}
 	else {
-		$data['graphs'] = API::Graph()->get($options + ['selectGraphDiscovery' => ['ts_delete']]);
+		$data['graphs'] = API::Graph()->get($options + ['selectGraphDiscovery' => ['status', 'ts_delete']]);
 	}
 
 	foreach ($data['graphs'] as $gnum => $graph) {
 		$data['graphs'][$gnum]['graphtype'] = graphType($graph['graphtype']);
 	}
 
-	if (!hasRequest('parent_discoveryid')) {
-		$items = API::Item()->get([
-			'output' => ['itemid'],
-			'selectGraphs' => ['graphid'],
-			'selectItemDiscovery' => ['ts_delete'],
-			'graphids' => array_keys($data['graphs']),
-			'filter' => ['flags' => ZBX_FLAG_DISCOVERY_CREATED]
-		]);
-
-		foreach ($items as $item) {
-			$ts_delete = $item['itemDiscovery']['ts_delete'];
-
-			if ($ts_delete == 0) {
-				continue;
-			}
-
-			foreach (array_column($item['graphs'], 'graphid') as $graphid) {
-				if (!array_key_exists('ts_delete', $data['graphs'][$graphid]['graphDiscovery'])) {
-					$data['graphs'][$graphid]['graphDiscovery']['ts_delete'] = $ts_delete;
-				}
-				else {
-					$graph_ts_delete = $data['graphs'][$graphid]['graphDiscovery']['ts_delete'];
-					$data['graphs'][$graphid]['graphDiscovery']['ts_delete'] = ($graph_ts_delete > 0)
-						? min($ts_delete, $graph_ts_delete)
-						: $ts_delete;
-				}
-			}
-		}
-	}
-
 	order_result($data['graphs'], $sort_field, $sort_order);
+
+	if ($data['hostid'] == 0) {
+		foreach ($data['graphs'] as &$graph) {
+			CArrayHelper::sort($graph['hosts'], ['name']);
+		}
+		unset($graph);
+	}
 
 	$data['parent_templates'] = getGraphParentTemplates($data['graphs'], ($data['parent_discoveryid'] === null)
 		? ZBX_FLAG_DISCOVERY_NORMAL

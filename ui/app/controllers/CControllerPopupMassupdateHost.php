@@ -1,21 +1,16 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -35,7 +30,9 @@ class CControllerPopupMassupdateHost extends CControllerPopupMassupdateAbstract 
 			'templates' => 'array',
 			'inventories' => 'array',
 			'description' => 'string',
-			'proxy_hostid' => 'string',
+			'monitored_by' => 'in '.implode(',', [ZBX_MONITORED_BY_SERVER, ZBX_MONITORED_BY_PROXY, ZBX_MONITORED_BY_PROXY_GROUP]),
+			'proxyid' => 'string',
+			'proxy_groupid' => 'string',
 			'ipmi_username' => 'string',
 			'ipmi_password' => 'string',
 			'tls_issuer' => 'string',
@@ -70,6 +67,18 @@ class CControllerPopupMassupdateHost extends CControllerPopupMassupdateAbstract 
 
 		$ret = $this->validateInput($fields);
 
+		if ($ret && $this->hasInput('tags')) {
+			foreach ($this->getInput('tags') as $tag) {
+				if (!is_array($tag) || count($tag) != 2
+						|| !array_key_exists('tag', $tag) || !is_string($tag['tag'])
+						|| !array_key_exists('value', $tag) || !is_string($tag['value'])) {
+					error(_s('Incorrect value for "%1$s" field.', 'tags'));
+					$ret = false;
+					break;
+				}
+			}
+		}
+
 		if (!$ret) {
 			$this->setResponse(
 				(new CControllerResponseData(['main_block' => json_encode([
@@ -80,51 +89,50 @@ class CControllerPopupMassupdateHost extends CControllerPopupMassupdateAbstract 
 			);
 		}
 
+		if ($this->hasInput('backurl') && !CHtmlUrlValidator::validateSameSite($this->getInput('backurl'))) {
+			throw new CAccessDeniedException();
+		}
+
 		return $ret;
 	}
 
 	protected function checkPermissions(): bool {
-		$hosts = API::Host()->get([
-			'output' => [],
-			'hostids' => $this->getInput('hostids'),
-			'editable' => true
-		]);
-
-		return count($hosts) > 0;
+		return $this->checkAccess(CRoleHelper::UI_CONFIGURATION_HOSTS);
 	}
 
 	protected function doAction(): void {
 		if ($this->hasInput('update')) {
-			$output = [];
 			$hostids = $this->getInput('hostids');
+			$hosts_count = count($hostids);
 			$visible = $this->getInput('visible', []);
+
 			$macros = array_filter(cleanInheritedMacros($this->getInput('macros', [])),
-				function (array $macro): bool {
+				static function (array $macro): bool {
 					return (bool) array_filter(
 						array_intersect_key($macro, array_flip(['hostmacroid', 'macro', 'value', 'description']))
 					);
 				}
 			);
+
 			$tags = array_filter($this->getInput('tags', []),
-				function (array $tag): bool {
-					return ($tag['tag'] !== '' || $tag['value'] !== '');
+				static function (array $tag): bool {
+					return $tag['tag'] !== '' || $tag['value'] !== '';
 				}
 			);
-
-			$result = true;
 
 			try {
 				DBstart();
 
 				// filter only normal and discovery created hosts
 				$options = [
-					'output' => ['hostid', 'inventory_mode', 'flags'],
+					'output' => ['hostid', 'host', 'inventory_mode', 'flags'],
 					'hostids' => $hostids,
-					'filter' => ['flags' => [ZBX_FLAG_DISCOVERY_NORMAL, ZBX_FLAG_DISCOVERY_CREATED]]
+					'filter' => ['flags' => [ZBX_FLAG_DISCOVERY_NORMAL, ZBX_FLAG_DISCOVERY_CREATED]],
+					'editable' => true
 				];
 
 				if (array_key_exists('groups', $visible)) {
-					$options['selectGroups'] = ['groupid'];
+					$options['selectHostGroups'] = ['groupid'];
 				}
 
 				if (array_key_exists('templates', $visible)
@@ -134,19 +142,7 @@ class CControllerPopupMassupdateHost extends CControllerPopupMassupdateAbstract 
 				}
 
 				if (array_key_exists('tags', $visible)) {
-					$mass_update_tags = $this->getInput('mass_update_tags', ZBX_ACTION_ADD);
-
-					if ($mass_update_tags == ZBX_ACTION_ADD || $mass_update_tags == ZBX_ACTION_REMOVE) {
-						$options['selectTags'] = ['tag', 'value'];
-					}
-
-					$unique_tags = [];
-
-					foreach ($tags as $tag) {
-						$unique_tags[$tag['tag'].':'.$tag['value']] = $tag;
-					}
-
-					$tags = array_values($unique_tags);
+					$options['selectTags'] = ['tag', 'value', 'automatic'];
 				}
 
 				if (array_key_exists('macros', $visible)) {
@@ -159,6 +155,11 @@ class CControllerPopupMassupdateHost extends CControllerPopupMassupdateAbstract 
 				}
 
 				$hosts = API::Host()->get($options);
+
+				if (!$hosts) {
+					error(_('No permissions to referred object or it does not exist!'));
+					throw new Exception();
+				}
 
 				if (array_key_exists('groups', $visible)) {
 					$new_groupids = [];
@@ -195,14 +196,23 @@ class CControllerPopupMassupdateHost extends CControllerPopupMassupdateAbstract 
 					}
 				}
 
-				$properties = ['description', 'proxy_hostid', 'ipmi_authtype', 'ipmi_privilege', 'ipmi_username',
-					'ipmi_password'
-				];
+				$properties = ['description', 'ipmi_authtype', 'ipmi_privilege', 'ipmi_username', 'ipmi_password'];
 
 				$new_values = [];
 				foreach ($properties as $property) {
 					if (array_key_exists($property, $visible)) {
 						$new_values[$property] = $this->getInput($property);
+					}
+				}
+
+				if (array_key_exists('monitored_by', $visible)) {
+					$new_values['monitored_by'] = $this->getInput('monitored_by', ZBX_MONITORED_BY_SERVER);
+
+					if ($new_values['monitored_by'] == ZBX_MONITORED_BY_PROXY) {
+						$new_values['proxyid'] = $this->getInput('proxyid', 0);
+					}
+					elseif ($new_values['monitored_by'] == ZBX_MONITORED_BY_PROXY_GROUP) {
+						$new_values['proxy_groupid'] = $this->getInput('proxy_groupid', 0);
 					}
 				}
 
@@ -240,7 +250,7 @@ class CControllerPopupMassupdateHost extends CControllerPopupMassupdateAbstract 
 				foreach ($hosts as &$host) {
 					if (array_key_exists('groups', $visible)) {
 						if ($new_groupids && $mass_update_groups == ZBX_ACTION_ADD) {
-							$current_groupids = array_column($host['groups'], 'groupid');
+							$current_groupids = array_column($host['hostgroups'], 'groupid');
 							$host['groups'] = zbx_toObject(array_unique(array_merge($current_groupids, $new_groupids)),
 								'groupid'
 							);
@@ -249,9 +259,10 @@ class CControllerPopupMassupdateHost extends CControllerPopupMassupdateAbstract 
 							$host['groups'] = zbx_toObject($new_groupids, 'groupid');
 						}
 						elseif ($remove_groupids) {
-							$current_groupids = array_column($host['groups'], 'groupid');
+							$current_groupids = array_column($host['hostgroups'], 'groupid');
 							$host['groups'] = zbx_toObject(array_diff($current_groupids, $remove_groupids), 'groupid');
 						}
+						unset($host['hostgroups']);
 					}
 
 					if (array_key_exists('templates', $visible)) {
@@ -306,32 +317,77 @@ class CControllerPopupMassupdateHost extends CControllerPopupMassupdateAbstract 
 					}
 
 					if (array_key_exists('tags', $visible)) {
-						if ($tags && $mass_update_tags == ZBX_ACTION_ADD) {
-							$unique_tags = [];
+						switch ($this->getInput('mass_update_tags', ZBX_ACTION_ADD)) {
+							case ZBX_ACTION_ADD:
+								$tags_map = [];
 
-							foreach (array_merge($host['tags'], $tags) as $tag) {
-								$unique_tags[$tag['tag'].':'.$tag['value']] = $tag;
-							}
-
-							$host['tags'] = array_values($unique_tags);
-						}
-						elseif ($mass_update_tags == ZBX_ACTION_REPLACE) {
-							$host['tags'] = $tags;
-						}
-						elseif ($tags && $mass_update_tags == ZBX_ACTION_REMOVE) {
-							$diff_tags = [];
-
-							foreach ($host['tags'] as $a) {
-								foreach ($tags as $b) {
-									if ($a['tag'] === $b['tag'] && $a['value'] === $b['value']) {
-										continue 2;
-									}
+								foreach ($host['tags'] as $tag) {
+									unset($tag['automatic']);
+									$tags_map[$tag['tag']][$tag['value']] = $tag;
 								}
 
-								$diff_tags[] = $a;
-							}
+								foreach ($tags as $tag) {
+									$tags_map[$tag['tag']][$tag['value']] = $tag;
+								}
 
-							$host['tags'] = $diff_tags;
+								$host['tags'] = [];
+
+								foreach ($tags_map as $tags_map_2) {
+									foreach ($tags_map_2 as $tag) {
+										$host['tags'][] = $tag;
+									}
+								}
+								break;
+
+							case ZBX_ACTION_REPLACE:
+								$tags_map = [];
+
+								foreach ($tags as $tag) {
+									$tags_map[$tag['tag']][$tag['value']] = $tag;
+								}
+
+								$host['tags'] = [];
+
+								foreach ($tags_map as $tags_map_2) {
+									foreach ($tags_map_2 as $tag) {
+										$host['tags'][] = $tag;
+									}
+								}
+								break;
+
+							case ZBX_ACTION_REMOVE:
+								$tags_map = [];
+
+								foreach ($host['tags'] as $tag) {
+									$tags_map[$tag['tag']][$tag['value']] = $tag;
+								}
+
+								foreach ($tags as $tag) {
+									if (!array_key_exists($tag['tag'], $tags_map)
+											|| !array_key_exists($tag['value'], $tags_map[$tag['tag']])) {
+										continue;
+									}
+
+									if ($tags_map[$tag['tag']][$tag['value']]['automatic'] == ZBX_TAG_AUTOMATIC) {
+										error(_s(
+											'Cannot remove the tag with name "%1$s" and value "%2$s", defined in a host prototype, from host "%3$s".',
+											$tag['tag'], $tag['value'], $host['host']
+										));
+										throw new Exception();
+									}
+
+									unset($tags_map[$tag['tag']][$tag['value']]);
+								}
+
+								$host['tags'] = [];
+
+								foreach ($tags_map as $tags_map_2) {
+									foreach ($tags_map_2 as $tag) {
+										unset($tag['automatic']);
+										$host['tags'][] = $tag;
+									}
+								}
+								break;
 						}
 					}
 
@@ -348,7 +404,10 @@ class CControllerPopupMassupdateHost extends CControllerPopupMassupdateAbstract 
 									}
 									elseif ($update_existing) {
 										$hostmacroid = $host_macros_by_macro[$macro['macro']]['hostmacroid'];
-										$host['macros'][$hostmacroid] = ['hostmacroid' => $hostmacroid] + $macro;
+										$host['macros'][$hostmacroid] = [
+											'hostmacroid' => $hostmacroid,
+											'automatic' => ZBX_USERMACRO_MANUAL
+										] + $macro;
 									}
 								}
 								break;
@@ -361,7 +420,10 @@ class CControllerPopupMassupdateHost extends CControllerPopupMassupdateAbstract 
 								foreach ($macros as $macro) {
 									if (array_key_exists($macro['macro'], $host_macros_by_macro)) {
 										$hostmacroid = $host_macros_by_macro[$macro['macro']]['hostmacroid'];
-										$host['macros'][$hostmacroid] = ['hostmacroid' => $hostmacroid] + $macro;
+										$host['macros'][$hostmacroid] = [
+											'hostmacroid' => $hostmacroid,
+											'automatic' => ZBX_USERMACRO_MANUAL
+										] + $macro;
 									}
 									elseif ($add_missing) {
 										$host['macros'][] = $macro;
@@ -404,22 +466,24 @@ class CControllerPopupMassupdateHost extends CControllerPopupMassupdateAbstract 
 					if ($host['flags'] == ZBX_FLAG_DISCOVERY_CREATED) {
 						unset($host['inventory_mode']);
 					}
-					unset($host['flags']);
+					unset($host['host'], $host['flags']);
 				}
 				unset($host);
 
-				$result = $hosts ? (bool) API::Host()->update($hosts) : true;
+				$result = (bool) API::Host()->update($hosts);
 
-				if ($result === false) {
+				if (!$result) {
 					throw new Exception();
 				}
+
+				$hosts_count = count($hosts);
 
 				// Value mapping.
 				if (array_key_exists('valuemaps', $visible)) {
 					$this->updateValueMaps($hostids);
 				}
 
-				DBend(true);
+				DBend();
 			}
 			catch (Exception $e) {
 				DBend(false);
@@ -430,31 +494,33 @@ class CControllerPopupMassupdateHost extends CControllerPopupMassupdateAbstract 
 			if ($this->hasInput('backurl')) {
 				$upd_status = ($this->getInput('status', HOST_STATUS_NOT_MONITORED) == HOST_STATUS_MONITORED);
 				$backurl = new CUrl($this->getInput('backurl'));
-				$cnt = count($hostids);
 
 				if ($result) {
 					$backurl->setArgument('uncheck', 1);
 
 					CMessageHelper::setSuccessTitle($upd_status
-						? _n('Host enabled', 'Hosts enabled', $cnt)
-						: _n('Host disabled', 'Hosts disabled', $cnt)
+						? _n('Host enabled', 'Hosts enabled', $hosts_count)
+						: _n('Host disabled', 'Hosts disabled', $hosts_count)
 					);
 				}
 				else {
 					CMessageHelper::setErrorTitle($upd_status
-						? _n('Cannot enable host', 'Cannot enable hosts', $cnt)
-						: _n('Cannot disable host', 'Cannot disable hosts', $cnt)
+						? _n('Cannot enable host', 'Cannot enable hosts', $hosts_count)
+						: _n('Cannot disable host', 'Cannot disable hosts', $hosts_count)
 					);
 				}
 
-				$this->setResponse(new CControllerResponseRedirect($backurl->getUrl()));
+				$this->setResponse(new CControllerResponseRedirect($backurl));
 			}
 			else {
 				if ($result) {
 					ob_start();
 					uncheckTableRows('hosts');
 
-					$output = ['title' => _('Hosts updated'), 'script_inline' => ob_get_clean()];
+					$output = [
+						'title' => _n('Host updated', 'Hosts updated', $hosts_count),
+						'script_inline' => ob_get_clean()
+					];
 
 					if ($messages = CMessageHelper::getMessages()) {
 						$output['messages'] = array_column($messages, 'message');
@@ -463,7 +529,7 @@ class CControllerPopupMassupdateHost extends CControllerPopupMassupdateAbstract 
 				else {
 					$output = [
 						'error' => [
-							'title' => _('Cannot update hosts'),
+							'title' => _n('Cannot update host', 'Cannot update hosts', $hosts_count),
 							'messages' => array_column(get_and_clear_messages(), 'message')
 						]
 					];
@@ -487,14 +553,6 @@ class CControllerPopupMassupdateHost extends CControllerPopupMassupdateAbstract 
 					->setArgument('page', CPagerHelper::loadPage('host.list'))
 					->getUrl()
 			];
-
-			$data['proxies'] = API::Proxy()->get([
-				'output' => ['hostid', 'host'],
-				'filter' => [
-					'status' => [HOST_STATUS_PROXY_ACTIVE, HOST_STATUS_PROXY_PASSIVE]
-				],
-				'sortfield' => 'host'
-			]);
 
 			$data['discovered_host'] = !(bool) API::Host()->get([
 				'output' => [],

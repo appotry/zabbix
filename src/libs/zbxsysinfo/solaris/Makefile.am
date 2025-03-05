@@ -1,10 +1,15 @@
 ## Process this file with automake to produce Makefile.in
 
-noinst_LIBRARIES = libspecsysinfo.a libspechostnamesysinfo.a
+noinst_LIBRARIES = libfunclistsysinfo.a libspecsysinfo.a libspechostnamesysinfo.a
+
+libfunclistsysinfo_a_SOURCES = \
+	solaris.c
 
 libspecsysinfo_a_CFLAGS = -I$(top_srcdir)/src/zabbix_agent
 
 libspecsysinfo_a_SOURCES = \
+	zbx_sysinfo_kstat.c \
+	zbx_sysinfo_kstat.h \
 	boottime.c \
 	cpu.c \
 	diskio.c \
@@ -15,7 +20,6 @@ libspecsysinfo_a_SOURCES = \
 	net.c \
 	proc.c \
 	software.c \
-	solaris.c \
 	swap.c \
 	system.c \
 	uptime.c

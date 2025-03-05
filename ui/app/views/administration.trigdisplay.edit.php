@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -27,7 +22,7 @@ $this->addJsFile('colorpicker.js');
 
 $this->includeJsFile('administration.trigdisplay.edit.js.php');
 
-$widget = (new CWidget())
+$html_page = (new CHtmlPage())
 	->setTitle(_('Trigger displaying options'))
 	->setTitleSubmenu(getAdministrationGeneralSubmenu())
 	->setDocUrl(CDocHelper::getUrl(CDocHelper::ADMINISTRATION_TRIGDISPLAY_EDIT));
@@ -88,19 +83,19 @@ $form_list = (new CFormList())
 	])
 	->addRow(null)
 	->addRow((new CLabel(_('Display OK triggers for'), 'ok_period'))->setAsteriskMark(), [
-		(new CTextBox('ok_period', $data['ok_period'], false, DB::getFieldLength('config', 'ok_period')))
+		(new CTextBox('ok_period', $data['ok_period'], false, CSettingsSchema::getFieldLength('ok_period')))
 			->setWidth(ZBX_TEXTAREA_TINY_WIDTH)
 			->setAriaRequired()
 	])
 	->addRow((new CLabel(_('On status change triggers blink for'), 'blink_period'))->setAsteriskMark(), [
-		(new CTextBox('blink_period', $data['blink_period'], false, DB::getFieldLength('config', 'blink_period')))
+		(new CTextBox('blink_period', $data['blink_period'], false, CSettingsSchema::getFieldLength('blink_period')))
 			->setWidth(ZBX_TEXTAREA_TINY_WIDTH)
 			->setAriaRequired()
 	])
 	->addRow(null)
 	->addRow((new CLabel(_('Not classified'), 'severity_name_0'))->setAsteriskMark(), [
 		(new CTextBox('severity_name_0', $data['severity_name_0'], false,
-			DB::getFieldLength('config', 'severity_name_0')
+			CSettingsSchema::getFieldLength('severity_name_0')
 		))
 			->setWidth(ZBX_TEXTAREA_STANDARD_WIDTH)
 			->setAriaRequired(),
@@ -109,7 +104,7 @@ $form_list = (new CFormList())
 	])
 	->addRow((new CLabel(_('Information'), 'severity_name_1'))->setAsteriskMark(), [
 		(new CTextBox('severity_name_1', $data['severity_name_1'], false,
-			DB::getFieldLength('config', 'severity_name_1')
+			CSettingsSchema::getFieldLength('severity_name_1')
 		))
 			->setWidth(ZBX_TEXTAREA_STANDARD_WIDTH)
 			->setAriaRequired(),
@@ -118,7 +113,7 @@ $form_list = (new CFormList())
 	])
 	->addRow((new CLabel(_('Warning'), 'severity_name_2'))->setAsteriskMark(), [
 		(new CTextBox('severity_name_2', $data['severity_name_2'], false,
-			DB::getFieldLength('config', 'severity_name_2')
+			CSettingsSchema::getFieldLength('severity_name_2')
 		))
 			->setWidth(ZBX_TEXTAREA_STANDARD_WIDTH)
 			->setAriaRequired(),
@@ -127,7 +122,7 @@ $form_list = (new CFormList())
 	])
 	->addRow((new CLabel(_('Average'), 'severity_name_3'))->setAsteriskMark(), [
 		(new CTextBox('severity_name_3', $data['severity_name_3'], false,
-			DB::getFieldLength('config', 'severity_name_3')
+			CSettingsSchema::getFieldLength('severity_name_3')
 		))
 			->setWidth(ZBX_TEXTAREA_STANDARD_WIDTH)
 			->setAriaRequired(),
@@ -136,7 +131,7 @@ $form_list = (new CFormList())
 	])
 	->addRow((new CLabel(_('High'), 'severity_name_4'))->setAsteriskMark(), [
 		(new CTextBox('severity_name_4', $data['severity_name_4'], false,
-			DB::getFieldLength('config', 'severity_name_4')
+			CSettingsSchema::getFieldLength('severity_name_4')
 		))
 			->setWidth(ZBX_TEXTAREA_STANDARD_WIDTH)
 			->setAriaRequired(),
@@ -145,7 +140,7 @@ $form_list = (new CFormList())
 	])
 	->addRow((new CLabel(_('Disaster'), 'severity_name_5'))->setAsteriskMark(), [
 		(new CTextBox('severity_name_5', $data['severity_name_5'], false,
-			DB::getFieldLength('config', 'severity_name_5')
+			CSettingsSchema::getFieldLength('severity_name_5')
 		))
 			->setWidth(ZBX_TEXTAREA_STANDARD_WIDTH)
 			->setAriaRequired(),
@@ -156,7 +151,9 @@ $form_list = (new CFormList())
 	->addInfo(_('Custom severity names affect all locales and require manual translation!'));
 
 $form = (new CForm())
-	->setAttribute('aria-labeledby', ZBX_STYLE_PAGE_TITLE)
+	->addItem((new CVar(CSRF_TOKEN_NAME, CCsrfTokenHelper::get('trigdisplay')))->removeId())
+	->setId('trigdisplay-form')
+	->setAttribute('aria-labelledby', CHtmlPage::PAGE_TITLE_ID)
 	->setAction((new CUrl('zabbix.php'))
 		->setArgument('action', 'trigdisplay.update')
 		->getUrl()
@@ -170,4 +167,4 @@ $form = (new CForm())
 			))
 	);
 
-$widget->addItem($form)->show();
+$html_page->addItem($form)->show();

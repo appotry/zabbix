@@ -1,20 +1,15 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 #include <yaml.h>
@@ -22,7 +17,8 @@
 #include "zbxmocktest.h"
 #include "zbxmockdata.h"
 
-#include "common.h"
+#include "zbxstr.h"
+#include "zbxnum.h"
 #include "zbxalgo.h"
 
 FILE	*__real_fopen(const char *path, const char *mode);
@@ -572,6 +568,8 @@ const char	*zbx_mock_error_string(zbx_mock_error_t error)
 			return "Not enough space in output buffer.";
 		case ZBX_MOCK_NOT_AN_INT:
 			return "Provided handle is not a integer handle.";
+		case ZBX_MOCK_NOT_AN_UINT32:
+			return "Provided handle is not an unsigned 32 bit integer handle.";
 		default:
 			return "Unknown error.";
 	}
@@ -758,7 +756,7 @@ zbx_mock_error_t	zbx_mock_binary(zbx_mock_handle_t binary, const char **value, s
 		if ('\\' == src[i])
 		{
 			if (i + 3 >= handle->node->data.scalar.length || 'x' != src[i + 1] ||
-					SUCCEED != is_hex_n_range(&src[i + 2], 2, dst, sizeof(char), 0, 0xff))
+					SUCCEED != zbx_is_hex_n_range(&src[i + 2], 2, dst, sizeof(char), 0, 0xff))
 			{
 				zbx_free(tmp);
 				return ZBX_MOCK_NOT_A_BINARY;
@@ -943,10 +941,30 @@ zbx_mock_error_t	zbx_mock_uint64(zbx_mock_handle_t object, zbx_uint64_t *value)
 	if (YAML_SCALAR_NODE != handle->node->type || ZBX_MAX_UINT64_LEN < handle->node->data.scalar.length)
 		return ZBX_MOCK_NOT_AN_UINT64;
 
-	if (SUCCEED != is_uint64_n((const char *)handle->node->data.scalar.value, handle->node->data.scalar.length,
+	if (SUCCEED != zbx_is_uint64_n((const char *)handle->node->data.scalar.value, handle->node->data.scalar.length,
 			value))
 	{
 		return ZBX_MOCK_NOT_AN_UINT64;
+	}
+
+	return ZBX_MOCK_SUCCESS;
+}
+
+zbx_mock_error_t	zbx_mock_uint32(zbx_mock_handle_t object, zbx_uint32_t *value)
+{
+	const zbx_mock_pool_handle_t	*handle;
+
+	if (0 > object || object >= handle_pool.values_num)
+		return ZBX_MOCK_INVALID_HANDLE;
+
+	handle = handle_pool.values[object];
+
+	if (YAML_SCALAR_NODE != handle->node->type || ZBX_MAX_UINT32_LEN < handle->node->data.scalar.length)
+		return ZBX_MOCK_NOT_AN_UINT32;
+
+	if (SUCCEED != zbx_is_uint32((const char *)handle->node->data.scalar.value, value))
+	{
+		return ZBX_MOCK_NOT_AN_UINT32;
 	}
 
 	return ZBX_MOCK_SUCCESS;
@@ -970,7 +988,7 @@ zbx_mock_error_t	zbx_mock_float(zbx_mock_handle_t object, double *value)
 	memcpy(tmp, handle->node->data.scalar.value, handle->node->data.scalar.length);
 	tmp[handle->node->data.scalar.length] = '\0';
 
-	if (SUCCEED != is_double(tmp, value))
+	if (SUCCEED != zbx_is_double(tmp, value))
 		res = ZBX_MOCK_NOT_A_FLOAT;
 
 	zbx_free(tmp);
@@ -1000,7 +1018,7 @@ zbx_mock_error_t	zbx_mock_int(zbx_mock_handle_t object, int *value)
 	if ('-' == *ptr)
 		ptr++;
 
-	if (SUCCEED != is_uint31(ptr, value))
+	if (SUCCEED != zbx_is_uint31(ptr, value))
 		res = ZBX_MOCK_NOT_AN_INT;
 
 	if (ptr != tmp)

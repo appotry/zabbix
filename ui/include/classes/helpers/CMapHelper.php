@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -48,7 +43,7 @@ class CMapHelper {
 			],
 			'selectSelements' => ['selementid', 'elements', 'elementtype', 'iconid_off', 'iconid_on', 'label',
 				'label_location', 'x', 'y', 'iconid_disabled', 'iconid_maintenance', 'elementsubtype', 'areatype',
-				'width', 'height', 'viewtype', 'use_iconmap', 'urls', 'permission', 'evaltype', 'tags'
+				'width', 'height', 'viewtype', 'use_iconmap', 'permission', 'evaltype', 'tags'
 			],
 			'selectLinks' => ['linkid', 'selementid1', 'selementid2', 'drawtype', 'color', 'label', 'linktriggers',
 				'permission'
@@ -212,6 +207,8 @@ class CMapHelper {
 	 */
 	protected static function resolveMapState(array &$sysmap, array $areas, array $options) {
 		$map_info = getSelementsInfo($sysmap, ['severity_min' => $options['severity_min']]);
+		$sysmap['selements'] = array_column($sysmap['selements'], null, 'selementid');
+
 		processAreasCoordinates($sysmap, $areas, $map_info);
 
 		// Adding element names and removing inaccessible triggers from readable elements.
@@ -256,7 +253,7 @@ class CMapHelper {
 		$labels = getMapLabels($sysmap, $map_info);
 		$highlights = getMapHighligts($sysmap, $map_info);
 		$actions = getActionsBySysmap($sysmap, $options);
-		$linktrigger_info = getMapLinkTriggerInfo($sysmap, $options);
+		$link_triggers_info = getMapLinkTriggerInfo($sysmap, $options);
 
 		$problems_total = 0;
 		$status_problems = [];
@@ -328,36 +325,35 @@ class CMapHelper {
 		}
 
 		foreach ($sysmap['links'] as &$link) {
-			if ($link['permission'] >= PERM_READ) {
-				if (empty($link['linktriggers'])) {
-					continue;
-				}
-
-				$drawtype = $link['drawtype'];
-				$color = $link['color'];
-				$linktriggers = $link['linktriggers'];
-				order_result($linktriggers, 'triggerid');
-				$max_severity = $options['severity_min'];
-
-				foreach ($linktriggers as $link_trigger) {
-					if ($link_trigger['triggerid'] == 0
-							|| !array_key_exists($link_trigger['triggerid'], $linktrigger_info)) {
-						continue;
+			if ($link['permission'] >= PERM_READ && $link['linktriggers']) {
+				$link_triggers = array_filter($link['linktriggers'],
+					function ($link_trigger) use ($link_triggers_info, $options) {
+						return (array_key_exists($link_trigger['triggerid'], $link_triggers_info)
+							&& $link_triggers_info[$link_trigger['triggerid']]['status'] == TRIGGER_STATUS_ENABLED
+							&& $link_triggers_info[$link_trigger['triggerid']]['value'] == TRIGGER_VALUE_TRUE
+							&& $link_triggers_info[$link_trigger['triggerid']]['priority'] >= $options['severity_min']
+						);
 					}
+				);
 
-					$trigger = zbx_array_merge($link_trigger, $linktrigger_info[$link_trigger['triggerid']]);
+				// Link-trigger with highest severity or lower triggerid defines link color and drawtype.
+				if ($link_triggers) {
+					$link_triggers = array_map(function ($link_trigger) use ($link_triggers_info) {
+						return [
+							'priority' => $link_triggers_info[$link_trigger['triggerid']]['priority']
+						] + $link_trigger;
+					}, $link_triggers);
 
-					if ($trigger['status'] == TRIGGER_STATUS_ENABLED
-							&& $trigger['value'] == TRIGGER_VALUE_TRUE
-							&& $trigger['priority'] >= $max_severity) {
-						$drawtype = $trigger['drawtype'];
-						$color = $trigger['color'];
-						$max_severity = $trigger['priority'];
-					}
+					CArrayHelper::sort($link_triggers, [
+						['field' => 'priority', 'order' => ZBX_SORT_DOWN],
+						['field' => 'triggerid', 'order' => ZBX_SORT_UP]
+					]);
+
+					$styling_link_triggers = reset($link_triggers);
+
+					$link['color'] = $styling_link_triggers['color'];
+					$link['drawtype'] = $styling_link_triggers['drawtype'];
 				}
-
-				$link['color'] = $color;
-				$link['drawtype'] = $drawtype;
 			}
 		}
 		unset($link);
@@ -584,15 +580,18 @@ class CMapHelper {
 		$areas = [];
 
 		if ($groupids) {
-			$groups = API::HostGroup()->get([
-				'output' => [],
-				'selectHosts' => ['hostid', 'name'],
-				'groupids' => array_keys($groupids),
-				'preservekeys' => true
-			]);
+			// Assign the hosts of nested host groups to the top host groups.
+			$groups = [];
+			foreach ($groupids as $groupid => $bar) {
+				$sub_groups = getSubGroups([$groupid]);
+				$groups[$groupid]['hosts'] = API::Host()->get([
+					'output' => ['hostid', 'name'],
+					'groupids' => $sub_groups
+				]);
+			}
 
 			$new_selementid = (count($sysmap['selements']) > 0)
-				? (int) max(zbx_objectValues($sysmap['selements'], 'selementid'))
+				? (int) max(array_column($sysmap['selements'], 'selementid'))
 				: 0;
 
 			$new_linkid = (count($sysmap['links']) > 0) ? (int) max(array_keys($sysmap['links'])) : 0;

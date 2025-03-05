@@ -2,34 +2,51 @@
 
 DIST_SUBDIRS = \
 	zbxalgo \
+	zbxalerter \
+	zbxasyncpoller \
+	zbxasynchttppoller \
 	zbxaudit \
+	zbxautoreg \
 	zbxavailability \
+	zbxbincommon \
+	zbxconnector \
 	zbxcommon \
 	zbxcomms \
 	zbxcommshigh \
 	zbxcompress \
-	zbxconf \
+	zbxcfg \
 	zbxcrypto \
-	zbxcyberark \
+	zbxcurl \
 	zbxdb \
-	zbxdbcache \
+	zbxcacheconfig \
+	zbxcachehistory \
+	zbxcachevalue \
 	zbxdbhigh \
+	zbxdiscoverer \
+	zbxdbwrap \
+	zbxdbsyncer \
 	zbxdbschema \
 	zbxdbupgrade \
 	zbxdiag \
 	zbxdiscovery \
 	zbxembed \
+	zbxescalations \
 	zbxeval \
+	zbxevent \
 	zbxexec \
 	zbxexport \
+	zbxexpr \
+	zbxfile \
 	zbxgetopt \
-	zbxha \
 	zbxhash \
-	zbxhashicorp \
 	zbxhistory \
 	zbxhttp \
+	zbxhttppoller \
 	zbxicmpping \
+	zbxinterface \
+	zbxip \
 	zbxipcservice \
+	zbxipmi \
 	zbxjson \
 	zbxkvs \
 	zbxlog \
@@ -37,120 +54,232 @@ DIST_SUBDIRS = \
 	zbxmodules \
 	zbxmutexs \
 	zbxnix \
+	zbxnum \
+	zbxodbc \
+	zbxparam \
+	zbxpgservice \
+	zbxpinger \
+	zbxpoller \
+	zbxagentget \
+	zbxpreproc \
+	zbxpreprocbase \
 	zbxprometheus \
+	zbxproxybuffer \
 	zbxregexp \
 	zbxrtc \
+	zbxscripts \
 	zbxself \
 	zbxserialize \
-	zbxserver \
+	zbxexpression \
 	zbxservice \
 	zbxshmem \
+	zbxsnmptrapper \
 	zbxsysinfo \
+	zbxstats \
+	zbxstr \
+	zbxtagfilter \
 	zbxtasks \
 	zbxthreads \
+	zbxtime \
+	zbxtimekeeper \
+	zbxtrapper \
 	zbxtrends \
 	zbxvariant \
 	zbxvault \
+	zbxversion \
+	zbxvmware \
+	zbxprof \
 	zbxxml
 
 if SERVER
 SERVER_SUBDIRS = \
+	zbxalerter \
+	zbxasynchttppoller \
+	zbxasyncpoller \
 	zbxaudit \
+	zbxautoreg \
 	zbxavailability \
+	zbxbincommon \
+	zbxconnector \
 	zbxcompress \
-	zbxcyberark \
 	zbxdb \
-	zbxdbcache \
+	zbxdiscovery \
+	zbxdiscoverer \
+	zbxcacheconfig \
+	zbxcachehistory \
+	zbxcachevalue \
 	zbxdbhigh \
+	zbxdbwrap \
+	zbxdbsyncer \
 	zbxdbschema \
 	zbxdbupgrade \
 	zbxdiag \
 	zbxembed \
+	zbxescalations \
 	zbxeval \
+	zbxevent \
 	zbxexport \
-	zbxha \
-	zbxhashicorp \
+	zbxexpr \
 	zbxhistory \
 	zbxhttp \
+	zbxhttppoller \
 	zbxicmpping \
+	zbxinterface \
+	zbxip \
+	zbxipcservice \
 	zbxkvs \
 	zbxmedia \
+	zbxnum \
+	zbxodbc \
+	zbxparam \
+	zbxpgservice \
+	zbxpinger \
+	zbxpoller \
+	zbxpreproc \
+	zbxpreprocbase \
 	zbxprometheus \
+	zbxproxybuffer \
 	zbxrtc \
+	zbxscripts \
 	zbxself \
 	zbxserialize \
-	zbxserver \
+	zbxexpression \
 	zbxservice \
 	zbxshmem \
+	zbxsnmptrapper \
+	zbxstats \
+	zbxstr \
+	zbxtagfilter \
 	zbxtasks \
+	zbxtime \
+	zbxtimekeeper \
 	zbxtrends \
+	zbxtrapper \
 	zbxvariant \
 	zbxvault \
+	zbxversion \
+	zbxvmware \
 	zbxxml
+if HAVE_IPMI
+SERVER_SUBDIRS += zbxipmi
+endif
 else
 if PROXY
 PROXY_SUBDIRS = \
+	zbxasyncpoller \
+	zbxasynchttppoller \
 	zbxaudit \
+	zbxautoreg \
 	zbxavailability \
+	zbxbincommon \
+	zbxconnector \
 	zbxcompress \
-	zbxcyberark \
 	zbxdb \
-	zbxdbcache \
+	zbxdiscovery \
+	zbxdiscoverer \
+	zbxcacheconfig \
+	zbxcachehistory \
+	zbxcachevalue \
 	zbxdbhigh \
+	zbxdbwrap \
+	zbxdbsyncer \
 	zbxdbschema \
 	zbxdbupgrade \
 	zbxdiag \
 	zbxembed \
+	zbxescalations \
 	zbxeval \
+	zbxevent \
 	zbxexport \
-	zbxhashicorp \
 	zbxhistory \
 	zbxhttp \
+	zbxhttppoller \
 	zbxicmpping \
+	zbxinterface \
+	zbxip \
+	zbxipcservice \
 	zbxkvs \
+	zbxnum \
+	zbxodbc \
+	zbxparam \
+	zbxpgservice \
+	zbxpinger \
+	zbxpoller \
+	zbxpreproc \
+	zbxpreprocbase \
 	zbxprometheus \
+	zbxproxybuffer \
 	zbxrtc \
 	zbxself \
 	zbxserialize \
-	zbxserver \
+	zbxexpression \
+	zbxscripts \
 	zbxshmem \
+	zbxsnmptrapper \
+	zbxstats \
+	zbxstr \
+	zbxtagfilter \
 	zbxtasks \
+	zbxtime \
+	zbxtimekeeper \
 	zbxtrends \
+	zbxtrapper \
 	zbxvariant \
 	zbxvault \
+	zbxversion \
+	zbxvmware \
 	zbxxml
+if HAVE_IPMI
+PROXY_SUBDIRS += zbxipmi
+endif
 endif
 endif
 
 SUBDIRS = \
 	zbxalgo \
+	zbxbincommon \
 	zbxcommon \
 	zbxcomms \
 	zbxcommshigh \
 	zbxcompress \
-	zbxconf \
+	zbxcfg \
 	zbxcrypto \
-	zbxdbschema \
-	zbxdiscovery \
+	zbxcurl \
 	zbxexec \
+	zbxexpr \
+	zbxfile \
 	zbxgetopt \
 	zbxhash \
 	zbxhttp \
-	zbxipcservice \
+	zbxinterface \
+	zbxip \
 	zbxjson \
 	zbxlog \
 	zbxmodules \
 	zbxmutexs \
+	zbxprof \
 	zbxnix \
+	zbxnum \
+	zbxparam \
 	zbxregexp \
 	zbxsysinfo \
+	zbxstr \
 	zbxthreads \
+	zbxtime \
 	zbxvariant \
+	zbxversion \
 	zbxxml \
+	zbxagentget \
 	$(PROXY_SUBDIRS) \
 	$(SERVER_SUBDIRS) \
 	$(AGENT_SUBDIRS)
 
 EXTRA_DIST = \
-	zbxsymbols \
-	zbxwin32
+	zbxwin32 \
+	zbxwinservice
+
+## hashicorp and cyberark used to be a separate libraries, remove them at some point in the future
+clean: clean-recursive
+	rm -rf hashicorp && \
+	rm -rf cyberark
+.PHONY: clean

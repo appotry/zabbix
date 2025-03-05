@@ -1,21 +1,16 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -54,20 +49,8 @@ class CSla extends CApiService {
 				'operator' =>					['type' => API_INT32, 'in' => implode(',', [TAG_OPERATOR_LIKE, TAG_OPERATOR_EQUAL, TAG_OPERATOR_NOT_LIKE, TAG_OPERATOR_NOT_EQUAL, TAG_OPERATOR_EXISTS, TAG_OPERATOR_NOT_EXISTS])]
 			]],
 			'serviceids' =>					['type' => API_IDS, 'flags' => API_ALLOW_NULL | API_NORMALIZE, 'default' => null],
-			'filter' =>						['type' => API_OBJECT, 'flags' => API_ALLOW_NULL, 'default' => null, 'fields' => [
-				'slaid' =>						['type' => API_IDS, 'flags' => API_ALLOW_NULL | API_NORMALIZE],
-				'name' =>						['type' => API_STRINGS_UTF8, 'flags' => API_ALLOW_NULL | API_NORMALIZE],
-				'period' =>						['type' => API_INTS32, 'flags' => API_ALLOW_NULL | API_NORMALIZE, 'in' => implode(',', [ZBX_SLA_PERIOD_DAILY, ZBX_SLA_PERIOD_WEEKLY, ZBX_SLA_PERIOD_MONTHLY, ZBX_SLA_PERIOD_QUARTERLY, ZBX_SLA_PERIOD_ANNUALLY])],
-				'slo' =>						['type' => API_FLOATS, 'flags' => API_ALLOW_NULL | API_NORMALIZE, 'in' => '0:100'],
-				'effective_date' =>				['type' => API_INTS32, 'flags' => API_ALLOW_NULL | API_NORMALIZE, 'in' => '0:'.ZBX_MAX_DATE],
-				'timezone' =>					['type' => API_STRINGS_UTF8, 'flags' => API_ALLOW_NULL | API_NORMALIZE, 'in' => implode(',', array_merge([ZBX_DEFAULT_TIMEZONE], array_keys(CTimezoneHelper::getList())))],
-				'status' =>						['type' => API_INTS32, 'flags' => API_ALLOW_NULL | API_NORMALIZE, 'in' => implode(',', [ZBX_SLA_STATUS_DISABLED, ZBX_SLA_STATUS_ENABLED])]
-			]],
-			'search' =>						['type' => API_OBJECT, 'flags' => API_ALLOW_NULL, 'default' => null, 'fields' => [
-				'name' =>						['type' => API_STRINGS_UTF8, 'flags' => API_ALLOW_NULL | API_NORMALIZE],
-				'timezone' =>					['type' => API_STRINGS_UTF8, 'flags' => API_ALLOW_NULL | API_NORMALIZE],
-				'description' =>				['type' => API_STRINGS_UTF8, 'flags' => API_ALLOW_NULL | API_NORMALIZE]
-			]],
+			'filter' =>						['type' => API_FILTER, 'flags' => API_ALLOW_NULL, 'default' => null, 'fields' => ['slaid', 'name', 'period', 'slo', 'effective_date', 'timezone', 'status']],
+			'search' =>						['type' => API_FILTER, 'flags' => API_ALLOW_NULL, 'default' => null, 'fields' => ['name', 'timezone', 'description']],
 			'searchByAny' =>				['type' => API_BOOLEAN, 'default' => false],
 			'startSearch' =>				['type' => API_FLAG, 'default' => false],
 			'excludeSearch' =>				['type' => API_FLAG, 'default' => false],
@@ -517,7 +500,7 @@ class CSla extends CApiService {
 	 *
 	 * @throws APIException
 	 */
-	private static function checkDuplicates(array $slas, array $db_slas = null): void {
+	private static function checkDuplicates(array $slas, ?array $db_slas = null): void {
 		$names = [];
 
 		foreach ($slas as $sla) {
@@ -546,7 +529,7 @@ class CSla extends CApiService {
 	 *
 	 * @throws APIException
 	 */
-	private static function checkSlo(array $slas, array $db_slas = null): void {
+	private static function checkSlo(array $slas, ?array $db_slas = null): void {
 		foreach ($slas as $sla) {
 			$name = $db_slas !== null ? $db_slas[$sla['slaid']]['name'] : $sla['name'];
 
@@ -564,7 +547,7 @@ class CSla extends CApiService {
 	 *
 	 * @throws APIException
 	 */
-	private static function checkSchedule(array &$slas, array $db_slas = null): void {
+	private static function checkSchedule(array &$slas, ?array $db_slas = null): void {
 		foreach ($slas as &$sla) {
 			if (!array_key_exists('schedule', $sla)) {
 				continue;
@@ -591,7 +574,7 @@ class CSla extends CApiService {
 	 *
 	 * @throws APIException
 	 */
-	private static function checkExcludedDowntimes(array $slas, array $db_slas = null): void {
+	private static function checkExcludedDowntimes(array $slas, ?array $db_slas = null): void {
 		foreach ($slas as $sla) {
 			if (!array_key_exists('excluded_downtimes', $sla)) {
 				continue;
@@ -712,7 +695,7 @@ class CSla extends CApiService {
 	 * @param array      $slas
 	 * @param array|null $db_slas
 	 */
-	private static function updateServiceTags(array &$slas, array $db_slas = null): void {
+	private static function updateServiceTags(array &$slas, ?array $db_slas = null): void {
 		$ins_service_tags = [];
 		$del_service_tags = [];
 
@@ -782,7 +765,7 @@ class CSla extends CApiService {
 	 * @param array      $slas
 	 * @param array|null $db_slas
 	 */
-	private static function updateSchedule(array &$slas, array $db_slas = null): void {
+	private static function updateSchedule(array &$slas, ?array $db_slas = null): void {
 		$ins_schedule = [];
 		$del_schedule = [];
 
@@ -849,7 +832,7 @@ class CSla extends CApiService {
 	 * @param array      $slas
 	 * @param array|null $db_slas
 	 */
-	private static function updateExcludedDowntimes(array &$slas, array $db_slas = null): void {
+	private static function updateExcludedDowntimes(array &$slas, ?array $db_slas = null): void {
 		$ins_excluded_downtimes = [];
 		$upd_excluded_downtimes = [];
 		$del_excluded_downtimes = [];
@@ -1028,7 +1011,7 @@ class CSla extends CApiService {
 			return [];
 		}
 
-		$services_slas_resource_sql = 'SELECT DISTINCT st.serviceid, sst.slaid'.
+		$services_slas_resource_sql = 'SELECT DISTINCT st.serviceid,sst.slaid'.
 			' FROM service_tag st, sla_service_tag sst'.
 			' WHERE sst.tag=st.tag'.
 				' AND ('.
@@ -1141,6 +1124,10 @@ class CSla extends CApiService {
 		if ($options['period_from'] !== null) {
 			$period_from = (new DateTime('@'.$options['period_from']))->setTimezone($timezone);
 			self::alignDateToPeriodStart($period_from, (int) $sla['period']);
+
+			if ($period_from->getTimestamp() < 0) {
+				$period_from->add($interval);
+			}
 		}
 		else {
 			$period_from = null;
@@ -1150,6 +1137,10 @@ class CSla extends CApiService {
 			$period_to = (new DateTime('@'.$options['period_to']))->setTimezone($timezone);
 			self::alignDateToPeriodStart($period_to, (int) $sla['period']);
 			$period_to->add($interval);
+
+			if ($period_to->getTimestamp() > ZBX_MAX_DATE) {
+				$period_to->sub($interval);
+			}
 		}
 		elseif ($period_from === null) {
 			$period_to = $effective_max;
@@ -1443,22 +1434,36 @@ class CSla extends CApiService {
 
 		$uptime_periods = [];
 
-		$week_offset = $reporting_period['period_from'] -
-			(new DateTime('@'.$reporting_period['period_from']))
+		$reporting_period_from =
+			(new DateTimeImmutable('@'.$reporting_period['period_from']))
 				->setTimezone(new DateTimeZone($db_sla['timezone'] !== ZBX_DEFAULT_TIMEZONE
 					? $db_sla['timezone']
 					: CTimezoneHelper::getSystemTimezone()
 				))
 				->modify('1 day')
-				->modify('last Sunday')
-				->getTimestamp();
+				->modify('last Sunday');
 
 		for ($week = 0;; $week++) {
-			$week_period_from = $reporting_period['period_from'] - $week_offset + SEC_PER_WEEK * $week;
+			$week_period_from = $reporting_period_from->modify($week.' week');
 
 			foreach ($db_sla['schedule'] as $schedule_row) {
-				$period_from = $week_period_from + $schedule_row['period_from'];
-				$period_to = $week_period_from + $schedule_row['period_to'];
+				$period_from = $week_period_from
+					->modify((int) ($schedule_row['period_from'] / SEC_PER_DAY).' day')
+					->setTime(
+						(int) ($schedule_row['period_from'] / SEC_PER_HOUR) % 24,
+						(int) ($schedule_row['period_from'] / SEC_PER_MIN) % 60,
+						$schedule_row['period_from'] % 60
+					)
+					->getTimestamp();
+
+				$period_to = $week_period_from
+					->modify((int) ($schedule_row['period_to'] / SEC_PER_DAY).' day')
+					->setTime(
+						(int) ($schedule_row['period_to'] / SEC_PER_HOUR) % 24,
+						(int) ($schedule_row['period_to'] / SEC_PER_MIN) % 60,
+						$schedule_row['period_to'] % 60
+					)
+					->getTimestamp();
 
 				if ($period_from < $reporting_period['period_to'] && $period_to > $reporting_period['period_from']) {
 					$new_period_from = max($reporting_period['period_from'], $period_from);

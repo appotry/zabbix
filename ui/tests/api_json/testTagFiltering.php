@@ -1,21 +1,16 @@
 <?php
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -23,7 +18,7 @@ require_once dirname(__FILE__).'/../include/CAPITest.php';
 
 class testTagFiltering extends CAPITest {
 
-	const HOST_GROUP = '50027';
+	const HOST_GROUPS = [50027, 50028];
 
 	public static function host_get_data() {
 		return [
@@ -149,7 +144,7 @@ class testTagFiltering extends CAPITest {
 				],
 				'expected' => [
 					'Host Browser', 'Host Browser - Chrome', 'Host Browser - Firefox', 'Host Browser - IE',
-					'Host without tags', 'Host with very general tags only'
+					'Host OS - Android', 'Host without tags', 'Host with very general tags only'
 				]
 			],
 			'test-two-not-exists-with-exception' => [
@@ -176,7 +171,7 @@ class testTagFiltering extends CAPITest {
 	public function testHost_Get($filter, $expected) {
 		$request = [
 			'output' => ['host'],
-			'groupids' => self::HOST_GROUP
+			'groupids' => self::HOST_GROUPS
 		] + $filter;
 
 		['result' => $result] = $this->call('host.get', $request);
@@ -351,7 +346,7 @@ class testTagFiltering extends CAPITest {
 	public function testHostTagInheritance_Get($filter, $expected) {
 		$request = [
 			'output' => ['host'],
-			'groupids' => self::HOST_GROUP,
+			'groupids' => self::HOST_GROUPS,
 			'inheritedTags' => true
 		] + $filter;
 
@@ -390,7 +385,7 @@ class testTagFiltering extends CAPITest {
 					'Template OS - Windows'
 				]
 			],
-			'templates-equals-unexisting-value-tag' => [
+			'templates-equals-nonexistent-value-tag' => [
 				'filter' => [
 					'evaltype' => TAG_EVAL_TYPE_AND_OR,
 					'tags' => [
@@ -515,7 +510,7 @@ class testTagFiltering extends CAPITest {
 					'Template Browser - FF', 'Template OS - Ubuntu Bionic Beaver', 'Template OS - Windows'
 				]
 			],
-			'templates-not-equal-one-of-two-unexisting-tags' => [
+			'templates-not-equal-one-of-two-nonexistent-tags' => [
 				'filter' => [
 					'evaltype' => TAG_EVAL_TYPE_OR,
 					'tags' => [
@@ -537,7 +532,7 @@ class testTagFiltering extends CAPITest {
 	public function testTemplate_Get($filter, $expected) {
 		$request = [
 			'output' => ['name'],
-			'groupids' => self::HOST_GROUP
+			'groupids' => self::HOST_GROUPS
 		] + $filter;
 
 		['result' => $result] = $this->call('template.get', $request);
@@ -765,7 +760,7 @@ class testTagFiltering extends CAPITest {
 	public function testEvent_Get($filter, $expected) {
 		$request = [
 			'output' => ['name'],
-			'groupids' => self::HOST_GROUP
+			'groupids' => self::HOST_GROUPS
 		] + $filter;
 
 		['result' => $result] = $this->call('event.get', $request);
@@ -784,7 +779,7 @@ class testTagFiltering extends CAPITest {
 	public function testProblem_Get($filter, $expected) {
 		$request = [
 			'output' => ['name'],
-			'groupids' => self::HOST_GROUP
+			'groupids' => self::HOST_GROUPS
 		] + $filter;
 
 		['result' => $result] = $this->call('problem.get', $request);

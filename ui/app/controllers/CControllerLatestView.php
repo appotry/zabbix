@@ -1,21 +1,16 @@
 <?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
@@ -25,7 +20,7 @@
 class CControllerLatestView extends CControllerLatest {
 
 	protected function init(): void {
-		$this->disableSIDValidation();
+		$this->disableCsrfValidation();
 	}
 
 	protected function checkInput() {
@@ -37,6 +32,7 @@ class CControllerLatestView extends CControllerLatest {
 			'show_details' =>			'in 1,0',
 			'evaltype' =>				'in '.TAG_EVAL_TYPE_AND_OR.','.TAG_EVAL_TYPE_OR,
 			'tags' =>					'array',
+			'state' =>					'in -1,'.ITEM_STATE_NORMAL.','.ITEM_STATE_NOTSUPPORTED,
 			'show_tags' =>				'in '.SHOW_TAGS_NONE.','.SHOW_TAGS_1.','.SHOW_TAGS_2.','.SHOW_TAGS_3,
 			'tag_name_format' =>		'in '.TAG_NAME_FULL.','.TAG_NAME_SHORTENED.','.TAG_NAME_NONE,
 			'tag_priority' =>			'string',
@@ -51,11 +47,13 @@ class CControllerLatestView extends CControllerLatest {
 			'filter_custom_time' =>		'in 1,0',
 			'filter_show_counter' =>	'in 1,0',
 			'filter_counters' =>		'in 1',
+			'filter_set' =>				'in 1',
 			'filter_reset' =>			'in 1',
 			'counter_index' =>			'ge 0',
 			'subfilter_hostids' =>		'array',
 			'subfilter_tagnames' =>		'array',
 			'subfilter_tags' =>			'array',
+			'subfilter_state' =>		'array',
 			'subfilter_data' =>			'array',
 			'subfilters_expanded' =>	'array'
 		];
@@ -79,31 +77,39 @@ class CControllerLatestView extends CControllerLatest {
 		// Validate subfilters.
 		if ($ret && $this->hasInput('subfilter_hostids')) {
 			$hostids = $this->getInput('subfilter_hostids', []);
-			$ret = (!$hostids || count($hostids) === count(array_filter($hostids, 'ctype_digit')));
+			$ret = !$hostids || count($hostids) == count(array_filter($hostids, 'ctype_digit'));
 		}
 
 		if ($ret && $this->hasInput('subfilter_tagnames')) {
 			$tagnames = $this->getInput('subfilter_tagnames', []);
-			$ret = (!$tagnames || count($tagnames) === count(array_filter($tagnames, 'is_string')));
+			$ret = !$tagnames || count($tagnames) == count(array_filter($tagnames, 'is_string'));
 		}
 
 		if ($ret && $this->hasInput('subfilter_tags')) {
 			$tags = $this->getInput('subfilter_tags', []);
 			foreach ($tags as $tag => $values) {
 				if (!is_scalar($tag) || !is_array($values)
-						|| count($values) !== count(array_filter($values, 'is_string'))) {
+						|| count($values) != count(array_filter($values, 'is_string'))) {
 					$ret = false;
 					break;
 				}
 			}
 		}
 
+		if ($ret && $this->hasInput('subfilter_state')) {
+			$state = $this->getInput('subfilter_state', []);
+			$valid = array_filter($state, function ($val) {
+				return $val == ITEM_STATE_NORMAL || $val == ITEM_STATE_NOTSUPPORTED;
+			});
+			$ret = count($state) == count($valid);
+		}
+
 		if ($ret && $this->hasInput('subfilter_data')) {
 			$data = $this->getInput('subfilter_data', []);
 			$valid = array_filter($data, function ($val) {
-				return ($val === '0' || $val === '1');
+				return $val === '0' || $val === '1';
 			});
-			$ret = (count($data) === count($valid));
+			$ret = count($data) == count($valid);
 		}
 
 		if (!$ret) {
@@ -118,11 +124,20 @@ class CControllerLatestView extends CControllerLatest {
 	}
 
 	protected function doAction(): void {
-		$profile = (new CTabFilterProfile(static::FILTER_IDX, static::FILTER_FIELDS_DEFAULT))
-			->read()
-			->setInput($this->cleanInput($this->getInputAll()));
-
 		$filter_tabs = [];
+		$profile = (new CTabFilterProfile(static::FILTER_IDX, static::FILTER_FIELDS_DEFAULT))->read();
+
+		if ($this->hasInput('filter_reset')) {
+			$profile->reset();
+		}
+		elseif ($this->hasInput('filter_set')) {
+			$profile->setTabFilter(0, ['filter_name' => ''] + $this->cleanInput($this->getInputAll()));
+			$profile->update();
+		}
+		else {
+			$profile->setInput($this->cleanInput($this->getInputAll()));
+		}
+
 		foreach ($profile->getTabsWithDefaults() as $index => $filter_tab) {
 			if ($index == $profile->selected) {
 				// Initialize multiselect data for filter_scr to allow tabfilter correctly handle unsaved state.
@@ -133,6 +148,10 @@ class CControllerLatestView extends CControllerLatest {
 		}
 
 		$filter = $filter_tabs[$profile->selected];
+		$filter = self::sanitizeFilter($filter);
+
+		$mandatory_filter_set = self::isMandatoryFilterFieldSet($filter);
+		$subfilter_set = self::isSubfilterSet($filter);
 
 		$refresh_curl = new CUrl('zabbix.php');
 		$refresh_curl_params = ['action' => 'latest.view.refresh'] + $filter;
@@ -141,12 +160,25 @@ class CControllerLatestView extends CControllerLatest {
 		// data sort and pager
 		$sort_field = $this->getInput('sort', 'name');
 		$sort_order = $this->getInput('sortorder', ZBX_SORT_UP);
-		$prepared_data = $this->prepareData($filter, $sort_field, $sort_order);
+
+		$prepared_data = [
+			'hosts' => [],
+			'items' => [],
+			'items_rw' => []
+		];
+
+		if ($mandatory_filter_set || $subfilter_set) {
+			$prepared_data = $this->prepareData($filter, $sort_field, $sort_order);
+		}
 
 		// Prepare subfilter data.
-		$subfilters_fields = self::getSubfilterFields($filter, (count($filter['hostids']) == 1));
+		$subfilters_fields = self::getSubfilterFields($filter);
 		$subfilters = self::getSubfilters($subfilters_fields, $prepared_data);
 		$prepared_data['items'] = self::applySubfilters($prepared_data['items']);
+
+		if ($filter['state'] != -1) {
+			$subfilters['state'] = [];
+		}
 
 		$view_url = (new CUrl('zabbix.php'))->setArgument('action', 'latest.view');
 		$paging_arguments = array_filter(array_intersect_key($filter, self::FILTER_FIELDS_DEFAULT));
@@ -162,12 +194,14 @@ class CControllerLatestView extends CControllerLatest {
 			'show_details' => $filter['show_details'] ? 1 : 0,
 			'evaltype' => $filter['evaltype'],
 			'tags' => $filter['tags'],
+			'state' => $filter['state'],
 			'show_tags' => $filter['show_tags'],
 			'tag_name_format' => $filter['tag_name_format'],
 			'tag_priority' => $filter['tag_priority'],
 			'subfilter_hostids' => $filter['subfilter_hostids'],
 			'subfilter_tagnames' => $filter['subfilter_tagnames'],
 			'subfilter_tags' => $filter['tags'],
+			'subfilter_state' => $filter['subfilter_state'],
 			'subfilter_data' => $filter['subfilter_data'],
 			'sort' => $sort_field,
 			'sortorder' => $sort_order,
@@ -180,6 +214,8 @@ class CControllerLatestView extends CControllerLatest {
 			'refresh_interval' => CWebUser::getRefresh() * 1000,
 			'refresh_data' => $refresh_data,
 			'filter_defaults' => $profile->filter_defaults,
+			'mandatory_filter_set' => $mandatory_filter_set,
+			'subfilter_set' => $subfilter_set,
 			'filter_view' => 'monitoring.latest.filter',
 			'filter_tabs' => $filter_tabs,
 			'tabfilter_options' => [
@@ -187,7 +223,8 @@ class CControllerLatestView extends CControllerLatest {
 				'selected' => $profile->selected,
 				'support_custom_time' => 0,
 				'expanded' => $profile->expanded,
-				'page' => $filter['page']
+				'page' => $filter['page'],
+				'csrf_token' => CCsrfTokenHelper::get('tabfilter')
 			],
 			'filter' => $filter,
 			'subfilters' => $subfilters,
@@ -195,6 +232,7 @@ class CControllerLatestView extends CControllerLatest {
 			'sort_order' => $sort_order,
 			'view_curl' => $view_url,
 			'paging' => $paging,
+			'uncheck' => $this->hasInput('filter_reset'),
 			'config' => [
 				'hk_trends' => CHousekeepingHelper::get(CHousekeepingHelper::HK_TRENDS),
 				'hk_trends_global' => CHousekeepingHelper::get(CHousekeepingHelper::HK_TRENDS_GLOBAL),

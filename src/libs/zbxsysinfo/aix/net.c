@@ -1,26 +1,22 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-#include "common.h"
-#include "sysinfo.h"
+#include "zbxsysinfo.h"
+#include "../sysinfo.h"
+
 #include "zbxjson.h"
-#include "log.h"
+#include "zbxstr.h"
 
 typedef struct
 {
@@ -46,7 +42,7 @@ static int	get_net_stat(const char *if_name, net_stat_t *ns, char **error)
 		return SYSINFO_RET_FAIL;
 	}
 
-	strscpy(ps_id.name, if_name);
+	zbx_strscpy(ps_id.name, if_name);
 
 	if (-1 == perfstat_netinterface(&ps_id, &ps_netif, sizeof(ps_netif), 1))
 	{
@@ -67,11 +63,12 @@ static int	get_net_stat(const char *if_name, net_stat_t *ns, char **error)
 	return SYSINFO_RET_OK;
 #else
 	SET_MSG_RESULT(result, zbx_strdup(NULL, "Agent was compiled without support for Perfstat API."));
+
 	return SYSINFO_RET_FAIL;
 #endif
 }
 
-int	NET_IF_IN(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	net_if_in(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	char		*if_name, *mode, *error;
 	net_stat_t	ns;
@@ -106,7 +103,7 @@ int	NET_IF_IN(AGENT_REQUEST *request, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-int	NET_IF_OUT(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	net_if_out(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	char		*if_name, *mode, *error;
 	net_stat_t	ns;
@@ -141,7 +138,7 @@ int	NET_IF_OUT(AGENT_REQUEST *request, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-int	NET_IF_TOTAL(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	net_if_total(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	char		*if_name, *mode, *error;
 	net_stat_t	ns;
@@ -176,7 +173,7 @@ int	NET_IF_TOTAL(AGENT_REQUEST *request, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-int	NET_IF_COLLISIONS(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	net_if_collisions(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 	char		*if_name, *error;
 	net_stat_t	ns;
@@ -200,13 +197,15 @@ int	NET_IF_COLLISIONS(AGENT_REQUEST *request, AGENT_RESULT *result)
 	return SYSINFO_RET_OK;
 }
 
-int	NET_IF_DISCOVERY(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	net_if_discovery(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 #if defined(HAVE_LIBPERFSTAT)
-	int			rc, i, ret = SYSINFO_RET_FAIL;
+	int			rc, ret = SYSINFO_RET_FAIL;
 	perfstat_id_t		ps_id;
 	perfstat_netinterface_t	*ps_netif = NULL;
 	struct zbx_json		j;
+
+	ZBX_UNUSED(request);
 
 	/* check how many perfstat_netinterface_t structures are available */
 	if (-1 == (rc = perfstat_netinterface(NULL, NULL, sizeof(perfstat_netinterface_t), 0)))
@@ -226,7 +225,7 @@ int	NET_IF_DISCOVERY(AGENT_REQUEST *request, AGENT_RESULT *result)
 	ps_netif = zbx_malloc(ps_netif, rc * sizeof(perfstat_netinterface_t));
 
 	/* set name to first interface */
-	strscpy(ps_id.name, FIRST_NETINTERFACE);	/* pseudo-name for the first network interface */
+	zbx_strscpy(ps_id.name, FIRST_NETINTERFACE);	/* pseudo-name for the first network interface */
 
 	/* ask to get all the structures available in one call */
 	/* return code is number of structures returned */
@@ -234,7 +233,7 @@ int	NET_IF_DISCOVERY(AGENT_REQUEST *request, AGENT_RESULT *result)
 		ret = SYSINFO_RET_OK;
 
 	/* collecting of the information for each of the interfaces */
-	for (i = 0; i < rc; i++)
+	for (int i = 0; i < rc; i++)
 	{
 		zbx_json_addobject(&j, NULL);
 		zbx_json_addstring(&j, "{#IFNAME}", ps_netif[i].name, ZBX_JSON_TYPE_STRING);
@@ -251,7 +250,10 @@ end:
 
 	return ret;
 #else
+	ZBX_UNUSED(request);
+
 	SET_MSG_RESULT(result, zbx_strdup(NULL, "Agent was compiled without support for Perfstat API."));
+
 	return SYSINFO_RET_FAIL;
 #endif
 }

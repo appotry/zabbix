@@ -1,25 +1,22 @@
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
-#include "common.h"
-#include "sysinfo.h"
+#include "zbxsysinfo.h"
+#include "../sysinfo.h"
+
 #include "zbxregexp.h"
+#include "zbxstr.h"
 
 static int	check_procstate(struct procentry64 *procentry, int zbx_proc_stat)
 {
@@ -39,10 +36,10 @@ static int	check_procstate(struct procentry64 *procentry, int zbx_proc_stat)
 	return FAIL;
 }
 
-static int	check_procargs(struct procentry64 *procentry, const char *proccomm)
+static int	match_procargs(struct procentry64 *procentry, const zbx_regexp_t *proccomm_rxp)
 {
-	int	i;
-	char	procargs[MAX_BUFFER_LEN];
+	unsigned int	i;
+	char		procargs[MAX_BUFFER_LEN];
 
 	if (0 != getargs(procentry, (int)sizeof(*procentry), procargs, (int)sizeof(procargs)))
 		return FAIL;
@@ -61,10 +58,10 @@ static int	check_procargs(struct procentry64 *procentry, const char *proccomm)
 	if (i == sizeof(procargs) - 1)
 		procargs[i] = '\0';
 
-	return NULL != zbx_regexp_match(procargs, proccomm, NULL) ? SUCCEED : FAIL;
+	return 0 == zbx_regexp_match_precompiled(procargs, proccomm_rxp) ? SUCCEED : FAIL;
 }
 
-int	PROC_MEM(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	proc_mem(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
 #define ZBX_VSIZE	0
 #define ZBX_RSS		1
@@ -85,13 +82,14 @@ int	PROC_MEM(AGENT_REQUEST *request, AGENT_RESULT *result)
 #	define ZBX_L2PSIZE(field)	12
 #endif
 
-	char			*param, *procname, *proccomm, *mem_type = NULL;
+	char			*param, *procname, *proccomm, *mem_type = NULL, *rxp_error = NULL;
 	struct passwd		*usrinfo;
 	struct procentry64	procentry;
 	pid_t			pid = 0;
 	int			do_task, mem_type_code, proccount = 0, invalid_user = 0;
 	zbx_uint64_t		mem_size = 0, byte_value = 0;
 	double			pct_size = 0.0, pct_value = 0.0;
+	zbx_regexp_t		*proccomm_rxp = NULL;
 
 	if (5 < request->nparam)
 	{
@@ -127,6 +125,18 @@ int	PROC_MEM(AGENT_REQUEST *request, AGENT_RESULT *result)
 	}
 
 	proccomm = get_rparam(request, 3);
+	if (NULL != proccomm && '\0' != *proccomm)
+	{
+		if (SUCCEED != zbx_regexp_compile(proccomm, &proccomm_rxp, &rxp_error))
+		{
+			SET_MSG_RESULT(result, zbx_dsprintf(NULL, "Invalid regular expression in fourth parameter: "
+					"%s", rxp_error));
+
+			zbx_free(rxp_error);
+			return SYSINFO_RET_FAIL;
+		}
+	}
+
 	mem_type = get_rparam(request, 4);
 
 	if (NULL == mem_type || '\0' == *mem_type || 0 == strcmp(mem_type, "vsize"))
@@ -168,6 +178,10 @@ int	PROC_MEM(AGENT_REQUEST *request, AGENT_RESULT *result)
 	else
 	{
 		SET_MSG_RESULT(result, zbx_strdup(NULL, "Invalid fifth parameter."));
+
+		if (NULL != proccomm_rxp)
+			zbx_regexp_free(proccomm_rxp);
+
 		return SYSINFO_RET_FAIL;
 	}
 
@@ -182,8 +196,12 @@ int	PROC_MEM(AGENT_REQUEST *request, AGENT_RESULT *result)
 		if (NULL != usrinfo && usrinfo->pw_uid != procentry.pi_uid)
 			continue;
 
-		if (NULL != proccomm && '\0' != *proccomm && SUCCEED != check_procargs(&procentry, proccomm))
+		if (NULL != proccomm && '\0' != *proccomm && SUCCEED != match_procargs(&procentry, proccomm_rxp))
 			continue;
+
+		zabbix_log(LOG_LEVEL_DEBUG, "%s(): selected process with procentry.pi_pid=%d procentry.pi_uid=%d"
+				" procentry.pi_comm=[%s] proccomm=[%s]", __func__, procentry.pi_pid, procentry.pi_uid,
+				procentry.pi_comm, proccomm);
 
 		switch (mem_type_code)
 		{
@@ -193,8 +211,10 @@ int	PROC_MEM(AGENT_REQUEST *request, AGENT_RESULT *result)
 				break;
 			case ZBX_RSS:
 				/* try to be compatible with "ps -o rssize" */
-				byte_value = ((zbx_uint64_t)procentry.pi_drss << ZBX_L2PSIZE(procentry.pi_data_l2psize)) +
-						((zbx_uint64_t)procentry.pi_trss << ZBX_L2PSIZE(procentry.pi_text_l2psize));
+				byte_value = ((zbx_uint64_t)procentry.pi_drss <<
+						ZBX_L2PSIZE(procentry.pi_data_l2psize)) +
+						((zbx_uint64_t)procentry.pi_trss <<
+						ZBX_L2PSIZE(procentry.pi_text_l2psize));
 				break;
 			case ZBX_PMEM:
 				/* try to be compatible with "ps -o pmem" */
@@ -267,6 +287,9 @@ out:
 			SET_DBL_RESULT(result, pct_size);
 	}
 
+	if (NULL != proccomm_rxp)
+		zbx_regexp_free(proccomm_rxp);
+
 	return SYSINFO_RET_OK;
 
 #undef ZBX_L2PSIZE
@@ -282,12 +305,13 @@ out:
 #undef ZBX_TRSS
 }
 
-int	PROC_NUM(AGENT_REQUEST *request, AGENT_RESULT *result)
+int	proc_num(AGENT_REQUEST *request, AGENT_RESULT *result)
 {
-	char			*param, *procname, *proccomm;
+	char			*param, *procname, *proccomm, *rxp_error = NULL;
 	struct passwd		*usrinfo;
 	struct procentry64	procentry;
 	pid_t			pid = 0;
+	zbx_regexp_t		*proccomm_rxp = NULL;
 	int			proccount = 0, invalid_user = 0, zbx_proc_stat;
 
 	if (4 < request->nparam)
@@ -325,6 +349,18 @@ int	PROC_NUM(AGENT_REQUEST *request, AGENT_RESULT *result)
 
 	proccomm = get_rparam(request, 3);
 
+	if (NULL != proccomm && '\0' != *proccomm)
+	{
+		if (SUCCEED != zbx_regexp_compile(proccomm, &proccomm_rxp, &rxp_error))
+		{
+			SET_MSG_RESULT(result, zbx_dsprintf(NULL, "Invalid regular expression in fourth parameter: "
+					"%s", rxp_error));
+
+			zbx_free(rxp_error);
+			return SYSINFO_RET_FAIL;
+		}
+	}
+
 	if (1 == invalid_user)	/* handle 0 for non-existent user after all parameters have been parsed and validated */
 		goto out;
 
@@ -339,13 +375,16 @@ int	PROC_NUM(AGENT_REQUEST *request, AGENT_RESULT *result)
 		if (SUCCEED != check_procstate(&procentry, zbx_proc_stat))
 			continue;
 
-		if (NULL != proccomm && '\0' != *proccomm && SUCCEED != check_procargs(&procentry, proccomm))
+		if (NULL != proccomm && '\0' != *proccomm && SUCCEED != match_procargs(&procentry, proccomm_rxp))
 			continue;
 
 		proccount++;
 	}
 out:
 	SET_UI64_RESULT(result, proccount);
+
+	if (NULL != proccomm_rxp)
+		zbx_regexp_free(proccomm_rxp);
 
 	return SYSINFO_RET_OK;
 }

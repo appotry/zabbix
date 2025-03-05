@@ -20,15 +20,12 @@
 
 AC_DEFUN([LIBSSH_TRY_LINK],
 [
-AC_TRY_LINK(
-[
+AC_LINK_IFELSE([AC_LANG_PROGRAM([[
 #include <libssh/libssh.h>
-],
-[
+]], [[
 	ssh_session my_ssh_session;
 	my_ssh_session = ssh_new();
-],
-found_ssh="yes",)
+]])],[found_ssh="yes"],[])
 ])dnl
 
 AC_DEFUN([LIBSSH_ACCEPT_VERSION],
@@ -56,7 +53,7 @@ AC_DEFUN([LIBSSH_CHECK_CONFIG],
 [
   AC_ARG_WITH(ssh,[
 If you want to use SSH based checks:
-AC_HELP_STRING([--with-ssh@<:@=DIR@:>@],[use SSH package @<:@default=no@:>@, DIR is the SSH library install directory.])],
+AS_HELP_STRING([--with-ssh@<:@=DIR@:>@],[use SSH package @<:@default=no@:>@, DIR is the SSH library install directory.])],
     [
 	if test "$withval" = "no"; then
 	    want_ssh="no"
@@ -75,39 +72,63 @@ AC_HELP_STRING([--with-ssh@<:@=DIR@:>@],[use SSH package @<:@default=no@:>@, DIR
   if test "x$want_ssh" = "xyes"; then
      AC_MSG_CHECKING(for SSH support)
      if test "x$_libssh_dir" = "xno"; then
-       if test -f /usr/include/libssh/libssh_version.h; then
-         SSH_CFLAGS=-I/usr/include
-         SSH_LDFLAGS=-L/usr/lib
+       if test -f /usr/local/include/libssh/libssh_version.h; then
+         SSH_CFLAGS=-I/usr/local/include
+         SSH_LDFLAGS=-L/usr/local/lib
          SSH_LIBS="-lssh"
          found_ssh="yes"
-	 LIBSSH_ACCEPT_VERSION([/usr/include/libssh/libssh_version.h])
-       elif test -f /usr/include/libssh/libssh.h; then
-         SSH_CFLAGS=-I/usr/include
-         SSH_LDFLAGS=-L/usr/lib
-         SSH_LIBS="-lssh"
-         found_ssh="yes"
-	 LIBSSH_ACCEPT_VERSION([/usr/include/libssh/libssh.h])
-       elif test -f /usr/local/include/libssh/libssh.h; then
+	 LIBSSH_ACCEPT_VERSION([/usr/local/include/libssh/libssh_version.h])
+       fi
+
+       if test "x$accept_ssh_version" == xno && test -f /usr/local/include/libssh/libssh.h; then
          SSH_CFLAGS=-I/usr/local/include
          SSH_LDFLAGS=-L/usr/local/lib
          SSH_LIBS="-lssh"
          found_ssh="yes"
 	 LIBSSH_ACCEPT_VERSION([/usr/local/include/libssh/libssh.h])
-       else #libraries are not found in default directories
+       fi
+
+       if test "x$accept_ssh_version" == xno && test -f /usr/include/libssh/libssh_version.h; then
+         SSH_CFLAGS=-I/usr/include
+         SSH_LDFLAGS=-L/usr/lib
+         SSH_LIBS="-lssh"
+         found_ssh="yes"
+	 LIBSSH_ACCEPT_VERSION([/usr/include/libssh/libssh_version.h])
+       fi
+
+       if test "x$accept_ssh_version" == xno && test -f /usr/include/libssh/libssh.h; then
+         SSH_CFLAGS=-I/usr/include
+         SSH_LDFLAGS=-L/usr/lib
+         SSH_LIBS="-lssh"
+         found_ssh="yes"
+	 LIBSSH_ACCEPT_VERSION([/usr/include/libssh/libssh.h])
+       fi
+
+       if test "x$accept_ssh_version" == xno; then
          found_ssh="no"
          AC_MSG_RESULT(no)
-       fi # test -f /usr/include/libssh/libssh.h; then
+       fi
      else # test "x$_libssh_dir" = "xno"; then
-       if test -f $_libssh_dir/include/libssh/libssh.h; then
+       if test -f $_libssh_dir/include/libssh/libssh_version.h; then
+         SSH_CFLAGS=-I$_libssh_dir/include
+         SSH_LDFLAGS=-L$_libssh_dir/lib
+         SSH_LIBS="-lssh"
+         found_ssh="yes"
+         LIBSSH_ACCEPT_VERSION([$_libssh_dir/include/libssh/libssh_version.h])
+       fi
+
+       if test "x$accept_ssh_version" == xno && test -f $_libssh_dir/include/libssh/libssh.h; then
 	 SSH_CFLAGS=-I$_libssh_dir/include
          SSH_LDFLAGS=-L$_libssh_dir/lib
          SSH_LIBS="-lssh"
          found_ssh="yes"
 	 LIBSSH_ACCEPT_VERSION([$_libssh_dir/include/libssh/libssh.h])
-       else #if test -f $_libssh_dir/include/libssh/libssh.h; then
+       fi
+
+       if test "x$accept_ssh_version" == xno; then
          found_ssh="no"
          AC_MSG_RESULT(no)
-       fi #test -f $_libssh_dir/include/libssh/libssh.h; then
+       fi
      fi #if test "x$_libssh_dir" = "xno"; then
   fi # if test "x$want_ssh" != "xno"; then
 
@@ -130,6 +151,14 @@ AC_HELP_STRING([--with-ssh@<:@=DIR@:>@],[use SSH package @<:@default=no@:>@, DIR
     if test "x$found_ssh" = "xyes"; then
       AC_DEFINE([HAVE_SSH], 1, [Define to 1 if you have the 'libssh' library (-lssh)])
       AC_MSG_RESULT(yes)
+
+      ENUM_CHECK([SSH_OPTIONS_KEY_EXCHANGE],[libssh/libssh.h])
+      ENUM_CHECK([SSH_OPTIONS_HOSTKEYS],[libssh/libssh.h])
+      ENUM_CHECK([SSH_OPTIONS_CIPHERS_C_S],[libssh/libssh.h])
+      ENUM_CHECK([SSH_OPTIONS_CIPHERS_S_C],[libssh/libssh.h])
+      ENUM_CHECK([SSH_OPTIONS_HMAC_C_S],[libssh/libssh.h])
+      ENUM_CHECK([SSH_OPTIONS_HMAC_S_C],[libssh/libssh.h])
+      ENUM_CHECK([SSH_OPTIONS_PUBLICKEY_ACCEPTED_TYPES],[libssh/libssh.h])
     else
       AC_MSG_RESULT(no)
       SSH_CFLAGS=""

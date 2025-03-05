@@ -1,66 +1,40 @@
-<?php
+<?php declare(strict_types = 0);
 /*
-** Zabbix
-** Copyright (C) 2001-2022 Zabbix SIA
+** Copyright (C) 2001-2025 Zabbix SIA
 **
-** This program is free software; you can redistribute it and/or modify
-** it under the terms of the GNU General Public License as published by
-** the Free Software Foundation; either version 2 of the License, or
-** (at your option) any later version.
+** This program is free software: you can redistribute it and/or modify it under the terms of
+** the GNU Affero General Public License as published by the Free Software Foundation, version 3.
 **
-** This program is distributed in the hope that it will be useful,
-** but WITHOUT ANY WARRANTY; without even the implied warranty of
-** MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-** GNU General Public License for more details.
+** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+** without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+** See the GNU Affero General Public License for more details.
 **
-** You should have received a copy of the GNU General Public License
-** along with this program; if not, write to the Free Software
-** Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+** You should have received a copy of the GNU Affero General Public License along with this program.
+** If not, see <https://www.gnu.org/licenses/>.
 **/
 
 
 class CSvgGraphArea extends CSvgGraphLine {
 
-	protected $y_zero;
+	public const ZBX_STYLE_CLASS = 'svg-graph-area';
 
-	public function __construct($path, $metric, $y_zero = 0) {
-		parent::__construct($path, $metric);
+	public function __construct(array $path, array $metric) {
+		$this->path = $path;
 
-		$this->y_zero = $y_zero;
-		$this->add_label = false;
+		parent::__construct($path, $metric, false);
+
 		$this->options = $metric['options'] + [
-			'fill' => 5
+			'fill' => CSvgGraph::SVG_GRAPH_DEFAULT_TRANSPARENCY
 		];
 	}
 
-	public function makeStyles() {
-		$this
-			->addClass(CSvgTag::ZBX_STYLE_GRAPH_AREA)
-			->addClass(CSvgTag::ZBX_STYLE_GRAPH_AREA.'-'.$this->itemid.'-'.$this->options['order']);
+	protected function draw(): void {
+		$this->addClass(self::ZBX_STYLE_CLASS);
 
-		return [
-			'.'.CSvgTag::ZBX_STYLE_GRAPH_AREA.'-'.$this->itemid.'-'.$this->options['order'] => [
-				'fill-opacity' => $this->options['fill'] * 0.1,
-				'fill' => $this->options['color'],
-				'stroke-opacity' => 0.1,
-				'stroke' => $this->options['color'],
-				'stroke-width' => 2
-			]
-		];
-	}
+		parent::draw();
 
-	protected function draw() {
-		$path = parent::draw();
-
-		if ($this->path) {
-			$first_point = reset($this->path);
-			$last_point = end($this->path);
-			$this
-				->lineTo($last_point[0], $this->y_zero)
-				->lineTo($first_point[0], $this->y_zero)
-				->closePath();
+		if (count($this->path) > 1) {
+			$this->closePath();
 		}
-
-		return $path;
 	}
 }
